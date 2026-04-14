@@ -7,6 +7,9 @@ const GestionVisita = () => {
     const [comentario, setComentario] = useState('');
     const [modalAbierto, setModalAbierto] = useState(false);
 
+    const [horaInicio, setHoraInicio] = useState('08:00');
+    const [horaFin, setHoraFin] = useState('09:00');
+
     const [fechaActual, setFechaActual] = useState(new Date());
     const [diaSeleccionado, setDiaSeleccionado] = useState(new Date().getDate());
 
@@ -45,26 +48,45 @@ const GestionVisita = () => {
     };
 
     return (
-        <div className="bg-[#F4F7FF] min-h-screen font-sans relative overflow-hidden">
+        <div className="bg-[#F4F7FF] min-h-screen font-sans relative overflow-x-hidden">
             <Head title="Reportar Visita - LFH" />
+
+            {/* DISEÑO DE SCROLLBAR: BOLITA AZUL MINIMALISTA */}
+            <style>
+                {`
+                .blue-dot-scroll::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .blue-dot-scroll::-webkit-scrollbar-track {
+                    background: #F1F5F9; /* Fondo muy tenue para la guía */
+                    border-radius: 10px;
+                    margin: 15px 0; /* Despega la barra de los bordes superior/inferior */
+                }
+                .blue-dot-scroll::-webkit-scrollbar-thumb {
+                    background: #5D8BF4; /* Tu color azul principal */
+                    border-radius: 50px; /* Hace que parezca una píldora/bolita */
+                    border: 1px solid white; /* Le da un toque de relieve */
+                }
+                .blue-dot-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #4A76D9; /* Azul un poco más oscuro al tocar */
+                }
+                `}
+            </style>
 
             {/* CONTENIDO PRINCIPAL */}
             <div className={`transition-all duration-500 ${modalAbierto ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : 'blur-0 scale-100 opacity-100'}`}>
 
-                {/* Header Compacto */}
                 <div className="p-5 flex items-center justify-between text-[#5D8BF4] bg-white rounded-b-[25px] shadow-sm">
                     <Link href="/panel" className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full">
                         <i className="fa-solid fa-arrow-left text-sm"></i>
                     </Link>
                     <h1 className="text-sm font-black text-[#5D8BF4] uppercase tracking-[0.2em]">
-                        Gestion Visitas
+                        Gestión Visitas
                     </h1>
                     <div className="w-9"></div>
                 </div>
 
                 <main className="px-5 mt-4 space-y-4 pb-32">
-
-                    {/* Calendario Ajustado */}
                     <section className="bg-white p-4 rounded-[24px] shadow-sm border border-gray-50">
                         <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2">
@@ -102,7 +124,6 @@ const GestionVisita = () => {
                         </div>
                     </section>
 
-                    {/* Card del Médico */}
                     <section
                         onClick={() => setModalAbierto(true)}
                         className="bg-white p-4 rounded-[24px] shadow-sm border border-gray-50 flex items-center justify-between active:scale-95 transition-transform cursor-pointer"
@@ -121,67 +142,67 @@ const GestionVisita = () => {
                 </main>
             </div>
 
-            {/* Barra navegación */}
             <div className={`${modalAbierto ? 'opacity-20' : 'opacity-100'} transition-opacity duration-300`}>
                 <BarraNave />
             </div>
 
-            {/* MODAL */}
+            {/* MODAL CON EL NUEVO SCROLL DE "BOLITA" */}
             {modalAbierto && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalAbierto(false)} />
-                    <div className="relative bg-white w-full max-w-md rounded-[35px] p-7 shadow-2xl animate-in zoom-in-95 duration-300 max-h-[85vh] overflow-y-auto no-scrollbar">
-                        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6"></div>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h2 className="text-lg font-black text-gray-900 leading-none">Gestionar Visita</h2>
-                                <p className="text-[11px] text-blue-500 font-medium mt-1">{medico.nombre}</p>
-                            </div>
-                            <button onClick={() => setModalAbierto(false)} className="w-7 h-7 flex items-center justify-center bg-gray-100 rounded-full text-gray-400">
-                                <i className="fa-solid fa-xmark text-sm"></i>
-                            </button>
-                        </div>
 
-                        <div className="space-y-5">
-                            <section className="space-y-2">
-                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado</label>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {[
-                                        { id: 'efectiva', label: 'Efectiva', icon: 'fa-check-circle', color: 'text-green-500' },
-                                        { id: 'no_contactado', label: 'No contactado', icon: 'fa-times-circle', color: 'text-orange-500' },
-                                        { id: 'reprogramada', label: 'Reprogramada', icon: 'fa-clock', color: 'text-blue-500' }
-                                    ].map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => setEstado(opt.id)}
-                                            className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all
-                                                ${estado === opt.id ? 'bg-blue-50/50 border-blue-500' : 'bg-gray-50 border-transparent text-gray-400'}`}
-                                        >
-                                            <i className={`fa-solid ${opt.icon} text-lg ${estado === opt.id ? opt.color : 'text-gray-300'}`}></i>
-                                            <span className={`text-xs font-bold ${estado === opt.id ? 'text-gray-900' : 'text-gray-400'}`}>{opt.label}</span>
-                                        </button>
-                                    ))}
+                    <div className="relative bg-white w-full max-w-md rounded-[35px] p-7 pr-4 shadow-2xl animate-in zoom-in-95 duration-300 max-h-[85vh] overflow-y-auto blue-dot-scroll scroll-smooth">
+                        <div className="pr-3">
+                            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6"></div>
+
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-900 leading-none uppercase">Gestionar Visita</h2>
+                                    <p className="text-[11px] text-blue-500 font-bold mt-1 uppercase tracking-wider">{medico.nombre}</p>
                                 </div>
-                            </section>
+                                <button onClick={() => setModalAbierto(false)} className="w-7 h-7 flex items-center justify-center bg-gray-100 rounded-full text-gray-400">
+                                    <i className="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
 
-                            <section className="space-y-2">
-                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas</label>
-                                <textarea
-                                    value={comentario}
-                                    onChange={(e) => setComentario(e.target.value)}
-                                    placeholder="Breve resumen..."
-                                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs text-gray-800 shadow-inner focus:ring-1 focus:ring-blue-200 min-h-[90px] outline-none"
-                                ></textarea>
-                            </section>
+                            <div className="space-y-5">
+                                <section className="space-y-2">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Horario de Atención</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-gray-50 rounded-2xl p-3 border border-transparent">
+                                            <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Inicio</p>
+                                            <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="w-full bg-transparent text-xs font-bold text-gray-800 outline-none" />
+                                        </div>
+                                        <div className="bg-gray-50 rounded-2xl p-3 border border-transparent">
+                                            <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Fin</p>
+                                            <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="w-full bg-transparent text-xs font-bold text-gray-800 outline-none" />
+                                        </div>
+                                    </div>
+                                </section>
 
-                            <button
-                                onClick={() => setModalAbierto(false)}
-                                disabled={!estado}
-                                className={`w-full py-3.5 rounded-2xl font-black text-[10px] tracking-widest transition-all
-                                    ${estado ? 'bg-[#5D8BF4] text-white shadow-lg shadow-blue-100' : 'bg-gray-200 text-gray-400'}`}
-                            >
-                                FINALIZAR REPORTE
-                            </button>
+                                <section className="space-y-2">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Cambiar Estado</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            { id: 'efectiva', label: 'Efectiva / Completada', icon: 'fa-check-circle', color: 'text-green-500' },
+                                            { id: 'no_contactado', label: 'No contactado / Ausente', icon: 'fa-times-circle', color: 'text-orange-500' },
+                                            { id: 'reprogramada', label: 'Reprogramada', icon: 'fa-clock', color: 'text-blue-500' }
+                                        ].map((opt) => (
+                                            <button key={opt.id} onClick={() => setEstado(opt.id)} className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all ${estado === opt.id ? 'bg-blue-50/50 border-blue-500' : 'bg-gray-50 border-transparent text-gray-400'}`}>
+                                                <i className={`fa-solid ${opt.icon} text-lg ${estado === opt.id ? opt.color : 'text-gray-300'}`}></i>
+                                                <span className={`text-xs font-bold ${estado === opt.id ? 'text-gray-900' : 'text-gray-400'}`}>{opt.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-2">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas de la Visita</label>
+                                    <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Escribe aquí el resultado de la visita..." className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs text-gray-800 shadow-inner focus:ring-1 focus:ring-blue-200 min-h-[90px] outline-none resize-none"></textarea>
+                                </section>
+
+                                <button onClick={() => setModalAbierto(false)} disabled={!estado} className={`w-full py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${estado ? 'bg-[#5D8BF4] text-white shadow-lg' : 'bg-gray-200 text-gray-400'}`}>FINALIZAR REPORTE</button>
+                            </div>
                         </div>
                     </div>
                 </div>
