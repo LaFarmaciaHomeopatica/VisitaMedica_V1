@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Medico extends Model
 {
@@ -11,16 +11,31 @@ class Medico extends Model
 
     protected $table = 'medicos';
 
+    // Desactivamos timestamps si tu tabla no tiene created_at/updated_at
+    public $timestamps = false;
+
     protected $fillable = [
         'usuario_id',
         'nombre_completo',
         'documento',
         'especialidad',
         'geolocalizacion',
-        'direccion_details',
-        'telefono_contacto',
+        'direccion_detalles',
+        'telefono_contactos',
         'horario_atencion',
         'visitador_id',
         'fecha_inicio_relacion'
     ];
+
+    // Relación: Un médico pertenece a un usuario (login)
+    public function usuario()
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    // Relación: Un médico es asignado a un visitador
+    public function visitador()
+    {
+        return $this->belongsTo(User::class, 'visitador_id');
+    }
 }

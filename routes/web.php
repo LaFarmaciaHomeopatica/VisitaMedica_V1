@@ -1,67 +1,57 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\visitador\MedicoController; // <--- Importamos el nuevo controlador
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 
-Route::get('/', function () {
-    return Inertia::render('inicio/Login_1'); 
+
+Route::get('/test', function () {
+    return 'OK';
 });
 
-Route::get('/panel', function () {
-    return Inertia::render('inicio/panel');
-})->name('panel');
+/*
+|--------------------------------------------------------------------------
+| RUTAS PÚBLICAS
+|--------------------------------------------------------------------------
+*/
+Route::get('/', [LoginController::class, 'showLoginForm'])->name('login');
+Route::post('/login', [LoginController::class, 'store'])->name('login.attempt');
+Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
-Route::get('/ListadoMedicos', function () {
-    return Inertia::render('inicio/ListadoMedicos'); 
-});
+/*
+|--------------------------------------------------------------------------
+| RUTAS PROTEGIDAS (Solo usuarios autenticados)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth'])->group(function () {
+    
+    // Panel Principal
+    Route::get('/panel', function () {
+        return Inertia::render('inicio/panel');
+    })->name('panel');
 
-Route::get('/visitador', function () {
-    return Inertia::render('inicio/visitador'); 
-});
-Route::get('/MedicoDetalle', function () {
-    return Inertia::render('inicio/MedicoDetalle'); 
-});
+    // --- MÓDULO DE MÉDICOS ---
+    // Esta ruta carga el listado completo
+    Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
+    
+    // Esta ruta carga el detalle de un médico específico usando su ID
+    Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
-Route::get('/GestionVisita', function () {
-    return Inertia::render('inicio/GestionVisita'); 
-});
+    // Otros Módulos
+    Route::get('/visitador', function () { return Inertia::render('inicio/visitador'); })->name('visitador');
+    Route::get('/GestionVisita', function () { return Inertia::render('inicio/GestionVisita'); })->name('gestion.visita');
+    Route::get('/ProductoCatalogo', function () { return Inertia::render('inicio/ProductoCatalogo'); })->name('productos');
+    Route::get('/CalendarioVisitas', function () { return Inertia::render('inicio/CalendarioVisitas'); })->name('calendario');
 
-Route::get('/ProductoCatalogo', function () {
-    return Inertia::render('inicio/ProductoCatalogo'); 
-});
-
-
-
-Route::get('/CalendarioVisitas', function () {
-    return Inertia::render('inicio/CalendarioVisitas'); 
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//esto venia por defecto no lo elimino por que se bugea._.
-
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-Route::middleware('auth')->group(function () {
+    // Perfil
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+Route::get('/dashboard', function () {
+    return redirect()->route('panel');
+})->middleware(['auth']);

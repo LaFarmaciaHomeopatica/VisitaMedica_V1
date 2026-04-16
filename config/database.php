@@ -49,7 +49,7 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'vista_medica_v2'),
+            'database' => env('DB_DATABASE', 'vistalfh'),
             'username' => env('DB_USERNAME', 'root'),
             'password' => env('DB_PASSWORD', '0987654321'),
             'unix_socket' => env('DB_SOCKET', ''),
