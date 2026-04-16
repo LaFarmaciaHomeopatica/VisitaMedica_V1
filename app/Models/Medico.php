@@ -27,11 +27,7 @@ class Medico extends Model
         'fecha_inicio_relacion'
     ];
 
-    // Relación: Un médico pertenece a un usuario (login)
-    public function usuario()
-    {
-        return $this->belongsTo(User::class, 'usuario_id');
-    }
+    
 
     // Relación: Un médico es asignado a un visitador
     public function visitador()

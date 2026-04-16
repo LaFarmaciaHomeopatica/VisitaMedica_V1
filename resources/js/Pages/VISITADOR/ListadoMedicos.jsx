@@ -51,7 +51,7 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                             <FaArrowLeft className="text-xs" />
                         </Link>
 
-                        <div className="flex flex-col min-w-0 flex-grow md:flex-grow-0">
+                        <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
                             <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
                                 Listado de Médicos
                             </h1>

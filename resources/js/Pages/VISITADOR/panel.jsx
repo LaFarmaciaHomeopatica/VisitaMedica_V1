@@ -39,10 +39,11 @@ const DashboardLFH = () => {
                 <div className="max-w-[1440px] mx-auto p-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">
 
-                        {/* Título - En Dashboard usamos el logo o nombre de app */}
-                        <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
-                            LFH VISITAS
-                        </h1>
+                        <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
+                            <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
+                                Listado de Médicos
+                            </h1>
+                        </div>
 
                         {/* Barra de Búsqueda Flexible */}
                         <div className="relative flex-grow max-w-4xl">

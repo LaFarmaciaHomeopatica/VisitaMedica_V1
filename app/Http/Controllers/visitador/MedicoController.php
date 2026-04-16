@@ -36,7 +36,7 @@ class MedicoController extends Controller
             'total' => $medicos->count()
         ];
 
-        return Inertia::render('inicio/ListadoMedicos', [
+        return Inertia::render('VISITADOR/ListadoMedicos', [
             'medicosDb' => $medicos,
             'stats'     => $stats,
             'filters'   => $request->only(['search'])
@@ -48,7 +48,7 @@ class MedicoController extends Controller
     {
         $medico = Medico::findOrFail($id);
 
-        return Inertia::render('inicio/MedicoDetalle', [
+        return Inertia::render('VISITADOR/MedicoDetalle', [
             'medico' => $medico
         ]);
     }

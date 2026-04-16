@@ -13,7 +13,7 @@ class LoginController extends Controller
 {
     public function showLoginForm()
     {
-        return Inertia::render('inicio/Login_1');
+        return Inertia::render('VISITADOR/Login_1');
     }
 
     public function store(Request $request)
