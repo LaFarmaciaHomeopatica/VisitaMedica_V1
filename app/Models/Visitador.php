@@ -9,20 +9,37 @@ class Visitador extends Model
 {
     use HasFactory;
 
-    // Si tu tabla NO se llama "visitadors", define esto:
+    // Nombre de la tabla en MySQL
     protected $table = 'visitadores';
+    
+    /**
+     * IMPORTANTE: Como tu tabla no tiene las columnas created_at y updated_at,
+     * debemos dejar esto en FALSE.
+     */
+    public $timestamps = false;
 
-    // Campos que se pueden llenar masivamente
+    // Campos permitidos para asignación masiva
     protected $fillable = [
         'usuario_id',
-        'nombre_completo',
         'documento',
         'zona_id',
         'meta_visitas_mensual',
         'meta_ventas_mensual',
-        'estado'
+        'estado',
+        'tipo_documento_id',
+        'nombre',
+        'apellido'
     ];
 
-    // Laravel ya maneja created_at automáticamente
-    public $timestamps = true;
+    // Relación con el usuario del sistema
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    // Relación con el tipo de documento
+    public function tipoDocumento()
+    {
+        return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
+    }
 }

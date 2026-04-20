@@ -78,7 +78,13 @@ const DashboardLFH = () => {
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800 leading-tight">
                             Bienvenido, <br />
-                            <span className="text-[#5D8BF4] capitalize">{auth.user.username}</span>
+
+                            <span className="text-[#5D8BF4] capitalize">
+                                {auth.user.nombre} {auth.user.apellido}
+                                <span className="text-gray-400 text-sm font-medium ml-2">
+                                    ({auth.user.username})
+                                </span>
+                            </span>
                         </h1>
                     </div>
                 </div>

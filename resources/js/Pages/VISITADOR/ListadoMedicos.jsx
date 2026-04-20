@@ -87,9 +87,13 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
 
                 <div className="space-y-3">
                     {medicosDb.length > 0 ? (
+
                         medicosDb.map((medico) => {
                             const config = getAvatarConfig(medico.id);
-                            const inicial = medico.nombre_completo ? medico.nombre_completo.charAt(0).toUpperCase() : '?';
+
+                            // Mejoramos la lógica de la inicial para evitar errores si faltan datos
+                            const nombreCompleto = `${medico.nombre || ''} ${medico.apellido || ''}`.trim();
+                            const inicial = nombreCompleto ? nombreCompleto.charAt(0).toUpperCase() : '?';
 
                             return (
                                 <div
@@ -102,10 +106,10 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                                         </div>
                                         <div className="flex flex-col min-w-0">
                                             <span className="text-[13px] font-bold text-gray-800 truncate">
-                                                {medico.nombre_completo}
+                                                {nombreCompleto || 'Médico sin nombre'}
                                             </span>
                                             <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-tight">
-                                                {medico.especialidad}
+                                                {medico.especialidad || 'General'}
                                             </span>
                                         </div>
                                     </div>
@@ -113,7 +117,7 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                                     <div className="col-span-4 mb-3 md:mb-0 flex items-center gap-2 md:justify-center text-gray-500">
                                         <FaLocationDot className="text-blue-300 text-[10px]" />
                                         <span className="text-[11px] italic truncate">
-                                            {medico.direccion_detalles || 'Sin dirección'}
+                                            {medico.direccion_detalles || 'Sin dirección registrada'}
                                         </span>
                                     </div>
 
@@ -122,7 +126,8 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                                             <div className="flex flex-col md:items-center">
                                                 <span className="md:hidden text-[8px] font-bold text-gray-400 uppercase mb-0.5">Documento</span>
                                                 <div className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                                    {medico.documento || 'N/A'}
+                                                    {/* AQUÍ LA CORRECCIÓN: tipo_documento.nombre */}
+                                                    {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
                                                 </div>
                                             </div>
                                         </div>
@@ -131,7 +136,8 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                                             <div className="flex flex-col md:items-center items-end">
                                                 <span className="md:hidden text-[8px] font-bold text-gray-400 uppercase mb-0.5">Teléfono</span>
                                                 <span className="text-[11px] font-bold text-gray-700">
-                                                    {medico.telefono_contacto || '---'}
+                                                    {/* Verifica si es telefono_contacto o telefono_contactos */}
+                                                    {medico.telefono_contacto || medico.telefono_contactos || '---'}
                                                 </span>
                                             </div>
                                         </div>
@@ -149,6 +155,7 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
                                 </div>
                             );
                         })
+
                     ) : (
                         <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-gray-200">
                             <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />

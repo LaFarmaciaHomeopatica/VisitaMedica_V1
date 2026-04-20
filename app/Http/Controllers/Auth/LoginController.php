@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
-// Aquí es donde se "llama" al modelo, NO se define.
-use App\Models\User; 
 
 class LoginController extends Controller
 {
@@ -25,7 +23,20 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return redirect()->intended(route('panel'));
+
+            $user = Auth::user();
+
+            // Redirección lógica por ID de Rol
+            if ($user->id_rol == 1) {
+                return redirect()->intended('/PanelAdmin');
+            } 
+            
+            if ($user->id_rol == 2) {
+                return redirect()->intended('/panel');
+            }
+
+            // Fallback por si existe otro rol
+            return redirect()->intended('/panel');
         }
 
         return back()->withErrors([

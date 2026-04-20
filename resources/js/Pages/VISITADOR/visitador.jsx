@@ -110,11 +110,11 @@ const Visitador = ({ visitador = {}, medicos = [] }) => {
 
                         <div>
                             <h2 className="text-lg font-bold">
-                                {visitadorInfo?.nombre_completo || 'Sin nombre'}
+                                {visitadorInfo?.nombre + ' ' + visitadorInfo?.apellido || 'Sin nombre'}
                             </h2>
 
                             <p className="text-sm text-gray-500">
-                                CC: {visitadorInfo?.documento || 'N/A'}
+                                {visitadorInfo?.tipo_documento?.nombre + ' : ' + visitadorInfo?.documento || 'N/A'}
                             </p>
 
                             <span className={`text-xs px-2 py-1 rounded 

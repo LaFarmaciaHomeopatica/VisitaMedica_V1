@@ -76,10 +76,10 @@ const MedicoDetalle = ({ medico }) => {
                         {/* SECCIÓN IZQUIERDA: Avatar e Info Básica */}
                         <div className="w-full md:w-[22%] p-4 flex flex-col items-center justify-center bg-gray-50/30 border-b md:border-b-0 md:border-r border-gray-100">
                             <div className="w-16 h-16 rounded-full bg-[#5D8BF4] flex items-center justify-center text-white text-2xl font-black mb-2 shadow-sm">
-                                {medico.nombre_completo ? medico.nombre_completo.charAt(0).toUpperCase() : 'M'}
+                                {medico.nombre ? medico.nombre.charAt(0).toUpperCase() : 'M'}
                             </div>
                             <h2 className="text-sm font-bold text-gray-800 text-center leading-tight">
-                                {medico.nombre_completo}
+                                {medico.nombre + ' ' + medico.apellido}
                             </h2>
                             <p className="mt-1 text-[#5D8BF4] text-[9px] font-bold uppercase bg-blue-50 px-3 py-0.5 rounded-full">
                                 {medico.especialidad}
@@ -101,7 +101,7 @@ const MedicoDetalle = ({ medico }) => {
                                 <div className="space-y-3">
                                     <div>
                                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Documento</p>
-                                        <p className="text-xs font-semibold text-gray-700">{medico.documento || 'N/A'}</p>
+                                        <p className="text-xs font-semibold text-gray-700">{medico.tipo_documento?.nombre + ' ' + medico.documento || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">ID Registro</p>

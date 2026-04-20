@@ -2,28 +2,30 @@
 
 namespace App\Http\Controllers\visitador;
 
-// Esta es la línea clave que faltaba para corregir el error:
 use App\Http\Controllers\Controller; 
 use App\Models\Medico;
+use App\Models\Visitador; // Necesario para buscar el visitador_id
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
 class MedicoController extends Controller
 {
-    /**
-     * Muestra el listado de médicos con filtro de búsqueda.
-     */
     public function index(Request $request)
     {
-        // Filtramos por el visitador logueado
-        $query = Medico::where('visitador_id', Auth::id());
+        // 1. Buscamos primero el ID del visitador asociado al usuario logueado
+        $visitador = Visitador::where('usuario_id', Auth::id())->first();
 
-        // Buscador funcional para React
+        // 2. Cargamos los médicos filtrando por ese visitador e incluyendo su tipo de documento
+        $query = Medico::with('tipoDocumento')
+                       ->where('visitador_id', $visitador->id ?? null);
+
+        // Buscador funcional
         if ($request->filled('search')) {
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
-                $q->where('nombre_completo', 'like', '%' . $searchTerm . '%')
+                $q->where('nombre', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('apellido', 'like', '%' . $searchTerm . '%')
                   ->orWhere('especialidad', 'like', '%' . $searchTerm . '%')
                   ->orWhere('documento', 'like', '%' . $searchTerm . '%');
             });
@@ -31,22 +33,16 @@ class MedicoController extends Controller
 
         $medicos = $query->get();
 
-        $stats = [
-            'visitados' => 0, 
-            'total' => $medicos->count()
-        ];
-
         return Inertia::render('VISITADOR/ListadoMedicos', [
             'medicosDb' => $medicos,
-            'stats'     => $stats,
             'filters'   => $request->only(['search'])
         ]);
     }
 
-   
     public function show($id)
     {
-        $medico = Medico::findOrFail($id);
+        // También cargamos la relación en el detalle
+        $medico = Medico::with('tipoDocumento')->findOrFail($id);
 
         return Inertia::render('VISITADOR/MedicoDetalle', [
             'medico' => $medico
