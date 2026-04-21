@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Medico extends Model
 {
     use HasFactory;
-
+public $timestamps = false;
     /**
      * El nombre de la tabla asociada al modelo.
      * * @var string
@@ -61,5 +61,11 @@ class Medico extends Model
     public function getNombreCompletoAttribute(): string
     {
         return "{$this->nombre} {$this->apellido}";
+    }
+
+    public function tipoDocumento()
+    {
+        // Nota: Asegúrate de que la columna en la tabla medicos se llame tipo_documento_id
+        return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
     }
 }

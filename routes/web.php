@@ -54,7 +54,8 @@ Route::middleware(['auth'])->group(function () {
         // Buscador de ID
         Route::get('/usuarios/buscar/{id}', [DvisitadoresController::class, 'buscarUsuario'])->name('usuarios.buscar');
 
-        // SE ELIMINÓ LA RUTA DUPLICADA DE /GMEDICOS QUE ESTABA AQUÍ ABAJO
+        Route::get('/medicos/exportar', [Medico2Controller::class, 'exportar'])->name('Gmedicos.exportar');
+Route::post('/medicos/importar', [Medico2Controller::class, 'importar'])->name('Gmedicos.importar');
     });
 
     /*

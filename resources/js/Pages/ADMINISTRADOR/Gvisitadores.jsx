@@ -235,10 +235,10 @@ const Index = ({ visitadores, tiposDocumento }) => {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setData('estado', 'deshabilitado')}
-                                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${data.estado === 'deshabilitado' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                            onClick={() => setData('estado', 'Inhabilitado')}
+                                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${data.estado === 'Inhabilitado' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
-                                            Deshabilitado
+                                            Inhabilitado
                                         </button>
                                     </div>
                                     {errors.estado && <p className="text-rose-500 text-[10px] mt-1">{errors.estado}</p>}

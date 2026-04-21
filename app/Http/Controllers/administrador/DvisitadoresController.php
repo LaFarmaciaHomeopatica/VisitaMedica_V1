@@ -71,7 +71,7 @@ class DvisitadoresController extends Controller
             'tipo_documento_id' => 'required|exists:tipo_documento,id',
             'documento' => 'required|string|unique:visitadores,documento,' . $visitador->id,
             'zona_id' => 'required',
-            'estado' => 'required|in:habilitado,deshabilitado',
+            'estado' => 'required|in:Habilitado,Inhabilitado',
         ]);
 
         $visitador->update($request->all());
