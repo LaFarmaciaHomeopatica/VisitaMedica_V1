@@ -3,19 +3,17 @@ import { Link, Head, usePage } from '@inertiajs/react';
 import {
     FaHouse, FaUsers, FaBoxesStacked, FaCalendarCheck,
     FaUserDoctor, FaPowerOff, FaHouseMedical,
-    FaChevronLeft, FaChevronRight, FaUserGear // Importamos ícono para Usuarios
+    FaChevronLeft, FaChevronRight, FaUserGear
 } from 'react-icons/fa6';
 
 const PanelAdmin = ({ children }) => {
     const { url } = usePage();
 
-    // Inicializamos el estado leyendo desde localStorage
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = localStorage.getItem('sidebar-collapsed');
         return saved === 'true' ? true : false;
     });
 
-    // Cada vez que isCollapsed cambie, guardamos en localStorage
     useEffect(() => {
         localStorage.setItem('sidebar-collapsed', isCollapsed);
     }, [isCollapsed]);
@@ -43,7 +41,6 @@ const PanelAdmin = ({ children }) => {
                 flex-shrink-0 
                 h-[calc(100vh-2rem)]
             `}>
-
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className="absolute -right-3 top-10 bg-white text-[#3D3FD8] p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform z-50"
@@ -58,7 +55,6 @@ const PanelAdmin = ({ children }) => {
                 <nav className="w-full flex-grow overflow-y-auto no-scrollbar">
                     <ul className={`space-y-2 ${isCollapsed ? 'px-2' : 'pl-6'}`}>
                         {menuItems.map((item) => {
-                            // Usamos startsWith para que el botón se mantenga activo en subrutas
                             const isActive = url.startsWith(item.route);
                             return (
                                 <li key={item.name} className="relative">
@@ -101,8 +97,12 @@ const PanelAdmin = ({ children }) => {
                 </div>
             </aside>
 
-            <main className="flex-grow p-8 overflow-y-auto h-full">
-                <div className="max-w-7xl mx-auto">
+            {/* MAIN CORREGIDO PARA ANCHO COMPLETO */}
+            <main className="flex-grow p-4 md:p-6 overflow-y-auto h-full">
+                {/* He eliminado 'max-w-7xl' y 'mx-auto' para que use todo el ancho.
+                    Cambié 'p-8' por 'p-4' o 'p-6' para reducir el espacio muerto arriba.
+                */}
+                <div className="w-full">
                     {children}
                 </div>
             </main>

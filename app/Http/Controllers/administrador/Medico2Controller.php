@@ -21,7 +21,7 @@ class Medico2Controller extends Controller
      */
     public function index()
     {
-        return Inertia::render('ADMINISTRADOR/Gmedicos', [
+        return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
             'medicos' => Medico::with(['visitador', 'tipoDocumento'])->get(), 
             'visitadores' => Visitador::all(['id', 'nombre', 'apellido']),
             'tiposDocumento' => TipoDocumento::all(['id', 'nombre']) 
