@@ -56,6 +56,14 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/medicos/exportar', [Medico2Controller::class, 'exportar'])->name('Gmedicos.exportar');
 Route::post('/medicos/importar', [Medico2Controller::class, 'importar'])->name('Gmedicos.importar');
+
+
+
+Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularVisitador'])
+    ->name('medicos.vincular-visitador');
+
+    Route::post('/medicos/eliminar-masivo', [Medico2Controller::class, 'eliminarMasivo'])
+    ->name('medicos.eliminar-masivo');
     });
 
     /*

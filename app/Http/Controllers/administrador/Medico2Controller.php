@@ -107,13 +107,22 @@ class Medico2Controller extends Controller
         return Redirect::route('Gmedicos.index')->with('message', 'Médico eliminado correctamente.');
     }
 
-    /**
-     * Exportar a Excel.
-     */
-    public function exportar() 
-    {
-        return Excel::download(new MedicosExport, 'Medicos_LFH_' . date('d-m-Y') . '.xlsx');
-    }
+    
+
+ //* Exportar a Excel (Soporta selección múltiple).
+public function exportar(Request $request) 
+{
+    // Capturamos los IDs. Si vienen de una URL serán un string separado por comas
+    $idsRaw = $request->input('ids');
+    
+    // Convertimos a array: si no hay IDs, pasamos un array vacío
+    $ids = $idsRaw ? explode(',', $idsRaw) : [];
+
+    return Excel::download(
+        new MedicosExport($ids), 
+        'Medicos_LFH_' . date('d-m-Y') . '.xlsx'
+    );
+}
 
     /**
      * Importar desde Excel.
@@ -140,4 +149,32 @@ class Medico2Controller extends Controller
             return Redirect::route('Gmedicos.index')->with('error', 'Error en la importación: ' . $e->getMessage());
         }
     }
+
+
+    public function vincularVisitador(Request $request)
+{
+    $request->validate([
+        'medico_ids' => 'required|array',
+        'visitador_id' => 'required|exists:visitadores,id',
+    ]);
+
+    // Actualización masiva eficiente
+    Medico::whereIn('id', $request->medico_ids)
+          ->update(['visitador_id' => $request->visitador_id]);
+
+    return redirect()->back();
+}
+public function eliminarMasivo(Request $request)
+{
+    $request->validate([
+        'ids' => 'required|array',
+        'ids.*' => 'exists:medicos,id'
+    ]);
+
+    // Usamos delete() masivo. 
+    // Nota: Si usas SoftDeletes en tu modelo, esto los mandará a la papelera.
+    Medico::whereIn('id', $request->ids)->delete();
+
+    return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
+}
 }

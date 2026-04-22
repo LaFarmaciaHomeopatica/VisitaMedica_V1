@@ -4,64 +4,59 @@ namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Rol; // 1. IMPORTA EL MODELO ROL
+use App\Models\Rol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class UsuarioController extends Controller
 {
-    /**
-     * Muestra la lista de usuarios y los roles disponibles.
-     */
     public function index()
     {
-        // 2. OBTÉN LOS ROLES DE LA DB
         $usuarios = User::all();
         $roles = Rol::all(); 
         
         return Inertia::render('ADMINISTRADOR/Gusuarios', [
             'usuarios' => $usuarios,
-            'roles' => $roles // 3. PÁSALOS A LA VISTA
+            'roles' => $roles
         ]);
     }
 
-    /**
-     * Almacena un nuevo usuario.
-     */
     public function store(Request $request)
     {
         $request->validate([
-            // Asegúrate de que el nombre de la tabla coincida (¿'usuarios' o 'users'?)
+            // Asegúrate de que la tabla sea 'usuarios' o 'users' según tu DB
             'username' => 'required|string|unique:usuarios,username|max:255',
             'password' => 'required|string|min:6',
-            'id_rol'   => 'required|exists:roles,id', // 4. VALIDACIÓN MEJORADA: verifica que el ID exista en la tabla roles
+            'id_rol'   => 'required|exists:roles,id',
+            // CAMBIO: Ahora acepta los strings que manda el select de React
+            'estado'   => 'required|in:habilitado,inhabilitado', 
         ]);
 
         User::create([
             'username' => $request->username,
             'password' => Hash::make($request->password),
             'id_rol'   => $request->id_rol,
+            'estado'   => $request->estado, 
         ]);
 
         return redirect()->back()->with('success', 'Usuario creado exitosamente.');
     }
 
-    /**
-     * Actualiza un usuario existente.
-     */
     public function update(Request $request, $id)
     {
         $usuario = User::findOrFail($id);
 
         $request->validate([
             'username' => 'required|string|max:255|unique:usuarios,username,'.$id,
-            'id_rol'   => 'required|exists:roles,id', // Validación de existencia
+            'id_rol'   => 'required|exists:roles,id',
             'password' => 'nullable|string|min:6',
+            'estado'   => 'required|in:habilitado,inhabilitado',
         ]);
 
         $usuario->username = $request->username;
         $usuario->id_rol = $request->id_rol;
+        $usuario->estado = $request->estado;
 
         if ($request->filled('password')) {
             $usuario->password = Hash::make($request->password);
@@ -72,9 +67,6 @@ class UsuarioController extends Controller
         return redirect()->back()->with('success', 'Usuario actualizado.');
     }
 
-    /**
-     * Elimina un usuario.
-     */
     public function destroy($id)
     {
         $usuario = User::findOrFail($id);

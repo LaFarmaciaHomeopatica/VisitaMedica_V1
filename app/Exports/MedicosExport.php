@@ -9,12 +9,30 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 
 class MedicosExport implements FromCollection, WithHeadings, WithMapping
 {
+    protected $ids;
+
     /**
-    * Retorna la colección de médicos con sus relaciones.
+     * Recibimos los IDs seleccionados desde el controlador.
+     * Si el array está vacío, se asume que se exportarán todos.
+     */
+    public function __construct(array $ids = [])
+    {
+        $this->ids = $ids;
+    }
+
+    /**
+    * Retorna la colección de médicos filtrada si hay IDs seleccionados.
     */
     public function collection()
     {
-        return Medico::with(['tipoDocumento', 'visitador'])->get();
+        $query = Medico::with(['tipoDocumento', 'visitador']);
+
+        // Si hay IDs en el array, filtramos la consulta
+        if (!empty($this->ids)) {
+            $query->whereIn('id', $this->ids);
+        }
+
+        return $query->get();
     }
 
     /**
