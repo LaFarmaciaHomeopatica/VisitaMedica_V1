@@ -8,6 +8,7 @@ use App\Http\Controllers\visitador\VisitaController;
 use App\Http\Controllers\administrador\DvisitadoresController;
 use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
+use App\Http\Controllers\administrador\VisitasController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -34,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
             return Inertia::render('ADMINISTRADOR/PanelAdmin'); 
         })->name('PanelAdmin');
 
+
         Route::get('/Gusuarios', [UsuarioController::class, 'index'])->name('Gusuarios.index');
         Route::post('/Gusuarios', [UsuarioController::class, 'store'])->name('Gusuarios.store');
         Route::put('/Gusuarios/{id}', [UsuarioController::class, 'update'])->name('Gusuarios.update');
@@ -50,7 +52,14 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/Gmedicos', [Medico2Controller::class, 'store'])->name('Gmedicos.store');
         Route::put('/Gmedicos/{medico}', [Medico2Controller::class, 'update'])->name('Gmedicos.update');
         Route::delete('/Gmedicos/{medico}', [Medico2Controller::class, 'destroy'])->name('Gmedicos.destroy');
-        
+
+
+        Route::get('/Gvisitas', [VisitasController::class, 'index'])->name('Gvisitas.index');
+Route::post('/Gvisitas', [VisitasController::class, 'store'])->name('Gvisitas.store');
+
+// Cambiamos {visita} por {id}
+Route::put('/Gvisitas/{id}', [VisitasController::class, 'update'])->name('Gvisitas.update');
+Route::delete('/Gvisitas/{id}', [VisitasController::class, 'destroy'])->name('Gvisitas.destroy');
         // Buscador de ID
         Route::get('/usuarios/buscar/{id}', [DvisitadoresController::class, 'buscarUsuario'])->name('usuarios.buscar');
 
@@ -82,17 +91,18 @@ Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularV
         Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
         // Módulo de Visitas
-        Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
-        Route::post('/visitas', [VisitaController::class, 'store'])->name('visitas.store');
-        Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.efectiva');
-        Route::post('/visitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('visitas.reprogramar');
-        Route::post('/visitas/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('visitas.cancelar');
+        Route::get('/GestionVisita', [VisitaController::class, 'index'])->name('GestionVisita.index');
+        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('GestionVisita.store');
+        Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('GestionVisita.  efectiva');
+        Route::post('/GestionVisita/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('GestionVisita.reprogramar');
+        Route::post('/GestionVisita/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('GestionVisita.cancelar');
 
-        // Otros módulos del Visitador
-        Route::get('/GestionVisita', function () {
-            return Inertia::render('VISITADOR/GestionVisita');
-        })->name('gestion.visita');
 
+        Route::get('/visitas', [VisitaController::class, 'getVisitasJson'])->name('visitas.json');
+        
+        Route::post('/visitas/{id}/reportar', [VisitaController::class, 'marcarEfectiva'])
+            ->name('visitas.marcarEfectiva');
+            
         Route::get('/ProductoCatalogo', function () {
             return Inertia::render('VISITADOR/ProductoCatalogo');
         })->name('productos');

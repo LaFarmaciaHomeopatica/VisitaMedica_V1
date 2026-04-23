@@ -7,34 +7,64 @@ use App\Models\Visita;
 use App\Models\Visitador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class VisitaController extends Controller
 {
     /**
-     * Obtener el visitador logueado
+     * Obtener el visitador logueado con sus relaciones necesarias
      */
     private function getVisitador()
     {
-        return Visitador::where('usuario_id', Auth::id())->first();
+        return Visitador::with(['tipoDocumento', 'medicos'])
+            ->where('usuario_id', Auth::id())
+            ->first();
     }
 
     /**
-     * Listar visitas del visitador logueado
+     * VISTA DE PERFIL (Renderiza Visitador.jsx)
+     */
+    public function perfil()
+    {
+        $visitador = $this->getVisitador();
+        $medicos = $visitador ? $visitador->medicos : [];
+
+        return Inertia::render('VISITADOR/Visitador', [
+            'visitador' => $visitador,
+            'medicos' => $medicos
+        ]);
+    }
+
+    /**
+     * ENDPOINT PARA AXIOS (Actualiza la alerta en tiempo real)
+     */
+    public function getVisitasJson()
+    {
+        $visitador = $this->getVisitador();
+        
+        if (!$visitador) return response()->json([]);
+
+        // Obtenemos visitas de hoy para la alerta
+        $visitas = Visita::where('visitador_id', $visitador->id)
+            ->whereDate('fecha_programada', now())
+            ->get();
+
+        return response()->json($visitas);
+    }
+
+    /**
+     * VISTA DE GESTIÓN (Renderiza GestionVisita.jsx)
      */
     public function index()
     {
         $visitador = $this->getVisitador();
 
-        if (!$visitador) {
-            return response()->json([]);
-        }
-
-        $visitas = Visita::with('medico')
-            ->where('visitador_id', $visitador->id)
-            ->orderBy('fecha_programada', 'asc')
-            ->get();
-
-        return response()->json($visitas);
+        return Inertia::render('VISITADOR/GestionVisita', [
+            'visitas' => Visita::with('medico')
+                ->where('visitador_id', $visitador->id)
+                ->get(),
+            'estadosDisponibles' => Visita::getPossibleStatuses()
+        ]);
     }
 
     /**
@@ -44,57 +74,54 @@ class VisitaController extends Controller
     {
         $visitador = $this->getVisitador();
 
-        if (!$visitador) {
-            return response()->json(['error' => 'Visitador no encontrado'], 404);
-        }
-
         $request->validate([
             'medico_id' => 'required|exists:medicos,id',
             'fecha_programada' => 'required|date',
         ]);
 
-        $visita = Visita::create([
+        Visita::create([
             'medico_id' => $request->medico_id,
             'visitador_id' => $visitador->id,
             'fecha_programada' => $request->fecha_programada,
             'estado' => 'programada',
         ]);
 
-        return response()->json($visita);
+        return redirect()->back();
     }
 
     /**
-     * Marcar visita como efectiva
+     * Reportar resultado de visita
      */
-    public function marcarEfectiva($id)
+    public function marcarEfectiva(Request $request, $id)
     {
         $visitador = $this->getVisitador();
+
+        $request->validate([
+            'estado' => 'required|string',
+            'comentarios' => 'nullable|string',
+        ]);
 
         $visita = Visita::where('id', $id)
             ->where('visitador_id', $visitador->id)
             ->firstOrFail();
 
         $visita->update([
-            'estado' => 'efectiva',
-            'fecha_realizada' => now()
+            'estado' => $request->estado,
+            'comentarios' => $request->comentarios,
+            'fecha_realizada' => $request->estado === 'efectiva' ? now() : $visita->fecha_realizada,
         ]);
 
-        return response()->json([
-            'message' => 'Visita marcada como efectiva',
-            'visita' => $visita
-        ]);
+        return redirect()->back()->with('message', 'Reporte guardado');
     }
 
     /**
-     * Reprogramar visita
+     * Reprogramar
      */
     public function reprogramar(Request $request, $id)
     {
         $visitador = $this->getVisitador();
 
-        $request->validate([
-            'fecha_programada' => 'required|date'
-        ]);
+        $request->validate(['fecha_programada' => 'required|date']);
 
         $visita = Visita::where('id', $id)
             ->where('visitador_id', $visitador->id)
@@ -105,24 +132,6 @@ class VisitaController extends Controller
             'estado' => 'reprogramada'
         ]);
 
-        return response()->json($visita);
-    }
-
-    /**
-     * Cancelar visita
-     */
-    public function cancelar($id)
-    {
-        $visitador = $this->getVisitador();
-
-        $visita = Visita::where('id', $id)
-            ->where('visitador_id', $visitador->id)
-            ->firstOrFail();
-
-        $visita->update([
-            'estado' => 'cancelada'
-        ]);
-
-        return response()->json($visita);
+        return redirect()->back();
     }
 }

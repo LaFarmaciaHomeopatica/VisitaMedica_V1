@@ -28,28 +28,28 @@ class HandleInertiaRequests extends Middleware
      *
      * @return array<string, mixed>
      */
-    public function share(Request $request): array
-    {
-        $user = $request->user();
-        $visitador = null;
-
-        // Si hay un usuario logueado, buscamos su información en la tabla visitadores
-        if ($user) {
-            $visitador = Visitador::where('usuario_id', $user->id)->first();
-        }
-
-        return [
-            ...parent::share($request),
-            'auth' => [
-                'user' => $user ? [
-                    'id'       => $user->id,
-                    'username' => $user->username, // O 'name' según tu columna en users
-                    'id_rol'   => $user->id_rol,
-                    // Si encontramos al visitador traemos su nombre, si no, un string vacío
-                    'nombre'   => $visitador ? $visitador->nombre : '',
-                    'apellido' => $visitador ? $visitador->apellido : '',
-                ] : null,
-            ],
-        ];
+ public function share(Request $request): array
+{
+    $user = $request->user();
+    
+    if ($user) {
+        // "Eager Load" de la relación rol para que no sea null
+        $user->load('rol');
+        $visitador = \App\Models\Visitador::where('usuario_id', $user->id)->first();
     }
+
+    return [
+        ...parent::share($request),
+        'auth' => [
+            'user' => $user ? [
+                'id'         => $user->id,
+                'username'   => $user->username,
+                // Si el rol existe en la DB, saca el nombre. Si no, pon 'Usuario'
+                'rol_nombre' => $user->rol->nombre ?? 'Usuario', 
+                'nombre'     => $visitador->nombre ?? '',
+                'apellido'   => $visitador->apellido ?? '',
+            ] : null,
+        ],
+    ];
+}
 }

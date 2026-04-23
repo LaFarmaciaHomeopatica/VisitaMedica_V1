@@ -41,4 +41,11 @@ class User extends Authenticatable
     {
         return $this->hasOne(Visitador::class, 'usuario_id');
     }
+
+    public function rol()
+{
+    // Relación: Un usuario pertenece a un Rol
+    // 'id_rol' es la llave foránea en tu tabla 'usuarios'
+    return $this->belongsTo(Rol::class, 'id_rol');
+}
 }

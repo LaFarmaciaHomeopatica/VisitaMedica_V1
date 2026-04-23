@@ -9,16 +9,9 @@ class Visitador extends Model
 {
     use HasFactory;
 
-    // Nombre de la tabla en MySQL
     protected $table = 'visitadores';
-    
-    /**
-     * IMPORTANTE: Como tu tabla no tiene las columnas created_at y updated_at,
-     * debemos dejar esto en FALSE.
-     */
     public $timestamps = false;
 
-    // Campos permitidos para asignación masiva
     protected $fillable = [
         'usuario_id',
         'documento',
@@ -31,15 +24,34 @@ class Visitador extends Model
         'apellido'
     ];
 
-    // Relación con el usuario del sistema
+    // --- RELACIONES ---
+
     public function user()
     {
         return $this->belongsTo(User::class, 'usuario_id');
     }
 
-    // Relación con el tipo de documento
     public function tipoDocumento()
     {
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
+    }
+
+    /**
+     * Relación con los Médicos
+     * Un visitador tiene muchos médicos asignados
+     */
+    public function medicos()
+    {
+        // Verifica que en tu tabla 'medicos' la columna se llame 'visitador_id'
+        return $this->hasMany(Medico::class, 'visitador_id');
+    }
+
+    /**
+     * Relación con las Visitas
+     * Un visitador genera muchas visitas
+     */
+    public function visitas()
+    {
+        return $this->hasMany(Visita::class, 'visitador_id');
     }
 }

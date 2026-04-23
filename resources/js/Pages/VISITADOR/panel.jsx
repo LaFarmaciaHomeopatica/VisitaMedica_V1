@@ -25,10 +25,8 @@ const DashboardLFH = () => {
         { icon: <FaPills />, label: 'Producto', route: '/ProductoCatalogo' },
     ];
 
-    const getRolLabel = (id) => {
-        const roles = { 1: 'Admin', 2: 'Visitador', 3: 'Médico' };
-        return roles[id] || 'Usuario';
-    };
+    // Esta es la variable que trae el nombre desde la DB
+    const rolActual = auth.user.rol_nombre;
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen pb-24 font-sans text-gray-800">
@@ -41,7 +39,7 @@ const DashboardLFH = () => {
 
                         <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
                             <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
-                                Listado de Médicos
+                                Panel de Control
                             </h1>
                         </div>
 
@@ -57,7 +55,6 @@ const DashboardLFH = () => {
                                 placeholder="Buscar medicina, médicos..."
                                 className="w-full bg-blue-50 border-none rounded-full py-3 pl-12 pr-12 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner"
                             />
-
                         </div>
 
                     </div>
@@ -72,7 +69,8 @@ const DashboardLFH = () => {
                             <FaUserTie className="text-[#5D8BF4] text-2xl" />
                         </div>
                         <span className="absolute -bottom-1 -right-1 bg-[#5D8BF4] text-white text-[8px] font-bold px-2 py-1 rounded-full border border-white uppercase tracking-tighter">
-                            {getRolLabel(auth.user.id_rol)}
+                            {/* CORRECCIÓN: Se usa rolActual en lugar de la función inexistente */}
+                            {rolActual}
                         </span>
                     </div>
                     <div>
@@ -110,13 +108,14 @@ const DashboardLFH = () => {
                 <div className="bg-white/90 backdrop-blur-sm text-gray-600 p-3 rounded-2xl text-center text-[11px] font-medium border border-blue-50 shadow-xl shadow-blue-100/50">
                     <span className="font-black text-blue-500 uppercase tracking-widest mr-2">Próxima Visita Pendiente</span>
                     <span className="text-gray-400">&rarr;</span>
+                    <span className="text-gray-400"> Revisa tu agenda para hoy</span>
                 </div>
             </div>
 
             {/* Módulos Principales */}
             <main className="max-w-5xl mx-auto p-6 mt-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {modules.map((module, index) => (
+                    {modules.filter(m => m.label.toLowerCase().includes(search.toLowerCase())).map((module, index) => (
                         <Link
                             key={index}
                             href={module.route}
