@@ -16,7 +16,7 @@ class VisitaController extends Controller
      */
     private function getVisitador()
     {
-        return Visitador::with(['tipoDocumento', 'medicos'])
+        return Visitador::with(['tipodocumento', 'medicos'])
             ->where('usuario_id', Auth::id())
             ->first();
     }
@@ -39,18 +39,18 @@ class VisitaController extends Controller
      * ENDPOINT PARA AXIOS (Actualiza la alerta en tiempo real)
      */
     public function getVisitasJson()
-    {
-        $visitador = $this->getVisitador();
-        
-        if (!$visitador) return response()->json([]);
+{
+    $visitador = $this->getVisitador();
+    if (!$visitador) return response()->json([]);
 
-        // Obtenemos visitas de hoy para la alerta
-        $visitas = Visita::where('visitador_id', $visitador->id)
-            ->whereDate('fecha_programada', now())
-            ->get();
+    // Obtenemos visitas del MES ACTUAL para calcular cumplimiento mensual y diario
+    $visitas = Visita::where('visitador_id', $visitador->id)
+        ->whereMonth('fecha_programada', now()->month)
+        ->whereYear('fecha_programada', now()->year)
+        ->get();
 
-        return response()->json($visitas);
-    }
+    return response()->json($visitas);
+}
 
     /**
      * VISTA DE GESTIÓN (Renderiza GestionVisita.jsx)
@@ -133,5 +133,15 @@ class VisitaController extends Controller
         ]);
 
         return redirect()->back();
+    }
+
+    public function calendario()
+    {
+        // Obtener las visitas para el calendario
+        $visitas = Visita::with('medico')->get();
+
+        return Inertia::render('VISITADOR/CalendarioVisitas', [
+            'visitas' => $visitas
+        ]);
     }
 }

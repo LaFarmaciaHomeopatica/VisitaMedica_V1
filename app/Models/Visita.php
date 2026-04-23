@@ -59,4 +59,8 @@ class Visita extends Model
     return $enum;
 }
 
+protected $casts = [
+    'fecha_programada' => 'datetime:Y-m-d H:i',
+];
+
 }

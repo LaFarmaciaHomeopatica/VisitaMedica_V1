@@ -97,6 +97,31 @@ Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularV
         Route::post('/GestionVisita/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('GestionVisita.reprogramar');
         Route::post('/GestionVisita/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('GestionVisita.cancelar');
 
+Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
+
+
+
+
+
+
+Route::get('/calendario-visitas', [VisitaController::class, 'calendario'])->name('visitas.calendario');
+// 🔥 RUTA CLAVE: Endpoint que devuelve el JSON para Axios
+// Esta es la que usa cargarVisitas() en React
+Route::get('/visitas-json', [VisitaController::class, 'getVisitasJson']);
+
+// Gestión de visitas (la otra vista que tienes)
+Route::get('/gestion-visitas', [VisitaController::class, 'index'])->name('visitas.index');
+
+// Crear visita
+Route::post('/visitas', [VisitaController::class, 'store']);
+
+// Marcar como efectiva
+Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva']);
+
+
+
+
+
 
         Route::get('/visitas', [VisitaController::class, 'getVisitasJson'])->name('visitas.json');
         

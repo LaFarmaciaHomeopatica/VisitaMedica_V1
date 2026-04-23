@@ -14,13 +14,13 @@ import {
     FaMagnifyingGlass
 } from 'react-icons/fa6';
 
-const GestionVisita = ({ visitas, estadosDisponibles }) => {
+const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
     // 1. Estados de UI
     const [modalAbierto, setModalAbierto] = useState(false);
     const [visitaSeleccionada, setVisitaSeleccionada] = useState(null);
     const [search, setSearch] = useState('');
 
-    // 2. Configuración Visual para los estados que vienen de la DB
+    // 2. Configuración Visual para los estados
     const configVisual = {
         'efectiva': { label: 'Efectiva', icon: <FaCircleCheck />, color: 'text-green-500' },
         'reprogramada': { label: 'Reprogramada', icon: <FaClock />, color: 'text-blue-500' },
@@ -67,7 +67,7 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
         setVisitaSeleccionada(visita);
         setData({
             estado: visita.estado || '',
-            comentarios: visita.comentarios || '', // Sincronizado con DB
+            comentarios: visita.comentarios || '',
         });
         setModalAbierto(true);
     };
@@ -84,10 +84,11 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
 
     // 6. Filtros
     const visitasFiltradas = visitas.filter(v => {
-        const coincideBusqueda = v.medico.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        const nombreMedico = `${v.medico.nombre} ${v.medico.apellido}`.toLowerCase();
+        const coincideBusqueda = nombreMedico.includes(search.toLowerCase()) ||
             v.medico.especialidad.toLowerCase().includes(search.toLowerCase());
+
         const fechaVisita = new Date(v.fecha_programada);
-        // Filtramos por día y mes para evitar errores al cambiar de semana
         return coincideBusqueda &&
             fechaVisita.getDate() === diaSeleccionado &&
             fechaVisita.getMonth() === fechaActual.getMonth();
@@ -102,7 +103,7 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                 <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px] md:rounded-b-[35px]">
                     <div className="max-w-[1440px] mx-auto p-3 md:p-4">
                         <div className="flex items-center gap-3 md:gap-6">
-                            <Link href="/panel" className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500 shrink-0 shadow-sm active:scale-90">
+                            <Link href={route('panel')} className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500 shrink-0 shadow-sm active:scale-90">
                                 <FaArrowLeft className="text-xs" />
                             </Link>
                             <div className="relative flex-grow max-w-4xl">
@@ -122,7 +123,7 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                 </header>
 
                 <main className="px-5 mt-4 space-y-4 pb-32">
-                    {/* Calendario */}
+                    {/* Calendario Semanal */}
                     <section className="bg-white p-4 rounded-[24px] shadow-sm border border-gray-50">
                         <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2">
@@ -132,7 +133,14 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                                 </h3>
                                 <button onClick={() => setFechaActual(new Date(fechaActual.setDate(fechaActual.getDate() + 7)))} className="text-[#5D8BF4] p-1"><FaChevronRight className="text-xs" /></button>
                             </div>
-                            <FaCalendarDays className="text-[#5D8BF4] text-base" />
+
+                            {/* CORRECCIÓN AQUÍ: Ahora el ícono tiene Link y acción */}
+                            <Link
+                                href={route('visitas.calendario')}
+                                className="text-[#5D8BF4] text-lg p-1 active:scale-90 transition-transform"
+                            >
+                                <FaCalendarDays />
+                            </Link>
                         </div>
 
                         <div className="flex justify-between gap-1">
@@ -171,7 +179,7 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                                         </div>
                                     </div>
                                     <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-tighter shadow-sm ${visita.estado === 'efectiva' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-[#5D8BF4]'}`}>
-                                        {visita.estado}
+                                        {visita.estado || 'pendiente'}
                                     </span>
                                 </section>
                             ))
@@ -186,7 +194,7 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
 
             <BarraNave />
 
-            {/* MODAL DE GESTIÓN DINÁMICO */}
+            {/* MODAL DE GESTIÓN */}
             {modalAbierto && visitaSeleccionada && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalAbierto(false)} />
@@ -205,17 +213,15 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                         </div>
 
                         <div className="space-y-5">
-                            {/* ESTADOS CARGADOS DESDE LA TABLA (DB) */}
                             <section className="space-y-2">
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado de la Visita</label>
                                 <div className="grid grid-cols-1 gap-2">
                                     {estadosDisponibles.map((estadoDb) => {
-                                        // Usamos el diseño de configVisual o uno genérico si es nuevo
                                         const estilo = configVisual[estadoDb] || { label: estadoDb, icon: <FaCircleCheck />, color: 'text-gray-400' };
-
                                         return (
                                             <button
                                                 key={estadoDb}
+                                                type="button"
                                                 onClick={() => setData('estado', estadoDb)}
                                                 className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all active:scale-[0.97] ${data.estado === estadoDb ? 'bg-blue-50/50 border-blue-500' : 'bg-gray-50 border-transparent text-gray-400'}`}
                                             >
@@ -231,7 +237,6 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
                                 </div>
                             </section>
 
-                            {/* COMENTARIOS */}
                             <section className="space-y-2">
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas y Observaciones</label>
                                 <textarea
@@ -264,4 +269,4 @@ const GestionVisita = ({ visitas, estadosDisponibles }) => {
     );
 };
 
-export default GestionVisita;
+export default CalendarioVisitas;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import PanelAdmin from './PanelAdmin';
 
@@ -20,7 +20,14 @@ const VisitasIndex = ({ visitas = [], medicos = [], visitadores = [] }) => {
         comentarios: ''
     });
 
-    // --- LÓGICA DE FILTRADO ---
+    // --- LÓGICA DE FILTRADO DINÁMICO (MÉDICOS POR VISITADOR) ---
+    const medicosFiltradosPorVisitador = useMemo(() => {
+        if (!data.visitador_id) return [];
+        // Filtramos la lista global de medicos por el visitador_id seleccionado en el form
+        return medicos.filter(m => m.visitador_id == data.visitador_id);
+    }, [data.visitador_id, medicos]);
+
+    // --- LÓGICA DE FILTRADO DE TABLA ---
     const filteredVisitas = visitas.filter(v => {
         const nombreMedico = medicos.find(m => m.id == v.medico_id)?.nombre || '';
         const search = searchTerm.toLowerCase();
@@ -63,7 +70,6 @@ const VisitasIndex = ({ visitas = [], medicos = [], visitadores = [] }) => {
             id: visita.id,
             medico_id: visita.medico_id,
             visitador_id: visita.visitador_id,
-            // Formateo para datetime-local (YYYY-MM-DDTHH:mm)
             fecha_programada: visita.fecha_programada ? visita.fecha_programada.replace(' ', 'T').substring(0, 16) : '',
             fecha_realizada: visita.fecha_realizada ? visita.fecha_realizada.replace(' ', 'T').substring(0, 16) : '',
             estado: visita.estado,
@@ -203,20 +209,37 @@ const VisitasIndex = ({ visitas = [], medicos = [], visitadores = [] }) => {
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Médico</label>
-                                    <select value={data.medico_id} onChange={e => setData('medico_id', e.target.value)} className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-bold" required>
-                                        <option value="">Seleccionar...</option>
-                                        {medicos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                                    </select>
-                                    {errors.medico_id && <div className="text-rose-500 text-[9px] mt-1 font-bold">{errors.medico_id}</div>}
-                                </div>
-                                <div>
                                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Visitador</label>
-                                    <select value={data.visitador_id} onChange={e => setData('visitador_id', e.target.value)} className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-bold" required>
+                                    <select
+                                        value={data.visitador_id}
+                                        onChange={e => {
+                                            setData({
+                                                ...data,
+                                                visitador_id: e.target.value,
+                                                medico_id: '' // Limpiamos médico al cambiar visitador
+                                            });
+                                        }}
+                                        className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-bold"
+                                        required
+                                    >
                                         <option value="">Seleccionar...</option>
                                         {visitadores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                     </select>
                                     {errors.visitador_id && <div className="text-rose-500 text-[9px] mt-1 font-bold">{errors.visitador_id}</div>}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Médico</label>
+                                    <select
+                                        value={data.medico_id}
+                                        onChange={e => setData('medico_id', e.target.value)}
+                                        className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-bold"
+                                        required
+                                        disabled={!data.visitador_id}
+                                    >
+                                        <option value="">{data.visitador_id ? 'Seleccionar...' : 'Elija Visitador primero'}</option>
+                                        {medicosFiltradosPorVisitador.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                                    </select>
+                                    {errors.medico_id && <div className="text-rose-500 text-[9px] mt-1 font-bold">{errors.medico_id}</div>}
                                 </div>
                             </div>
 
