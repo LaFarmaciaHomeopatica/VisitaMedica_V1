@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import BarraNave from './barranave';
 import {
@@ -11,15 +11,15 @@ import {
     FaCircleCheck,
     FaCircleXmark,
     FaClock,
-    FaMagnifyingGlass
+    FaMagnifyingGlass,
+    FaPlus
 } from 'react-icons/fa6';
 
-const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
+const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [], medicosDisponibles = [] }) => {
     const [modalAbierto, setModalAbierto] = useState(false);
     const [visitaSeleccionada, setVisitaSeleccionada] = useState(null);
     const [search, setSearch] = useState('');
     const [fechaActual, setFechaActual] = useState(new Date());
-    const [diaSeleccionado, setDiaSeleccionado] = useState(new Date().getDate());
 
     const configVisual = {
         'efectiva': { label: 'Efectiva', icon: <FaCircleCheck />, color: 'text-green-500' },
@@ -30,53 +30,36 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
         'sin programar': { label: 'Sin Programar', icon: <FaClock />, color: 'text-gray-300' }
     };
 
-    const { data, setData, post, processing, reset } = useForm({
+    const { data, setData, post, processing, reset, errors, clearErrors } = useForm({
+        medico_id: '',
+        fecha_programada: '',
+        fecha_realizada: '',
         estado: '',
         comentarios: '',
     });
 
-    // Cambiar de día uno por uno
     const cambiarDia = (offset) => {
         const nuevaFecha = new Date(fechaActual);
-        nuevaFecha.setDate(diaSeleccionado + offset);
+        nuevaFecha.setDate(nuevaFecha.getDate() + offset);
         setFechaActual(nuevaFecha);
-        setDiaSeleccionado(nuevaFecha.getDate());
     };
 
-    const obtenerInicioSemana = (fecha) => {
-        const d = new Date(fecha);
-        const dia = d.getDay();
-        const diff = d.getDate() - dia + (dia === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    };
+    const diasSemana = useMemo(() => {
+        const d = new Date(fechaActual);
+        const diaSem = d.getDay();
+        const diff = d.getDate() - diaSem + (diaSem === 0 ? -6 : 1);
+        const inicio = new Date(d.setDate(diff));
 
-    const generarSemana = () => {
-        const inicio = obtenerInicioSemana(fechaActual);
         return Array.from({ length: 7 }).map((_, i) => {
-            const fecha = new Date(inicio);
-            fecha.setDate(inicio.getDate() + i);
+            const f = new Date(inicio);
+            f.setDate(inicio.getDate() + i);
             return {
-                nombre: fecha.toLocaleDateString('es-ES', { weekday: 'short' }),
-                num: fecha.getDate(),
-                fechaCompleta: fecha
+                nombre: f.toLocaleDateString('es-ES', { weekday: 'short' }),
+                num: f.getDate(),
+                fechaCompleta: f
             };
         });
-    };
-
-    const diasSemana = generarSemana();
-
-    const abrirGestion = (visita) => {
-        setVisitaSeleccionada(visita);
-        setData({ estado: visita.estado || '', comentarios: visita.comentarios || '' });
-        setModalAbierto(true);
-    };
-
-    const enviarReporte = () => {
-        post(route('visitas.marcarEfectiva', visitaSeleccionada.id), {
-            preserveScroll: true,
-            onSuccess: () => { setModalAbierto(false); reset(); }
-        });
-    };
+    }, [fechaActual]);
 
     const visitasFiltradas = visitas.filter(v => {
         const nombreMedico = v.medico ? `${v.medico.nombre} ${v.medico.apellido}`.toLowerCase() : '';
@@ -84,19 +67,53 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
         const coincideBusqueda = nombreMedico.includes(search.toLowerCase()) || especialidad.includes(search.toLowerCase());
 
         if (!v.fecha_programada) return false;
-        const partesFecha = v.fecha_programada.split(' ')[0].split('-');
+
+        const fechaV = new Date(v.fecha_programada.replace(/-/g, '/'));
         return coincideBusqueda &&
-            parseInt(partesFecha[2]) === diaSeleccionado &&
-            (parseInt(partesFecha[1]) - 1) === fechaActual.getMonth() &&
-            parseInt(partesFecha[0]) === fechaActual.getFullYear();
+            fechaV.getDate() === fechaActual.getDate() &&
+            fechaV.getMonth() === fechaActual.getMonth() &&
+            fechaV.getFullYear() === fechaActual.getFullYear();
     });
+
+    const abrirGestion = (visita) => {
+        setVisitaSeleccionada(visita);
+        clearErrors();
+        setData({
+            estado: visita.estado || '',
+            comentarios: visita.comentarios || '',
+            medico_id: visita.medico_id || '',
+            fecha_programada: visita.fecha_programada || '',
+            fecha_realizada: visita.fecha_realizada || ''
+        });
+        setModalAbierto(true);
+    };
+
+    const abrirNuevo = () => {
+        setVisitaSeleccionada(null);
+        clearErrors();
+        reset();
+        setModalAbierto(true);
+    };
+
+    const enviarReporte = () => {
+        const url = visitaSeleccionada
+            ? route('visitas.marcarEfectiva', visitaSeleccionada.id)
+            : route('visitas.store');
+
+        post(url, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setModalAbierto(false);
+                reset();
+            }
+        });
+    };
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen font-sans relative overflow-x-hidden text-gray-800">
             <Head title="Gestión de Visitas - LFH" />
 
             <div className={`transition-all duration-500 ${modalAbierto ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : ''}`}>
-
                 <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px]">
                     <div className="max-w-[1440px] mx-auto p-3 md:p-4">
                         <div className="flex items-center gap-3">
@@ -120,63 +137,49 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
                 </header>
 
                 <main className="px-5 mt-4 space-y-4 pb-32">
-                    {/* SECCIÓN CALENDARIO CON FLECHAS INTEGRADAS */}
                     <section className="bg-white p-4 rounded-[24px] shadow-sm border border-gray-50">
                         <div className="flex justify-between items-center mb-4">
-                            {/* Selector de Mes (Semana a semana) */}
                             <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full">
-                                <button onClick={() => setFechaActual(new Date(fechaActual.setDate(fechaActual.getDate() - 7)))} className="text-[#5D8BF4] p-1.5 active:scale-75"><FaChevronLeft className="text-[10px]" /></button>
-                                <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-tighter w-20 text-center">
+                                <button onClick={() => cambiarDia(-7)} className="text-[#5D8BF4] p-1.5 active:scale-75"><FaChevronLeft className="text-[10px]" /></button>
+                                <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-tighter w-24 text-center">
                                     {fechaActual.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                                 </h3>
-                                <button onClick={() => setFechaActual(new Date(fechaActual.setDate(fechaActual.getDate() + 7)))} className="text-[#5D8BF4] p-1.5 active:scale-75"><FaChevronRight className="text-[10px]" /></button>
+                                <button onClick={() => cambiarDia(7)} className="text-[#5D8BF4] p-1.5 active:scale-75"><FaChevronRight className="text-[10px]" /></button>
                             </div>
 
-                            {/* Grupo de Flechas Día a Día + Calendario */}
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center bg-blue-50 rounded-full p-1 gap-1">
-                                    <button
-                                        onClick={() => cambiarDia(-1)}
-                                        className="w-7 h-7 flex items-center justify-center bg-white rounded-full text-[#5D8BF4] shadow-sm active:scale-90"
-                                    >
-                                        <FaChevronLeft className="text-[9px]" />
-                                    </button>
-
-                                    <Link
-                                        href={route('visitas.calendario')}
-                                        className="w-8 h-8 flex items-center justify-center text-[#5D8BF4] active:scale-90"
-                                    >
-                                        <FaCalendarDays className="text-sm" />
-                                    </Link>
-
-                                    <button
-                                        onClick={() => cambiarDia(1)}
-                                        className="w-7 h-7 flex items-center justify-center bg-white rounded-full text-[#5D8BF4] shadow-sm active:scale-90"
-                                    >
-                                        <FaChevronRight className="text-[9px]" />
-                                    </button>
-                                </div>
+                            <div className="flex items-center bg-blue-50 rounded-full p-1 gap-1">
+                                <button onClick={() => cambiarDia(-1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-full text-[#5D8BF4] shadow-sm active:scale-90">
+                                    <FaChevronLeft className="text-[9px]" />
+                                </button>
+                                <Link
+                                    href={route('visitas.calendario')}
+                                    className="w-8 h-8 flex items-center justify-center text-[#5D8BF4] active:scale-90"
+                                >
+                                    <FaCalendarDays className="text-sm" />
+                                </Link>
+                                <button onClick={() => cambiarDia(1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-full text-[#5D8BF4] shadow-sm active:scale-90">
+                                    <FaChevronRight className="text-[9px]" />
+                                </button>
                             </div>
                         </div>
 
                         <div className="flex justify-between gap-1">
-                            {diasSemana.map((dia) => (
-                                <button
-                                    key={dia.fechaCompleta.toISOString()}
-                                    onClick={() => {
-                                        setDiaSeleccionado(dia.num);
-                                        setFechaActual(dia.fechaCompleta);
-                                    }}
-                                    className={`flex flex-col items-center justify-center min-w-[42px] py-2 rounded-xl transition-all ${diaSeleccionado === dia.num ? 'bg-[#5D8BF4] text-white shadow-md scale-105' : 'bg-transparent text-gray-400'}`}
-                                >
-                                    <span className="text-[9px] font-bold uppercase mb-0.5">{dia.nombre.slice(0, 3)}</span>
-                                    <span className="text-xs font-black">{dia.num}</span>
-                                </button>
-                            ))}
+                            {diasSemana.map((dia) => {
+                                const esActivo = dia.num === fechaActual.getDate() && dia.fechaCompleta.getMonth() === fechaActual.getMonth();
+                                return (
+                                    <button
+                                        key={dia.fechaCompleta.toISOString()}
+                                        onClick={() => setFechaActual(dia.fechaCompleta)}
+                                        className={`flex flex-col items-center justify-center min-w-[42px] py-2 rounded-xl transition-all ${esActivo ? 'bg-[#5D8BF4] text-white shadow-md scale-105' : 'bg-transparent text-gray-400'}`}
+                                    >
+                                        <span className="text-[9px] font-bold uppercase mb-0.5">{dia.nombre.slice(0, 3)}</span>
+                                        <span className="text-xs font-black">{dia.num}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </section>
 
-                    {/* Listado de Visitas */}
                     <div className="space-y-3">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Visitas del día</p>
                         {visitasFiltradas.length > 0 ? (
@@ -213,19 +216,29 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
                 </main>
             </div>
 
+            <button
+                onClick={abrirNuevo}
+                className="fixed bottom-24 right-6 w-14 h-14 bg-[#5D8BF4] text-white rounded-full shadow-2xl flex items-center justify-center text-xl active:scale-90 transition-transform z-50 border-4 border-white"
+            >
+                <FaPlus />
+            </button>
+
             <BarraNave />
 
-            {/* MODAL DE GESTIÓN */}
-            {modalAbierto && visitaSeleccionada && (
+            {modalAbierto && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalAbierto(false)} />
-                    <div className="relative bg-white w-full max-w-md rounded-[35px] p-7 shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-white w-full max-w-md rounded-[35px] p-7 shadow-2xl animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-start mb-6">
                             <div>
-                                <h2 className="text-lg font-black text-gray-900 leading-none uppercase">Reportar Visita</h2>
-                                <p className="text-[11px] text-blue-500 font-bold mt-1 uppercase">
-                                    {visitaSeleccionada.medico?.nombre} {visitaSeleccionada.medico?.apellido}
-                                </p>
+                                <h2 className="text-lg font-black text-gray-900 leading-none uppercase">
+                                    {visitaSeleccionada ? 'Reportar Visita' : 'Nueva Visita'}
+                                </h2>
+                                {visitaSeleccionada && (
+                                    <p className="text-[11px] text-blue-500 font-bold mt-1 uppercase">
+                                        {visitaSeleccionada.medico?.nombre} {visitaSeleccionada.medico?.apellido}
+                                    </p>
+                                )}
                             </div>
                             <button onClick={() => setModalAbierto(false)} className="w-7 h-7 flex items-center justify-center bg-gray-100 rounded-full text-gray-400">
                                 <FaXmark className="text-sm" />
@@ -233,9 +246,60 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
                         </div>
 
                         <div className="space-y-5">
+                            {!visitaSeleccionada && (
+                                <>
+                                    <section className="space-y-2">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Médico</label>
+                                        <select
+                                            value={data.medico_id}
+                                            onChange={e => setData('medico_id', e.target.value)}
+                                            className="w-full bg-gray-50 border-none rounded-2xl p-3.5 text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-200"
+                                        >
+                                            <option value="">Seleccionar Médico</option>
+                                            {medicosDisponibles.map(m => (
+                                                <option key={m.id} value={m.id}>{m.nombre} {m.apellido} - {m.especialidad}</option>
+                                            ))}
+                                        </select>
+                                        {errors.medico_id && <p className="text-red-500 text-[10px] ml-1">{errors.medico_id}</p>}
+                                    </section>
+
+                                    <section className="space-y-2">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Fecha y Hora Programada</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={data.fecha_programada}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setData(prev => ({
+                                                    ...prev,
+                                                    fecha_programada: val,
+                                                    fecha_realizada: val
+                                                }));
+                                            }}
+                                            className="w-full bg-gray-50 border-none rounded-2xl p-3 text-xs text-gray-800 outline-none"
+                                        />
+                                        {errors.fecha_programada && <p className="text-red-500 text-[10px] ml-1">{errors.fecha_programada}</p>}
+                                    </section>
+                                </>
+                            )}
+
+                            <section className="space-y-2">
+                                <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-1">
+                                    Fecha y Hora de la Gestión
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={data.fecha_realizada}
+                                    onChange={e => setData('fecha_realizada', e.target.value)}
+                                    className="w-full bg-blue-50 border-2 border-blue-100 rounded-2xl p-3 text-xs text-gray-800 outline-none focus:border-blue-300"
+                                />
+                                {errors.fecha_realizada && <p className="text-red-500 text-[10px] ml-1">{errors.fecha_realizada}</p>}
+                                <p className="text-[9px] text-gray-400 italic ml-1">* Obligatorio para el reporte de efectividad.</p>
+                            </section>
+
                             <section className="space-y-2">
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado de la Visita</label>
-                                <div className="grid grid-cols-1 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     {estadosDisponibles.map((estadoDb) => {
                                         const estilo = configVisual[estadoDb] || { label: estadoDb, icon: <FaCircleCheck />, color: 'text-gray-400' };
                                         return (
@@ -243,18 +307,19 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
                                                 key={estadoDb}
                                                 type="button"
                                                 onClick={() => setData('estado', estadoDb)}
-                                                className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all ${data.estado === estadoDb ? 'bg-blue-50/50 border-blue-500' : 'bg-gray-50 border-transparent text-gray-400'}`}
+                                                className={`flex items-center gap-2 p-2.5 rounded-2xl border-2 transition-all ${data.estado === estadoDb ? 'bg-blue-50/50 border-blue-500' : 'bg-gray-50 border-transparent text-gray-400'}`}
                                             >
-                                                <div className={`text-lg ${data.estado === estadoDb ? estilo.color : 'text-gray-300'}`}>
+                                                <div className={`text-sm ${data.estado === estadoDb ? estilo.color : 'text-gray-300'}`}>
                                                     {estilo.icon}
                                                 </div>
-                                                <span className={`text-xs font-bold uppercase ${data.estado === estadoDb ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                <span className={`text-[9px] font-bold uppercase ${data.estado === estadoDb ? 'text-gray-900' : 'text-gray-400'}`}>
                                                     {estilo.label}
                                                 </span>
                                             </button>
                                         );
                                     })}
                                 </div>
+                                {errors.estado && <p className="text-red-500 text-[10px] ml-1">{errors.estado}</p>}
                             </section>
 
                             <section className="space-y-2">
@@ -263,19 +328,20 @@ const CalendarioVisitas = ({ visitas = [], estadosDisponibles = [] }) => {
                                     value={data.comentarios}
                                     onChange={e => setData('comentarios', e.target.value)}
                                     placeholder="Escribe aquí los resultados..."
-                                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs text-gray-800 shadow-inner focus:ring-1 focus:ring-blue-200 min-h-[110px] outline-none resize-none"
+                                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs text-gray-800 shadow-inner focus:ring-1 focus:ring-blue-200 min-h-[90px] outline-none resize-none"
                                 />
+                                {errors.comentarios && <p className="text-red-500 text-[10px] ml-1">{errors.comentarios}</p>}
                             </section>
 
                             <button
                                 onClick={enviarReporte}
-                                disabled={!data.estado || processing}
-                                className={`w-full py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${data.estado && !processing
+                                disabled={processing}
+                                className={`w-full py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${!processing
                                     ? 'bg-[#5D8BF4] text-white shadow-lg active:scale-95'
                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     }`}
                             >
-                                {processing ? 'GUARDANDO REPORTE...' : 'FINALIZAR Y GUARDAR'}
+                                {processing ? 'GUARDANDO...' : 'FINALIZAR Y GUARDAR'}
                             </button>
                         </div>
                     </div>

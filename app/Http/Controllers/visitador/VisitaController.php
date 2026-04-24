@@ -4,150 +4,153 @@ namespace App\Http\Controllers\visitador;
 
 use App\Http\Controllers\Controller;
 use App\Models\Visita;
+use App\Models\Medico;
 use App\Models\Visitador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Carbon\Carbon;
+use Illuminate\Validation\Rule;
 
 class VisitaController extends Controller
 {
-    /**
-     * Obtener el visitador logueado con sus relaciones necesarias
-     */
     private function getVisitador()
     {
-        return Visitador::with(['tipodocumento', 'medicos'])
+        return Visitador::with(['medicos'])
             ->where('usuario_id', Auth::id())
             ->first();
     }
 
-    /**
-     * VISTA DE PERFIL (Renderiza Visitador.jsx)
-     */
-    public function perfil()
+    public function calendario()
     {
         $visitador = $this->getVisitador();
-        $medicos = $visitador ? $visitador->medicos : [];
+        if (!$visitador) return redirect()->route('login');
 
-        return Inertia::render('VISITADOR/Visitador', [
-            'visitador' => $visitador,
-            'medicos' => $medicos
-        ]);
-    }
-
-    /**
-     * ENDPOINT PARA AXIOS (Actualiza la alerta en tiempo real)
-     */
-    public function getVisitasJson()
-{
-    $visitador = $this->getVisitador();
-    if (!$visitador) return response()->json([]);
-
-    // Obtenemos visitas del MES ACTUAL para calcular cumplimiento mensual y diario
-    $visitas = Visita::where('visitador_id', $visitador->id)
-        ->whereMonth('fecha_programada', now()->month)
-        ->whereYear('fecha_programada', now()->year)
-        ->get();
-
-    return response()->json($visitas);
-}
-
-    /**
-     * VISTA DE GESTIÓN (Renderiza GestionVisita.jsx)
-     */
-    public function index()
-    {
-        $visitador = $this->getVisitador();
-
-        return Inertia::render('VISITADOR/GestionVisita', [
+        return Inertia::render('VISITADOR/CalendarioVisitas', [
             'visitas' => Visita::with('medico')
                 ->where('visitador_id', $visitador->id)
-                ->get(),
-            'estadosDisponibles' => Visita::getPossibleStatuses()
+                ->orderBy('fecha_programada', 'asc')
+                ->get()
+                ->map(function ($visita) {
+                    $visita->hora_12h = Carbon::parse($visita->fecha_programada)->format('g:i A');
+                    return $visita;
+                }),
+            'medicosDisponibles' => $visitador->medicos, 
+            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
         ]);
     }
 
-    /**
-     * Crear nueva visita
-     */
     public function store(Request $request)
     {
         $visitador = $this->getVisitador();
 
         $request->validate([
-            'medico_id' => 'required|exists:medicos,id',
+            'medico_id' => [
+                'required',
+                Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)),
+            ],
             'fecha_programada' => 'required|date',
+            'estado'           => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
         ]);
+
+        $fechaNueva = Carbon::parse($request->fecha_programada);
+
+        // --- VALIDACIONES DE TIEMPO ---
+        if ($fechaNueva->isPast() && !$fechaNueva->isToday()) {
+            return back()->withErrors(['fecha_programada' => 'La fecha no puede ser anterior a hoy.']);
+        }
+
+        if ($fechaNueva->isWeekend()) {
+            return back()->withErrors(['fecha_programada' => 'No se atiende fines de semana.']);
+        }
+
+        $hora = $fechaNueva->format('H:i');
+        if ($hora < '08:00' || $hora > '18:00') {
+            return back()->withErrors(['fecha_programada' => 'Horario laboral: 08:00 AM - 06:00 PM.']);
+        }
+
+        // --- DETECCIÓN DE CRUCES ---
+        // Definimos un margen de 30 minutos para considerar un "espacio ocupado"
+        $inicioRango = (clone $fechaNueva)->subMinutes(29);
+        $finRango = (clone $fechaNueva)->addMinutes(29);
+
+        $cruce = Visita::with('medico')
+            ->whereBetween('fecha_programada', [$inicioRango, $finRango])
+            ->where(function($q) use ($visitador, $request) {
+                $q->where('visitador_id', $visitador->id) // El visitador está ocupado
+                  ->orWhere('medico_id', $request->medico_id); // El médico ya tiene cita
+            })
+            ->first();
+
+        if ($cruce) {
+            $nombreConflicto = $cruce->medico->nombre . ' ' . $cruce->medico->apellido;
+            $horaConflicto = Carbon::parse($cruce->fecha_programada)->format('g:i A');
+            
+            return back()->withErrors([
+                'fecha_programada' => "Conflicto de horario: Ya existe una cita a las {$horaConflicto} con el Dr. {$nombreConflicto}."
+            ]);
+        }
 
         Visita::create([
-            'medico_id' => $request->medico_id,
-            'visitador_id' => $visitador->id,
+            'medico_id'        => $request->medico_id,
+            'visitador_id'     => $visitador->id,
             'fecha_programada' => $request->fecha_programada,
-            'estado' => 'programada',
+            'fecha_realizada'  => $request->estado === 'efectiva' ? now() : null,
+            'estado'           => $request->estado,
+            'comentarios'      => $request->comentarios,
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Visita agendada.');
     }
 
-    /**
-     * Reportar resultado de visita
-     */
     public function marcarEfectiva(Request $request, $id)
     {
         $visitador = $this->getVisitador();
+        $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
-        $request->validate([
-            'estado' => 'required|string',
-            'comentarios' => 'nullable|string',
-        ]);
-
-        $visita = Visita::where('id', $id)
-            ->where('visitador_id', $visitador->id)
-            ->firstOrFail();
-
-        $visita->update([
-            'estado' => $request->estado,
+        $updateData = [
+            'estado'      => $request->estado,
             'comentarios' => $request->comentarios,
-            'fecha_realizada' => $request->estado === 'efectiva' ? now() : $visita->fecha_realizada,
-        ]);
+        ];
 
-        return redirect()->back()->with('message', 'Reporte guardado');
+        if ($request->estado === 'efectiva' && !$visita->fecha_realizada) {
+            $updateData['fecha_realizada'] = now();
+        }
+
+        $visita->update($updateData);
+        return redirect()->back()->with('message', 'Actualizado.');
     }
 
-    /**
-     * Reprogramar
-     */
     public function reprogramar(Request $request, $id)
     {
         $visitador = $this->getVisitador();
+        $fechaNueva = Carbon::parse($request->fecha_programada);
 
-        $request->validate(['fecha_programada' => 'required|date']);
+        // Validar horario laboral en reprogramación
+        if ($fechaNueva->format('H:i') < '08:00' || $fechaNueva->format('H:i') > '18:00') {
+            return back()->withErrors(['fecha_programada' => 'Fuera de horario laboral (08:00 - 18:00).']);
+        }
 
-        $visita = Visita::where('id', $id)
-            ->where('visitador_id', $visitador->id)
-            ->firstOrFail();
-
+        // Opcional: Podrías añadir aquí también la validación de cruce si deseas
+        $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
+        
         $visita->update([
             'fecha_programada' => $request->fecha_programada,
-            'estado' => 'reprogramada'
+            'estado'           => 'reprogramada'
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('message', 'Reprogramada.');
     }
 
-   public function calendario()
-{
-    $visitador = $this->getVisitador();
+    public function index()
+    {
+        $visitador = $this->getVisitador();
+        if (!$visitador) return redirect()->route('login');
 
-    // 1. Filtrar solo las visitas del visitador logueado
-    // 2. Cargar la relación 'medico' para que el JS no de error al leer v.medico.nombre
-    $visitas = Visita::with('medico')
-        ->where('visitador_id', $visitador->id)
-        ->get();
-
-    return Inertia::render('VISITADOR/CalendarioVisitas', [
-        'visitas' => $visitas,
-        'estadosDisponibles' => Visita::getPossibleStatuses() // <--- ESTO FALTABA
-    ]);
-}
+        return Inertia::render('VISITADOR/GestionVisita', [
+            'visitas' => Visita::with('medico')->where('visitador_id', $visitador->id)->get(),
+            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada'],
+            'medicosDisponibles' => $visitador->medicos, 
+        ]);
+    }
 }

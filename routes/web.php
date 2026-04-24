@@ -101,7 +101,9 @@ Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visi
 
 Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
-
+// Cambia esto
+Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
+Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
 
 
 Route::get('/calendario-visitas', [VisitaController::class, 'calendario'])->name('visitas.calendario');
