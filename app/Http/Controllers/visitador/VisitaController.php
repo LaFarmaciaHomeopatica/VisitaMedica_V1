@@ -135,13 +135,19 @@ class VisitaController extends Controller
         return redirect()->back();
     }
 
-    public function calendario()
-    {
-        // Obtener las visitas para el calendario
-        $visitas = Visita::with('medico')->get();
+   public function calendario()
+{
+    $visitador = $this->getVisitador();
 
-        return Inertia::render('VISITADOR/CalendarioVisitas', [
-            'visitas' => $visitas
-        ]);
-    }
+    // 1. Filtrar solo las visitas del visitador logueado
+    // 2. Cargar la relación 'medico' para que el JS no de error al leer v.medico.nombre
+    $visitas = Visita::with('medico')
+        ->where('visitador_id', $visitador->id)
+        ->get();
+
+    return Inertia::render('VISITADOR/CalendarioVisitas', [
+        'visitas' => $visitas,
+        'estadosDisponibles' => Visita::getPossibleStatuses() // <--- ESTO FALTABA
+    ]);
+}
 }

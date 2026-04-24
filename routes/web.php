@@ -92,14 +92,14 @@ Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularV
 
         // Módulo de Visitas
         Route::get('/GestionVisita', [VisitaController::class, 'index'])->name('GestionVisita.index');
-        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('GestionVisita.store');
+Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
         Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('GestionVisita.  efectiva');
         Route::post('/GestionVisita/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('GestionVisita.reprogramar');
         Route::post('/GestionVisita/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('GestionVisita.cancelar');
 
 Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
 
-
+Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
 
 
