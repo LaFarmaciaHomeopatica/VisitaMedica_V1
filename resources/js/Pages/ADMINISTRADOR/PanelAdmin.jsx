@@ -24,7 +24,7 @@ const PanelAdmin = ({ children }) => {
         { name: 'Visitadores', icon: <FaUsers />, route: '/Gvisitadores' },
         { name: 'Medicos', icon: <FaUserDoctor />, route: '/Gmedicos' },
         { name: 'Visitas', icon: <FaCalendarCheck />, route: '/Gvisitas' },
-        { name: 'Productos', icon: <FaBoxesStacked />, route: '/admin/productos' },
+        { name: 'Productos', icon: <FaBoxesStacked />, route: '/Gproductos' },
     ];
 
     return (

@@ -9,6 +9,7 @@ use App\Http\Controllers\administrador\DvisitadoresController;
 use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
 use App\Http\Controllers\administrador\VisitasController;
+use App\Http\Controllers\administrador\ProductosController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -55,30 +56,39 @@ Route::middleware(['auth'])->group(function () {
 
 
         Route::get('/Gvisitas', [VisitasController::class, 'index'])->name('Gvisitas.index');
-Route::post('/Gvisitas', [VisitasController::class, 'store'])->name('Gvisitas.store');
-
-// Cambiamos {visita} por {id}
-Route::put('/Gvisitas/{id}', [VisitasController::class, 'update'])->name('Gvisitas.update');
-Route::delete('/Gvisitas/{id}', [VisitasController::class, 'destroy'])->name('Gvisitas.destroy');
+        Route::post('/Gvisitas', [VisitasController::class, 'store'])->name('Gvisitas.store');
+        // Cambiamos {visita} por {id}
+        Route::put('/Gvisitas/{id}', [VisitasController::class, 'update'])->name('Gvisitas.update');
+        Route::delete('/Gvisitas/{id}', [VisitasController::class, 'destroy'])->name('Gvisitas.destroy');
         // Buscador de ID
         Route::get('/usuarios/buscar/{id}', [DvisitadoresController::class, 'buscarUsuario'])->name('usuarios.buscar');
 
         Route::get('/medicos/exportar', [Medico2Controller::class, 'exportar'])->name('Gmedicos.exportar');
-Route::post('/medicos/importar', [Medico2Controller::class, 'importar'])->name('Gmedicos.importar');
+        Route::post('/medicos/importar', [Medico2Controller::class, 'importar'])->name('Gmedicos.importar');
+        Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularVisitador'])->name('medicos.vincular-visitador');
+        Route::post('/medicos/eliminar-masivo', [Medico2Controller::class, 'eliminarMasivo'])->name('medicos.eliminar-masivo');
+    
+            // Rutas para Productos
+        Route::get('/Gproductos', [ProductosController::class, 'index'])->name('Gproductos.index');
+        Route::post('/Gproductos', [ProductosController::class, 'store'])->name('Gproductos.store');
+        Route::put('/Gproductos/{producto}', [ProductosController::class, 'update'])->name('Gproductos.update');
+        Route::post('/Gproductos/destroy/{producto?}', [ProductosController::class, 'destroy'])
+    ->name('Gproductos.destroy');
+        Route::get('/productos/buscar', [ProductosController::class, 'index'])->name('admin.productos');
 
 
+        // Ruta para descargar el Excel (Exportar)
+    Route::get('productos/exportar', [ProductosController::class, 'export'])->name('productos.export');
 
-Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularVisitador'])
-    ->name('medicos.vincular-visitador');
-
-    Route::post('/medicos/eliminar-masivo', [Medico2Controller::class, 'eliminarMasivo'])
-    ->name('medicos.eliminar-masivo');
+    // Ruta para procesar el archivo subido (Importar)
+    Route::post('productos/importar', [ProductosController::class, 'import'])->name('productos.import');
     });
 
     /*
+    |----------------------------------------------------------------------------------------
     |--- GRUPO VISITADOR (id_rol 2) ---
-    */
-    Route::middleware(['role:2'])->group(function () {
+    |----------------------------------------------------------------------------------------*/
+        Route::middleware(['role:2'])->group(function () {
         Route::get('/panel', function () {
             return Inertia::render('VISITADOR/panel');
         })->name('panel');
@@ -92,38 +102,33 @@ Route::post('/medicos/vincular-visitador', [Medico2Controller::class, 'vincularV
 
         // Módulo de Visitas
         Route::get('/GestionVisita', [VisitaController::class, 'index'])->name('GestionVisita.index');
-Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
+        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
         Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('GestionVisita.  efectiva');
         Route::post('/GestionVisita/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('GestionVisita.reprogramar');
         Route::post('/GestionVisita/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('GestionVisita.cancelar');
 
-Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
+        Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
 
-Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+        Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
-// Cambia esto
-Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
-Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
-
-
-Route::get('/calendario-visitas', [VisitaController::class, 'calendario'])->name('visitas.calendario');
-// 🔥 RUTA CLAVE: Endpoint que devuelve el JSON para Axios
-// Esta es la que usa cargarVisitas() en React
-Route::get('/visitas-json', [VisitaController::class, 'getVisitasJson']);
-
-// Gestión de visitas (la otra vista que tienes)
-Route::get('/gestion-visitas', [VisitaController::class, 'index'])->name('visitas.index');
-
-// Crear visita
-Route::post('/visitas', [VisitaController::class, 'store']);
-
-// Marcar como efectiva
-Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva']);
+       
+        Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
+        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
 
 
+        Route::get('/calendario-visitas', [VisitaController::class, 'calendario'])->name('visitas.calendario');
+        // RUTA CLAVE: Endpoint que devuelve el JSON para Axios
+        // Esta es la que usa cargarVisitas() en React
+        Route::get('/visitas-json', [VisitaController::class, 'getVisitasJson']);
 
+        // Gestión de visitas (la otra vista que tienes)
+        Route::get('/gestion-visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
+        // Crear visita
+        Route::post('/visitas', [VisitaController::class, 'store']);
 
+        // Marcar como efectiva
+        Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva']);
 
         Route::get('/visitas', [VisitaController::class, 'getVisitasJson'])->name('visitas.json');
         
@@ -140,7 +145,9 @@ Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'
     });
 
     /*
+    |---------------------------------------------------------------------------------
     |--- RUTAS COMUNES (Cualquier usuario logueado) ---
+    |---------------------------------------------------------------------------------
     */
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
