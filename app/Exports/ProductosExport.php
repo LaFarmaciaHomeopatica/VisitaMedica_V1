@@ -8,24 +8,27 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 
 class ProductosExport implements FromCollection, WithHeadings
 {
-    /**
-    * @return \Illuminate\Support\Collection
-    */
-    public function collection()
+    protected $productos;
+
+    // El constructor recibe la colección de productos desde el controlador
+    public function __construct($productos = null)
     {
-        // Seleccionamos solo los campos necesarios para el reporte
-        return Productos::select('nombre', 'laboratorio', 'codigo')->get();
+        $this->productos = $productos;
     }
 
-    /**
-     * Definir los encabezados de las columnas
-     */
-   public function headings(): array
-{
-    return [
-        'nombre_del_producto', // Sin espacios ni tildes para asegurar el mapeo
-        'laboratorio',
-        'codigo',
-    ];
-}
+    public function collection()
+    {
+        // Si se pasaron productos específicos (individuales), los devuelve.
+        // Si no, descarga todos los productos.
+        return $this->productos ?: \App\Models\Productos::select('codigo', 'nombre', 'laboratorio')->get();
+    }
+
+    public function headings(): array
+    {
+        return [
+            'codigo',      // Visualmente con tilde y mayúscula
+            'nombre',
+            'laboratorio',
+        ];
+    }
 }

@@ -9,6 +9,8 @@ const Gproductos = ({ productos = [] }) => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const fileInputRef = useRef(null);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
 
     // --- ESTADOS PARA IMPORTACIÓN Y DUPLICADOS ---
     const [previewData, setPreviewData] = useState([]);
@@ -23,6 +25,10 @@ const Gproductos = ({ productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const [newIds, setNewIds] = useState([]);
+    const [updatedIds, setUpdatedIds] = useState([]);
+
 
     const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
         id: null,
@@ -117,15 +123,29 @@ const Gproductos = ({ productos = [] }) => {
             const bstr = evt.target.result;
             const wb = XLSX.read(bstr, { type: 'binary' });
             const wsname = wb.SheetNames[0];
-            const dataExcel = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
 
-            const dups = dataExcel.filter(row => {
+            // Importante: read_footer:false y defval para evitar nulos
+            const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wsname], { defval: "" });
+
+            const dataExcel = rawData.map(row => {
+                const normalizedRow = {};
+                Object.keys(row).forEach(key => {
+                    const cleanKey = key.toLowerCase().trim();
+                    // Si es el valor, también lo limpiamos y convertimos a string
+                    normalizedRow[cleanKey] = row[key]?.toString().trim() || "";
+                });
+                return normalizedRow;
+            });
+
+            // Clasificación rápida para los contadores
+            const duplicados = dataExcel.filter(row => {
                 const codExcel = row.codigo?.toString().trim();
+                // Buscamos coincidencia exacta de string
                 return productos.some(p => p.codigo?.toString().trim() === codExcel);
             });
 
             setPreviewData(dataExcel);
-            setDuplicatesFound(dups);
+            setDuplicatesFound(duplicados);
             setIsPreviewModalOpen(true);
         };
         reader.readAsBinaryString(file);
@@ -144,18 +164,31 @@ const Gproductos = ({ productos = [] }) => {
     const executeServerImport = (sobreescribir = false) => {
         router.post(route('productos.import'), {
             data: previewData,
-            sobreescribir: sobreescribir // Enviamos al controlador si debe pisar datos o no
+            sobreescribir: sobreescribir
         }, {
             preserveScroll: true,
-            onSuccess: () => {
+            onSuccess: (page) => {
+                // Supongamos que tu controlador devuelve los IDs en session flash
+                // o simplemente identificamos los que estaban en previewData
+                const idsProcesados = previewData.map(p => p.codigo);
+
+                if (sobreescribir) {
+                    setUpdatedIds(idsProcesados);
+                    setNewIds([]);
+                } else {
+                    setNewIds(idsProcesados);
+                    setUpdatedIds([]);
+                }
+
+                // Limpiar las marcas después de 10 segundos para que no sean permanentes
+                setTimeout(() => {
+                    setNewIds([]);
+                    setUpdatedIds([]);
+                }, 10000);
+
                 setIsPreviewModalOpen(false);
                 setIsWarningModalOpen(false);
                 setPreviewData([]);
-                setDuplicatesFound([]);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            },
-            onError: () => {
-                alert("Error al importar los productos.");
             }
         });
     };
@@ -172,6 +205,100 @@ const Gproductos = ({ productos = [] }) => {
             preserveScroll: true
         });
     };
+    // --- LÓGICA DE EXPORTACIÓN ---
+    const handleExportExcel = () => {
+        // 1. Determinar qué datos exportar
+        // Si hay seleccionados, filtramos 'productos' por esos IDs. 
+        // Si no hay seleccionados, exportamos todos los productos (o podrías usar 'filteredProductos' si prefieres exportar solo lo que se ve en la búsqueda)
+        const dataToExport = selectedIds.length > 0
+            ? productos.filter(p => selectedIds.includes(p.id))
+            : filteredProductos;
+
+        if (dataToExport.length === 0) {
+            alert("No hay datos para exportar");
+            return;
+        }
+
+        // 2. Formatear los datos para el Excel (opcional: limpiar columnas innecesarias como IDs internos)
+        const formattedData = dataToExport.map(p => ({
+            CÓDIGO: p.codigo,
+            NOMBRE: p.nombre,
+            LABORATORIO: p.laboratorio || 'N/A',
+        }));
+
+        // 3. Crear el libro de trabajo (Worksheet)
+        const ws = XLSX.utils.json_to_sheet(formattedData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Productos");
+
+        // 4. Generar el archivo y descargar
+        XLSX.writeFile(wb, `Reporte_Productos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+        // Opcional: Cerrar modal de exportación si lo usas
+        setIsExportModalOpen(false);
+    };
+
+    {
+        {
+            previewData.map((row, i) => {
+                // 1. Identificar el producto
+                const codExcel = row.codigo?.toString().trim();
+                const original = productos.find(p => p.codigo?.toString().trim() === codExcel);
+                const existe = !!original;
+
+                // 2. Comparación de valores (Forzamos String y limpieza)
+                const valExcel = String(row.nombre || "").trim().toUpperCase();
+                const valDB = String(original?.nombre || "").trim().toUpperCase();
+
+                // 3. LA LÓGICA DE CAMBIO
+                // Si existe y el nombre es diferente, ES UNA MODIFICACIÓN
+                const esModificado = existe && valExcel !== valDB;
+
+                return (
+                    <tr key={i} className={`border-b ${esModificado ? 'bg-amber-100' : existe ? 'bg-slate-50' : 'bg-emerald-50'}`}>
+                        <td className="px-4 py-3">
+                            {esModificado ? (
+                                <span className="bg-amber-600 text-white text-[10px] font-black px-2 py-1 rounded shadow-sm">
+                                    ● MODIFICADO
+                                </span>
+                            ) : existe ? (
+                                <span className="text-slate-400 text-[10px] font-bold">
+                                    [ EDITAR ]
+                                </span>
+                            ) : (
+                                <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-1 rounded">
+                                    [ NUEVO ]
+                                </span>
+                            )}
+                        </td>
+
+                        <td className="px-4 py-3 text-[10px] font-mono text-slate-500">
+                            {row.codigo}
+                        </td>
+
+                        <td className="px-4 py-3">
+                            <div className="flex flex-col">
+                                <span className={`text-[11px] ${esModificado ? 'text-amber-800 font-black' : 'text-slate-700'}`}>
+                                    {row.nombre}
+                                </span>
+                                {esModificado && (
+                                    <span className="text-[9px] text-amber-600 font-medium italic mt-1">
+                                        Valor actual en sistema: {original.nombre}
+                                    </span>
+                                )}
+                            </div>
+                        </td>
+
+                        <td className="px-4 py-3 text-[10px] text-slate-500">
+                            {row.laboratorio}
+                        </td>
+                    </tr>
+                );
+            })
+        }
+    }
+
+
 
     return (
         <PanelAdmin>
@@ -202,9 +329,12 @@ const Gproductos = ({ productos = [] }) => {
                             Importar
                         </button>
 
-                        <a href={route('productos.export')} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg font-bold text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all">
-                            Exportar
-                        </a>
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg font-bold text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all"
+                        >
+                            {selectedIds.length > 0 ? `Exportar (${selectedIds.length})` : 'Exportar Todo'}
+                        </button>
 
                         <button
                             disabled={selectedIds.length === 0}
@@ -229,8 +359,17 @@ const Gproductos = ({ productos = [] }) => {
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Mostrar</span>
-                            <input type="number" value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-center p-1" />
-                        </div>
+                            <input
+                                type="number"
+                                value={itemsPerPage === 0 ? '' : itemsPerPage}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItemsPerPage(val === '' ? 0 : parseInt(val, 10));
+                                    setCurrentPage(1);
+                                }}
+                                className="w-16 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-center p-1 outline-none focus:ring-2 focus:ring-blue-500"
+                            />                        </div>
+
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -316,6 +455,8 @@ const Gproductos = ({ productos = [] }) => {
                             <table className="w-full text-[10px] text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-100 uppercase">
+                                        {/* Nueva columna de estado */}
+                                        <th className="px-4 py-2 font-bold text-slate-600 border border-slate-200">Acción Sugerida</th>
                                         {previewData.length > 0 && Object.keys(previewData[0]).map(key => (
                                             <th key={key} className="px-4 py-2 font-bold text-slate-600 border border-slate-200">{key}</th>
                                         ))}
@@ -324,14 +465,63 @@ const Gproductos = ({ productos = [] }) => {
                                 <tbody>
                                     {previewData.map((row, i) => {
                                         const codExcel = row.codigo?.toString().trim();
-                                        const esDuplicado = productos.some(p => p.codigo?.toString().trim() === codExcel);
+
+                                        // 1. Buscamos el producto original en la base de datos
+                                        const original = productos.find(p => p.codigo?.toString().trim() === codExcel);
+                                        const existe = !!original;
+
+                                        // 2. Comparamos contenido (Nombre y Laboratorio)
+                                        // Forzamos a minúsculas y limpiamos espacios para una comparación real
+                                        const nombreCambio = existe &&
+                                            row.nombre?.toString().trim().toLowerCase() !== (original.nombre || '').toLowerCase();
+
+                                        const labCambio = existe &&
+                                            row.laboratorio?.toString().trim().toLowerCase() !== (original.laboratorio || '').toLowerCase();
+
+                                        const esModificado = nombreCambio || labCambio;
+
                                         return (
-                                            <tr key={i} className={esDuplicado ? 'bg-red-50' : ''}>
-                                                {Object.values(row).map((val, j) => (
-                                                    <td key={j} className={`px-4 py-2 border border-slate-100 ${esDuplicado ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
-                                                        {val || '---'}
-                                                    </td>
-                                                ))}
+                                            <tr key={i} className={
+                                                esModificado ? 'bg-orange-100' : // Si cambió el contenido: Naranja fuerte
+                                                    existe ? 'bg-amber-50/50' :      // Si existe pero es igual: Naranja muy suave
+                                                        'bg-emerald-50/50'               // Si es nuevo: Verde
+                                            }>
+                                                {/* Columna de Acción Sugerida */}
+                                                <td className="px-4 py-2 border border-slate-100">
+                                                    {esModificado ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-orange-700 font-black uppercase text-[9px] bg-white px-1 rounded border border-orange-200 w-fit">
+                                                                ● MODIFICADO
+                                                            </span>
+                                                        </div>
+                                                    ) : existe ? (
+                                                        <span className="text-amber-600 font-black uppercase text-[9px]">[ SIN CAMBIOS ]</span>
+                                                    ) : (
+                                                        <span className="text-emerald-600 font-black uppercase text-[9px]">[ NUEVO ]</span>
+                                                    )}
+                                                </td>
+
+                                                {/* Renderizado de las celdas de datos */}
+                                                {Object.keys(row).map((key, j) => {
+                                                    const valorExcel = row[key];
+                                                    // Detectar si esta celda específica es la que cambió
+                                                    const esCeldaEditada = existe &&
+                                                        key.toLowerCase() === 'nombre' && nombreCambio ||
+                                                        key.toLowerCase() === 'laboratorio' && labCambio;
+
+                                                    return (
+                                                        <td key={j} className={`px-4 py-2 border border-slate-100 ${esCeldaEditada ? 'font-black text-orange-700 underline' : 'text-slate-600'}`}>
+                                                            <div className="flex flex-col">
+                                                                <span>{valorExcel || '---'}</span>
+                                                                {esCeldaEditada && (
+                                                                    <span className="text-[8px] text-orange-400 no-underline font-normal">
+                                                                        Original: {original[key.toLowerCase()]}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
                                         );
                                     })}
@@ -379,6 +569,8 @@ const Gproductos = ({ productos = [] }) => {
                     </div>
                 </div>
             )}
+
+
         </PanelAdmin>
     );
 };

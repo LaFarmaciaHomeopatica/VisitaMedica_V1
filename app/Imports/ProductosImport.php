@@ -5,30 +5,35 @@ namespace App\Imports;
 use App\Models\Productos;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithUpserts; // Para evitar el error 23000
+use Maatwebsite\Excel\Concerns\WithUpserts;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 
 class ProductosImport implements ToModel, WithHeadingRow, WithUpserts, SkipsEmptyRows
 {
     public function model(array $row)
     {
-        // Validamos que el código no venga vacío
-        if (!isset($row['codigo']) || empty($row['codigo'])) {
+        /* IMPORTANTE: 
+           Si tu Excel tiene "Código", Laravel Excel lo lee como "codigo".
+           Si tu Excel tiene "Nombre", lo lee como "nombre".
+           Si tu Excel tiene "Laboratorio", lo lee como "laboratorio".
+        */
+
+        if (empty($row['codigo'])) {
             return null;
         }
 
         return new Productos([
-            'nombre'      => $row['nombre_del_producto'],
-            'laboratorio' => $row['laboratorio'] ?? 'S/L',
-            'codigo'      => $row['codigo'],
+            'codigo'      => $row['codigo'],      // Mapea desde "Código"
+            'nombre'      => $row['nombre'],      // Mapea desde "Nombre"
+            'laboratorio' => $row['laboratorio'] ?? 'S/L', // Mapea desde "Laboratorio"
         ]);
     }
 
     /**
-     * Esto le dice a Laravel: "Si el CÓDIGO ya existe, actualiza la fila en lugar de insertar"
+     * Indica la columna de la base de datos que es única para el Upsert.
      */
     public function uniqueBy()
     {
-        return 'codigo';
+        return 'codigo'; 
     }
 }

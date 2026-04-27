@@ -88,15 +88,25 @@ class ProductosController extends Controller
 
 
 
-
-
-
-
-
-
-  public function import(Request $request)
+public function export(Request $request) 
 {
-    // 1. Cambiamos la validación: ya no esperamos un archivo, sino un array de datos
+    // Si quieres pasar filtros a la clase ProductosExport
+    $filtros = $request->only(['codigo','nombre', 'laboratorio']);
+     $idsRaw = $request->input('ids');
+     if ($idsRaw && is_array($idsRaw)) {
+    $productos = Productos::whereIn('id', $idsRaw)->get();
+    return Excel::download(new ProductosExport($productos), 'Reporte de productos.xlsx');
+    }
+    return Excel::download(new ProductosExport(), 'Reporte de productos.xlsx');
+    
+   
+}
+
+
+
+
+ public function import(Request $request)
+{
     $request->validate([
         'data' => 'required|array',
         'sobreescribir' => 'boolean'
@@ -106,45 +116,43 @@ class ProductosController extends Controller
     $sobreescribir = $request->input('sobreescribir', false);
 
     try {
+        // 1. Limpiamos y preparamos los datos en un solo array
+        $dataParaProcesar = [];
         foreach ($productosData as $fila) {
-            // Limpiamos los datos del Excel (quitamos espacios extra)
             $codigo = trim($fila['codigo'] ?? '');
-            $nombre = trim($fila['nombre'] ?? '');
-            $laboratorio = trim($fila['laboratorio'] ?? '');
+            if (empty($codigo)) continue;
 
-            if (empty($codigo)) continue; // Saltamos filas vacías
-
-            if ($sobreescribir) {
-                // Opción A: Si el código existe, lo actualiza. Si no, lo crea.
-                Productos::updateOrCreate(
-                    ['codigo' => $codigo],
-                    [
-                        'nombre' => $nombre,
-                        'laboratorio' => $laboratorio
-                    ]
-                );
-            } else {
-                // Opción B: Solo lo crea si el código NO existe (evita duplicados)
-                Productos::firstOrCreate(
-                    ['codigo' => $codigo],
-                    [
-                        'nombre' => $nombre,
-                        'laboratorio' => $laboratorio
-                    ]
-                );
-            }
+            $dataParaProcesar[] = [
+                'codigo'      => $codigo,
+                'nombre'      => trim($fila['nombre'] ?? ''),
+                'laboratorio' => trim($fila['laboratorio'] ?? ''),
+                // Si tienes timestamps manuales, inclúyelos aquí:
+                // 'created_at' => now(),
+                // 'updated_at' => now(),
+            ];
         }
 
-        return Redirect::route('Gproductos.index')->with('message', 'Importación procesada correctamente.');
+        // 2. Procesamos todo en UNA SOLA consulta SQL
+        if ($sobreescribir) {
+            // Actualiza si existe, inserta si no.
+            Productos::upsert(
+                $dataParaProcesar, 
+                ['codigo'],           // Columna única para comparar
+                ['nombre', 'laboratorio'] // Columnas a actualizar
+            );
+        } else {
+            // Inserta solo los que no existen, ignora los duplicados.
+            Productos::insertOrIgnore($dataParaProcesar);
+        }
+
+        return Redirect::route('Gproductos.index')->with('message', 'Importación masiva completada con éxito.');
 
     } catch (\Exception $e) {
-        // Si algo sale mal, devolvemos el error real para debuguear
-        return back()->withErrors(['data' => 'Error al procesar los datos: ' . $e->getMessage()]);
+        return back()->withErrors(['data' => 'Error: ' . $e->getMessage()]);
     }
 }
 
 
-// En tu Controller
 public function verifyImport(Request $request) 
 {
     $request->validate(['archivo' => 'required|mimes:xlsx,xls,csv']);
@@ -164,4 +172,6 @@ public function verifyImport(Request $request)
         'total' => count($rows)
     ]);
 }
+
+
 }
