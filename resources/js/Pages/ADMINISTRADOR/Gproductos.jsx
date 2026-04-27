@@ -17,7 +17,7 @@ const Gproductos = ({ productos = [] }) => {
     const [duplicatesFound, setDuplicatesFound] = useState([]);
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-
+    const [activeTab, setActiveTab] = useState('todos'); // 'todos', 'nuevos', 'modificados', 'sin_cambios'
     // --- ESTADOS DE SELECCIÓN ---
     const [selectedIds, setSelectedIds] = useState([]);
 
@@ -442,97 +442,122 @@ const Gproductos = ({ productos = [] }) => {
                 </div>
             )}
 
-            {/* MODAL PREVISUALIZACIÓN */}
             {isPreviewModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setIsPreviewModalOpen(false)}></div>
-                    <div className="relative bg-white w-full max-w-[90vw] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-4 border-b flex justify-between items-center bg-white">
-                            <h3 className="text-lg font-black text-slate-800 uppercase">Previsualización ({previewData.length} ítems)</h3>
-                            <button onClick={() => setIsPreviewModalOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+
+                    <div className="relative bg-white w-full max-w-[95vw] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+                        {/* CABECERA */}
+                        <div className="p-4 border-b bg-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 uppercase">Revisión de Importación</h3>
+                                <p className="text-[10px] text-slate-500 italic">Total cargado: {previewData.length} ítems</p>
+                            </div>
+                            <button onClick={() => setIsPreviewModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2">✕</button>
                         </div>
-                        <div className="flex-1 overflow-auto p-4">
-                            <table className="w-full text-[10px] text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-100 uppercase">
-                                        {/* Nueva columna de estado */}
-                                        <th className="px-4 py-2 font-bold text-slate-600 border border-slate-200">Acción Sugerida</th>
-                                        {previewData.length > 0 && Object.keys(previewData[0]).map(key => (
-                                            <th key={key} className="px-4 py-2 font-bold text-slate-600 border border-slate-200">{key}</th>
-                                        ))}
+
+                        {/* BARRA DE PESTAÑAS (TABS) */}
+                        <div className="flex bg-slate-50 border-b px-4">
+                            {[
+                                { id: 'todos', label: 'Todos', color: 'slate' },
+                                { id: 'nuevos', label: 'Nuevos', color: 'emerald' },
+                                { id: 'modificados', label: 'Modificados', color: 'orange' },
+                                { id: 'sin_cambios', label: 'Sin Cambios', color: 'amber' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-4 py-3 text-[10px] font-bold uppercase transition-all border-b-2 ${activeTab === tab.id
+                                            ? `border-${tab.color}-500 text-${tab.color}-600 bg-white`
+                                            : 'border-transparent text-slate-400 hover:bg-slate-100'
+                                        }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* CONTENIDO DE LA TABLA */}
+                        <div className="flex-1 overflow-auto p-4 bg-slate-50/30">
+                            <table className="w-full text-[10px] text-left border-collapse bg-white shadow-sm rounded-lg overflow-hidden">
+                                <thead className="sticky top-0 z-10 bg-slate-100 uppercase shadow-sm">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold text-slate-600 border-b">Acción</th>
+                                        <th className="px-4 py-3 font-bold text-slate-600 border-b">Código</th>
+                                        <th className="px-4 py-3 font-bold text-slate-600 border-b">Nombre</th>
+                                        <th className="px-4 py-3 font-bold text-slate-600 border-b">Laboratorio</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {previewData.map((row, i) => {
-                                        const codExcel = row.codigo?.toString().trim();
+                                    {previewData
+                                        .filter(row => {
+                                            const codExcel = row.codigo?.toString().trim();
+                                            const original = productos.find(p => p.codigo?.toString().trim() === codExcel);
+                                            const existe = !!original;
+                                            const modificado = existe && (
+                                                row.nombre?.toString().trim().toLowerCase() !== (original.nombre || '').toLowerCase() ||
+                                                row.laboratorio?.toString().trim().toLowerCase() !== (original.laboratorio || '').toLowerCase()
+                                            );
 
-                                        // 1. Buscamos el producto original en la base de datos
-                                        const original = productos.find(p => p.codigo?.toString().trim() === codExcel);
-                                        const existe = !!original;
+                                            if (activeTab === 'nuevos') return !existe;
+                                            if (activeTab === 'modificados') return modificado;
+                                            if (activeTab === 'sin_cambios') return existe && !modificado;
+                                            return true; // 'todos'
+                                        })
+                                        .map((row, i) => {
+                                            const codExcel = row.codigo?.toString().trim();
+                                            const original = productos.find(p => p.codigo?.toString().trim() === codExcel);
+                                            const existe = !!original;
+                                            const nCambio = existe && row.nombre?.toString().trim().toLowerCase() !== (original.nombre || '').toLowerCase();
+                                            const lCambio = existe && row.laboratorio?.toString().trim().toLowerCase() !== (original.laboratorio || '').toLowerCase();
+                                            const modificado = nCambio || lCambio;
 
-                                        // 2. Comparamos contenido (Nombre y Laboratorio)
-                                        // Forzamos a minúsculas y limpiamos espacios para una comparación real
-                                        const nombreCambio = existe &&
-                                            row.nombre?.toString().trim().toLowerCase() !== (original.nombre || '').toLowerCase();
-
-                                        const labCambio = existe &&
-                                            row.laboratorio?.toString().trim().toLowerCase() !== (original.laboratorio || '').toLowerCase();
-
-                                        const esModificado = nombreCambio || labCambio;
-
-                                        return (
-                                            <tr key={i} className={
-                                                esModificado ? 'bg-orange-100' : // Si cambió el contenido: Naranja fuerte
-                                                    existe ? 'bg-amber-50/50' :      // Si existe pero es igual: Naranja muy suave
-                                                        'bg-emerald-50/50'               // Si es nuevo: Verde
-                                            }>
-                                                {/* Columna de Acción Sugerida */}
-                                                <td className="px-4 py-2 border border-slate-100">
-                                                    {esModificado ? (
+                                            return (
+                                                <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50 transition-colors ${modificado ? 'bg-orange-50/30' : ''}`}>
+                                                    <td className="px-4 py-3">
+                                                        {modificado ? (
+                                                            <span className="text-[9px] font-black text-orange-600 bg-orange-100 px-2 py-1 rounded">MODIFICADO</span>
+                                                        ) : existe ? (
+                                                            <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded">SIN CAMBIOS</span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded">NUEVO</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono text-slate-500">{row.codigo}</td>
+                                                    <td className="px-4 py-3">
                                                         <div className="flex flex-col">
-                                                            <span className="text-orange-700 font-black uppercase text-[9px] bg-white px-1 rounded border border-orange-200 w-fit">
-                                                                ● MODIFICADO
-                                                            </span>
+                                                            <span className={nCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{row.nombre}</span>
+                                                            {nCambio && <span className="text-[8px] text-slate-400 italic">Antiguo: {original.nombre}</span>}
                                                         </div>
-                                                    ) : existe ? (
-                                                        <span className="text-amber-600 font-black uppercase text-[9px]">[ SIN CAMBIOS ]</span>
-                                                    ) : (
-                                                        <span className="text-emerald-600 font-black uppercase text-[9px]">[ NUEVO ]</span>
-                                                    )}
-                                                </td>
-
-                                                {/* Renderizado de las celdas de datos */}
-                                                {Object.keys(row).map((key, j) => {
-                                                    const valorExcel = row[key];
-                                                    // Detectar si esta celda específica es la que cambió
-                                                    const esCeldaEditada = existe &&
-                                                        key.toLowerCase() === 'nombre' && nombreCambio ||
-                                                        key.toLowerCase() === 'laboratorio' && labCambio;
-
-                                                    return (
-                                                        <td key={j} className={`px-4 py-2 border border-slate-100 ${esCeldaEditada ? 'font-black text-orange-700 underline' : 'text-slate-600'}`}>
-                                                            <div className="flex flex-col">
-                                                                <span>{valorExcel || '---'}</span>
-                                                                {esCeldaEditada && (
-                                                                    <span className="text-[8px] text-orange-400 no-underline font-normal">
-                                                                        Original: {original[key.toLowerCase()]}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        );
-                                    })}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className={lCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{row.laboratorio}</span>
+                                                            {lCambio && <span className="text-[8px] text-slate-400 italic">Antiguo: {original.laboratorio}</span>}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                 </tbody>
                             </table>
                         </div>
-                        <div className="p-4 bg-slate-50 flex gap-3 border-t">
-                            <button onClick={() => setIsPreviewModalOpen(false)} className="px-6 py-2 text-slate-500 font-bold text-xs uppercase">Cancelar</button>
-                            <button onClick={handleProcessImport} className={`flex-1 py-3 rounded-xl font-black text-xs uppercase text-white shadow-lg transition-all ${duplicatesFound.length > 0 ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
-                                {duplicatesFound.length > 0 ? `Detectados ${duplicatesFound.length} duplicados - Revisar` : `Confirmar Importación`}
+
+                        {/* BOTONES DE ACCIÓN */}
+                        <div className="p-4 bg-white border-t flex items-center justify-between">
+                            <button onClick={() => setIsPreviewModalOpen(false)} className="px-6 py-2 text-slate-400 font-bold text-[10px] uppercase hover:bg-slate-50 rounded-lg">
+                                Cancelar
                             </button>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleProcessImport}
+                                    className={`px-10 py-3 rounded-xl font-black text-[10px] uppercase text-white shadow-lg shadow-emerald-200 transition-all bg-emerald-500 hover:bg-emerald-600`}
+                                >
+                                    Confirmar e Importar Todo
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

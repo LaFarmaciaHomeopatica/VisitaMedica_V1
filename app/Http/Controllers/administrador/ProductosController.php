@@ -132,7 +132,7 @@ public function export(Request $request)
             ];
         }
 
-        // 2. Procesamos todo en UNA SOLA consulta SQL
+        // 2. Procesamos todo en UNA SOLA consulta SQL esto es importante para optimizar el rendimiento.
         if ($sobreescribir) {
             // Actualiza si existe, inserta si no.
             Productos::upsert(
