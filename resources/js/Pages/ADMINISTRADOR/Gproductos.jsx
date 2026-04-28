@@ -221,9 +221,9 @@ const Gproductos = ({ productos = [] }) => {
 
         // 2. Formatear los datos para el Excel (opcional: limpiar columnas innecesarias como IDs internos)
         const formattedData = dataToExport.map(p => ({
-            CÓDIGO: p.codigo,
-            NOMBRE: p.nombre,
-            LABORATORIO: p.laboratorio || 'N/A',
+            codigo: p.codigo,
+            nombre: p.nombre,
+            laboratorio: p.laboratorio || 'N/A',
         }));
 
         // 3. Crear el libro de trabajo (Worksheet)
@@ -469,8 +469,8 @@ const Gproductos = ({ productos = [] }) => {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`px-4 py-3 text-[10px] font-bold uppercase transition-all border-b-2 ${activeTab === tab.id
-                                            ? `border-${tab.color}-500 text-${tab.color}-600 bg-white`
-                                            : 'border-transparent text-slate-400 hover:bg-slate-100'
+                                        ? `border-${tab.color}-500 text-${tab.color}-600 bg-white`
+                                        : 'border-transparent text-slate-400 hover:bg-slate-100'
                                         }`}
                                 >
                                     {tab.label}

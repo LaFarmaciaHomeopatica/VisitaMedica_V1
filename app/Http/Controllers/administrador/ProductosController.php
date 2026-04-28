@@ -87,21 +87,11 @@ class ProductosController extends Controller
 }
 
 
-
 public function export(Request $request) 
 {
-    // Si quieres pasar filtros a la clase ProductosExport
-    $filtros = $request->only(['codigo','nombre', 'laboratorio']);
-     $idsRaw = $request->input('ids');
-     if ($idsRaw && is_array($idsRaw)) {
-    $productos = Productos::whereIn('id', $idsRaw)->get();
-    return Excel::download(new ProductosExport($productos), 'Reporte de productos.xlsx');
-    }
-    return Excel::download(new ProductosExport(), 'Reporte de productos.xlsx');
-    
-   
+    abort(500, "Si ves esto, el controlador es correcto");
+    // ... resto del código
 }
-
 
 
 
@@ -157,19 +147,26 @@ public function verifyImport(Request $request)
 {
     $request->validate(['archivo' => 'required|mimes:xlsx,xls,csv']);
     
-    // Leemos el Excel sin importar
     $rows = \Maatwebsite\Excel\Facades\Excel::toArray(new \App\Imports\ProductosImport, $request->file('archivo'))[0];
+
+    // --- AGREGAR ESTA LIMPIEZA ---
+    // Esto convierte todas las llaves de cada fila a minúsculas y sin espacios
+    $rows = array_map(function($row) {
+        return array_change_key_case($row, CASE_LOWER);
+    }, $rows);
+    // -----------------------------
     
-    $codigosEnExcel = array_column($rows, 'codigo');
+    // Ahora 'codigo' funcionará aunque en el Excel diga 'CODIGO' o 'Codigo'
+    $codigosEnExcel = array_filter(array_column($rows, 'codigo')); 
     
-    // Buscamos cuáles de esos códigos ya existen en la DB
     $duplicados = \App\Models\Productos::whereIn('codigo', $codigosEnExcel)
         ->select('codigo', 'nombre')
         ->get();
 
     return response()->json([
         'duplicados' => $duplicados,
-        'total' => count($rows)
+        'total' => count($rows),
+        'data' => $rows // Enviamos la data limpia al frontend para el import final
     ]);
 }
 

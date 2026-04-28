@@ -1,3 +1,222 @@
+<?php
+
+namespace App\Http\Controllers\Administrador;
+
+use App\Http\Controllers\Controller;
+use App\Models\Medico;
+use App\Models\Visitador; 
+use App\Models\TipoDocumento;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Log; // Añadido para registrar errores
+use App\Exports\MedicosExport;
+use App\Imports\MedicosImport;
+use Maatwebsite\Excel\Facades\Excel;
+
+class Medico2Controller extends Controller
+{
+    /**
+     * Mostrar listado de médicos.
+     */
+    public function index()
+    {
+        return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
+            'medicos' => Medico::with(['visitador', 'tipoDocumento'])->get(), 
+            'visitadores' => Visitador::all(['id', 'nombre', 'apellido']),
+            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']) 
+        ]);
+    }
+
+    /**
+     * Almacenar un nuevo médico.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'documento' => 'required|numeric|unique:medicos,documento',
+            'nombre' => 'required|string|max:100',
+            'apellido' => 'required|string|max:100',
+            'tipo_documento_id' => 'required|integer',
+            'especialidad' => 'required|string|max:100',
+            'geolocalizacion' => 'nullable|string|max:300',
+            'direccion_detalles' => 'nullable|string',
+            'telefono_contacto' => 'nullable|string|max:50',
+            'horario_atencion' => 'nullable|string|max:100',
+            'visitador_id' => 'nullable|exists:visitadores,id', 
+            'fecha_inicio_relacion' => 'nullable|date',
+        ], [
+            'required' => 'El campo :attribute es obligatorio.',
+            'unique'   => 'Este :attribute ya se encuentra registrado.',
+            'numeric'  => 'El campo :attribute debe ser numérico.',
+            'exists'   => 'El :attribute seleccionado no existe.',
+            'date'     => 'La :attribute no tiene un formato válido.',
+        ], [
+            'documento' => 'Número de Documento',
+            'nombre' => 'Nombre',
+            'apellido' => 'Apellido',
+            'tipo_documento_id' => 'Tipo de Documento',
+            'visitador_id' => 'Visitador Asignado',
+            'fecha_inicio_relacion' => 'Fecha de Inicio',
+        ]);
+
+        Medico::create($validated);
+
+        return Redirect::route('Gmedicos.index')->with('message', 'Médico creado con éxito.');
+    }
+
+    /**
+     * Actualizar el médico.
+     */
+    public function update(Request $request, Medico $medico)
+    {
+        $validated = $request->validate([
+            'documento' => 'required|numeric|unique:medicos,documento,' . $medico->id,
+            'nombre' => 'required|string|max:100',
+            'apellido' => 'required|string|max:100',
+            'tipo_documento_id' => 'required|integer',
+            'especialidad' => 'required|string|max:100',
+            'geolocalizacion' => 'nullable|string|max:300',
+            'direccion_detalles' => 'nullable|string',
+            'telefono_contacto' => 'nullable|string|max:50',
+            'horario_atencion' => 'nullable|string|max:100',
+            'visitador_id' => 'nullable|exists:visitadores,id', 
+            'fecha_inicio_relacion' => 'nullable|date',
+        ], [
+            'required' => 'El campo :attribute es necesario.',
+            'unique'   => 'Este :attribute ya pertenece a otro médico.',
+            'numeric'  => 'El campo :attribute debe ser solo números.',
+        ], [
+            'documento' => 'Número de Documento',
+            'nombre' => 'Nombre',
+            'apellido' => 'Apellido',
+            'tipo_documento_id' => 'Tipo de Documento',
+        ]);
+
+        $medico->update($validated);
+
+        return Redirect::route('Gmedicos.index')->with('message', 'Médico actualizado con éxito.');
+    }
+
+    /**
+     * Eliminar el médico.
+     */
+    public function destroy(Medico $medico)
+    {
+        $medico->delete();
+        return Redirect::route('Gmedicos.index')->with('message', 'Médico eliminado correctamente.');
+    }
+
+    
+
+ //* Exportar a Excel (Soporta selección múltiple).
+public function exportar(Request $request) 
+{
+    // Capturamos los IDs. Si vienen de una URL serán un string separado por comas
+    $idsRaw = $request->input('ids');
+    
+    // Convertimos a array: si no hay IDs, pasamos un array vacío
+    $ids = $idsRaw ? explode(',', $idsRaw) : [];
+
+    return Excel::download(
+        new MedicosExport($ids), 
+        'Medicos_LFH_' . date('d-m-Y') . '.xlsx'
+    );
+}
+
+    /**
+     * Importar desde Excel.
+     */
+   public function importar(Request $request) 
+{
+    $request->validate([
+        'archivo' => 'required|mimes:xlsx,xls,csv'
+    ]);
+
+    try {
+        $archivo = $request->file('archivo');
+        $data = Excel::toArray([], $archivo);
+        
+        if (empty($data) || empty($data[0])) {
+            return Redirect::route('Gmedicos.index')->with('error', 'El archivo está vacío.');
+        }
+
+        $filas = $data[0]; 
+        $cabecera = array_shift($filas); // Extrae la primera fila (nombres de columnas)
+
+        // Convertimos la cabecera a minúsculas para comparar fácilmente
+        $cabeceraNormalizada = array_map(fn($item) => strtolower(trim($item)), $cabecera);
+
+        // Buscamos la posición de cada columna necesaria
+        $idxDoc = array_search('documento', $cabeceraNormalizada);
+        $idxNom = array_search('nombre', $cabeceraNormalizada);
+        $idxApe = array_search('apellido', $cabeceraNormalizada);
+        $idxEsp = array_search('especialidad', $cabeceraNormalizada);
+        $idxTel = array_search('telefono', $cabeceraNormalizada);
+
+        // Si no encuentra 'documento' por nombre, intentamos por posición 0 como respaldo
+        if ($idxDoc === false) $idxDoc = 0;
+        if ($idxNom === false) $idxNom = 1;
+        if ($idxApe === false) $idxApe = 2;
+        if ($idxEsp === false) $idxEsp = 3;
+        if ($idxTel === false) $idxTel = 4;
+
+        $medicosParaUpsert = [];
+        $ahora = now();
+
+        foreach ($filas as $fila) {
+            $documento = isset($fila[$idxDoc]) ? trim($fila[$idxDoc]) : null;
+            
+            if (empty($documento)) continue;
+
+            $medicosParaUpsert[] = [
+                'documento'         => (string)$documento,
+                'nombre'            => trim($fila[$idxNom] ?? ''),
+                'apellido'          => trim($fila[$idxApe] ?? ''),
+                // Si tienes tipo_documento_id obligatorio en la DB, pon un valor por defecto aquí (ej: 1)
+                'tipo_documento_id' => 1, 
+                'especialidad'      => trim($fila[$idxEsp] ?? 'General'),
+                'telefono_contacto' => trim($fila[$idxTel] ?? null),
+                'created_at'        => $ahora,
+                'updated_at'        => $ahora,
+            ];
+        }
+
+        if (count($medicosParaUpsert) > 0) {
+            // EL UPSERT: 
+            // 1. Datos a insertar/actualizar
+            // 2. Columna que debe ser UNIQUE en la base de datos para comparar
+            // 3. Columnas que se deben sobreescribir si ya existe
+            Medico::upsert(
+                $medicosParaUpsert, 
+                ['documento'], 
+                ['nombre', 'apellido', 'especialidad', 'telefono_contacto', 'updated_at']
+            );
+        }
+
+        return Redirect::route('Gmedicos.index')->with('message', 'Sincronización masiva completada con éxito.');
+
+    } catch (\Exception $e) {
+        Log::error("Error en importación de Médicos: " . $e->getMessage());
+        return Redirect::route('Gmedicos.index')->with('error', 'Error técnico: ' . $e->getMessage());
+    }
+}
+public function eliminarMasivo(Request $request)
+{
+    $request->validate([
+        'ids' => 'required|array',
+        'ids.*' => 'exists:medicos,id'
+    ]);
+
+    // Usamos delete() masivo. 
+    // Nota: Si usas SoftDeletes en tu modelo, esto los mandará a la papelera.
+    Medico::whereIn('id', $request->ids)->delete();
+
+    return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
+}
+}
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
@@ -21,10 +240,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('todos'); // 'todos', 'nuevos', 'modificados', 'sin_cambios'
 
-    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-    // Este estado guardará temporalmente los IDs que el usuario decida MANTENER
-    const [tempSelectedIds, setTempSelectedIds] = useState([]);
-
     const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
         id: '',
         nombre: '',
@@ -41,6 +256,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     });
 
     const [visitadorNombre, setVisitadorNombre] = useState('');
+
     useEffect(() => {
         if (data.visitador_id && visitadores.length > 0) {
             const v = visitadores.find(v => v.id.toString() === data.visitador_id.toString());
@@ -141,25 +357,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
             setIsPreviewModalOpen(true);
         };
         reader.readAsBinaryString(file);
-
-        const docsExistentes = new Set(medicos.map(m => m.documento?.toString().trim())); // Uso de Set
-
-        const duplicados = [];
-        const filasParaProcesar = [];
-
-        rows.forEach(row => {
-            const docValue = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
-            if (docValue && docsExistentes.has(docValue)) {
-                duplicados.push(row);
-            }
-            // Opcional: Solo guardar las primeras 10 para vista previa
-            if (filasParaProcesar.length < 50) {
-                filasParaProcesar.push(row);
-            }
-        });
-
-        setDuplicatesFound(duplicados);
-        setPreviewData(filasParaProcesar);
     };
 
     const handleProcessImport = () => {
@@ -169,18 +366,17 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
 
     const executeServerImport = () => {
         if (!selectedFile) return;
-
-        // Mostrar un loader simple para que el usuario sepa que el archivo se está subiendo
-        router.post(route('Gmedicos.importar'), {
-            archivo: selectedFile
-        }, {
+        router.post(route('Gmedicos.importar'), { archivo: selectedFile }, {
             forceFormData: true,
             onSuccess: () => {
-                // Limpieza de estados
-            },
-            // IMPORTANTE: Evita procesar estados grandes aquí
-            preserveState: false,
-            preserveScroll: true
+                alert("¡Base de datos actualizada correctamente!");
+                setIsPreviewModalOpen(false);
+                setIsWarningModalOpen(false);
+                setPreviewData([]);
+                setDuplicatesFound([]);
+                setSelectedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            }
         });
     };
 
@@ -233,33 +429,8 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     // Abrir el modal
     const handleOpenAssignVisitor = () => {
         if (selectedIds.length === 0) return;
-
-        const medicosConConflicto = medicosSeleccionadosData.filter(m => m.visitador_id !== null);
-
-        if (medicosConConflicto.length > 0) {
-            setTempSelectedIds([...selectedIds]); // Clonamos la selección actual
-            setIsReviewModalOpen(true);
-        } else {
-            // Si ninguno tiene visitador, vamos directo al modal que ya tenías
-            setSelectedVisitorId(null);
-            setSearchTerm("");
-            setIsAssignVisitorModalOpen(true);
-        }
-    };
-
-    // Función para quitar un médico de la lista temporal
-    const toggleMedicoInTempList = (id) => {
-        setTempSelectedIds(prev =>
-            prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
-        );
-    };
-
-    // Al confirmar en el modal de revisión, pasamos al de asignación
-    const proceedToAssignment = () => {
-        setSelectedIds(tempSelectedIds); // Actualizamos la selección global con lo que el usuario dejó
-        setIsReviewModalOpen(false);
         setSelectedVisitorId(null);
-        setSearchTerm("");
+        setSearchTerm(""); // Resetear búsqueda al abrir
         setIsAssignVisitorModalOpen(true);
     };
 
@@ -307,8 +478,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
         });
     };
 
-    // Detecta si alguno de los médicos que se van a reasignar ya tiene un visitador
-    const hasPreviousAssignment = medicosSeleccionadosData.some(m => m.visitador_id !== null);
+
     return (
         <PanelAdmin>
             <Head title="Directorio de Médicos" />
@@ -611,6 +781,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                     </div>
                 )
             }
+
             {/* --- MODAL PREVISUALIZACIÓN CORREGIDO --- */}
             {isPreviewModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -634,8 +805,8 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
                                     className={`px-4 py-3 text-[10px] font-bold uppercase transition-all border-b-2 ${activeTab === tab
-                                        ? 'border-blue-500 text-blue-700 bg-white shadow-sm'
-                                        : 'border-transparent text-slate-400 hover:bg-slate-100'
+                                            ? 'border-blue-500 text-blue-700 bg-white shadow-sm'
+                                            : 'border-transparent text-slate-400 hover:bg-slate-100'
                                         }`}
                                 >
                                     {tab.replace('_', ' ')}
@@ -734,9 +905,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* --- MODAL DE ADVERTENCIA (DUPLICADOS) --- */}
+            )}{/* --- MODAL DE ADVERTENCIA (DUPLICADOS) --- */}
             {
                 isWarningModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -866,27 +1035,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                 </div>
                             </div>
                         </div>
-
-                        {/* NUEVA ALERTA DE ADVERTENCIA */}
-                        {hasPreviousAssignment && (
-                            <div className="px-6 pb-4">
-                                <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="bg-amber-500 text-white p-1.5 rounded-lg shadow-sm">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-tight">
-                                            Atención: Vínculo existente detectado
-                                        </p>
-                                        <p className="text-[9px] text-amber-700 font-bold mt-1 leading-tight uppercase">
-                                            Uno o más médicos ya tienen un visitador asignado. Cualquier cambio sin tener en cuenta el vínculo actual podría generar errores en el historial.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Listado con scroll */}
                         <div className="max-h-[250px] overflow-y-auto px-6 py-2 space-y-2 bg-slate-50/50">
@@ -1020,81 +1168,24 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                     </div>
                 </div>
             )}
-
-            {isReviewModalOpen && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setIsReviewModalOpen(false)}></div>
-                    <div className="relative bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col border border-slate-100">
-
-                        <div className="p-8 pb-4 text-center">
-                            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Revisar Selección</h3>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
-                                Selecciona los médicos que realmente deseas reasignar
-                            </p>
-                        </div>
-
-                        <div className="max-h-[300px] overflow-y-auto px-6 py-2 space-y-2 bg-slate-50/50">
-                            {medicosSeleccionadosData.map((medico) => {
-                                const hasVisitor = medico.visitador_id !== null;
-                                const isSelected = tempSelectedIds.includes(medico.id);
-
-                                return (
-                                    <div
-                                        key={medico.id}
-                                        onClick={() => toggleMedicoInTempList(medico.id)}
-                                        className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-white border-indigo-500 shadow-sm' : 'bg-slate-100 border-transparent opacity-60'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
-                                                {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-700">{medico.nombre} {medico.apellido}</p>
-                                                {hasVisitor ? (
-                                                    <p className="text-[9px] font-black text-amber-600 uppercase">
-                                                        Vínculo actual: {medico.visitador?.nombre} {medico.visitador?.apellido}
-                                                    </p>
-                                                ) : (
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sin visitador previo</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="p-6 bg-white space-y-3">
-                            <button
-                                disabled={tempSelectedIds.length === 0}
-                                onClick={proceedToAssignment}
-                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all disabled:opacity-50"
-                            >
-                                Continuar con {tempSelectedIds.length} Médicos
-                            </button>
-                            <button
-                                onClick={() => setIsReviewModalOpen(false)}
-                                className="w-full py-2 text-slate-400 font-bold text-[10px] uppercase hover:text-slate-600 transition-colors"
-                            >
-                                Cancelar todo
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-
-
-
-
         </PanelAdmin >
     );
 };
 
 export default Gmedicos;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

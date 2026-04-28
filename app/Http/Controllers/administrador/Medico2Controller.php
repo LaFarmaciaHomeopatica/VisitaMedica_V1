@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log; // Añadido para registrar errores
 use App\Exports\MedicosExport;
 use App\Imports\MedicosImport;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Excel as ExcelFormat;
 
 class Medico2Controller extends Controller
 {
@@ -127,29 +128,42 @@ public function exportar(Request $request)
     /**
      * Importar desde Excel.
      */
-    public function importar(Request $request) 
-    {
-        // 1. Validamos el archivo
-        $request->validate([
-            'archivo' => 'required|mimes:xlsx,xls,csv'
-        ], [
-            'archivo.required' => 'Debes seleccionar un archivo Excel.',
-            'archivo.mimes' => 'El archivo debe ser formato .xlsx, .xls o .csv'
-        ]);
+public function importar(Request $request) 
+{
+    $request->validate([
+        'archivo' => 'required|mimes:xlsx,xls,csv'
+    ], [
+        'archivo.required' => 'Debes seleccionar un archivo Excel.',
+        'archivo.mimes'    => 'El archivo debe ser formato .xlsx, .xls o .csv'
+    ]);
 
-        try {
-            // 2. Procesamos la importación
-            Excel::import(new MedicosImport, $request->file('archivo'));
-            
-            return Redirect::route('Gmedicos.index')->with('message', 'Importación completada con éxito.');
-        } catch (\Exception $e) {
-            // 3. Si falla, guardamos el error en storage/logs/laravel.log para revisarlo
-            Log::error("Error en importación de Médicos: " . $e->getMessage());
-            
-            return Redirect::route('Gmedicos.index')->with('error', 'Error en la importación: ' . $e->getMessage());
-        }
+    // Bajamos el tiempo a 30s; si el código es bueno, no necesita más.
+    set_time_limit(30); 
+
+    try {
+        $file = $request->file('archivo');
+        $extension = $file->getClientOriginalExtension();
+
+        // MAPEO DE FORMATO: Forzar el lector ahorra casi 1 segundo de detección automática
+        $format = match(strtolower($extension)) {
+            'csv'  => ExcelFormat::CSV,
+            'xlsx' => ExcelFormat::XLSX,
+            'xls'  => ExcelFormat::XLS,
+            default => ExcelFormat::XLSX,
+        };
+
+        // 3. Procesamos con el formato forzado
+        Excel::import(new MedicosImport, $file, null, $format);
+        
+        return Redirect::route('Gmedicos.index')
+            ->with('message', '¡Importación relámpago completada!');
+
+    } catch (\Exception $e) {
+        \Log::error("Error en importación: " . $e->getMessage());
+        return Redirect::route('Gmedicos.index')
+            ->with('error', 'Error: ' . $e->getMessage());
     }
-
+}
 
     public function vincularVisitador(Request $request)
 {
