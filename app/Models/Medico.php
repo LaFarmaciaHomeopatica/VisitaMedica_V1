@@ -25,6 +25,7 @@ public $timestamps = false;
         'documento',
         'especialidad',
         'geolocalizacion',
+        'categoria_id',
         'direccion_detalles',
         'telefono_contacto',
         'horario_atencion',
@@ -45,6 +46,7 @@ public $timestamps = false;
         'documento' => 'integer',
         'visitador_id' => 'integer',
         'tipo_documento_id' => 'integer',
+
     ];
 
     /**
@@ -68,4 +70,8 @@ public $timestamps = false;
         // Nota: Asegúrate de que la columna en la tabla medicos se llame tipo_documento_id
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
     }
+
+    public function categoria() {
+    return $this->belongsTo(Categoria::class, 'categoria_id');
+}
 }

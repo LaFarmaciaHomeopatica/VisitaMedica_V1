@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import * as XLSX from 'xlsx';
+import MedicoViewModal from "./Components/MedicoViewModal";
 
-const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] }) => {
+const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], categorias = [] }) => {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [previewData, setPreviewData] = useState([]);
@@ -25,6 +26,10 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     // Este estado guardará temporalmente los IDs que el usuario decida MANTENER
     const [tempSelectedIds, setTempSelectedIds] = useState([]);
 
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [selectedMedico, setSelectedMedico] = useState(null);
+
+
     const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
         id: '',
         nombre: '',
@@ -38,6 +43,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
         visitador_id: '',
         fecha_inicio_relacion: '',
         tipo_documento_id: '',
+        categoria_id: '',
     });
 
     const [visitadorNombre, setVisitadorNombre] = useState('');
@@ -53,7 +59,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
     const filteredMedicos = medicos.filter(m => {
         const term = searchTerm.toLowerCase();
-
+        const categoria = m.categoria?.nombre?.toLowerCase() || "sin categoria";
         // Datos básicos del médico
         const nombreCompleto = `${m.nombre} ${m.apellido}`.toLowerCase();
         const documento = m.documento?.toString().toLowerCase() || "";
@@ -71,7 +77,8 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
             nombreCompleto.includes(term) ||
             documento.includes(term) ||
             especialidad.includes(term) ||
-            nombreVisitador.includes(term)
+            nombreVisitador.includes(term) ||
+            categoria.includes(term)
         );
     });
 
@@ -111,7 +118,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     };
 
     const handleImportClick = () => { fileInputRef.current.click(); };
-
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -123,43 +129,111 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
             const wb = XLSX.read(bstr, { type: 'binary' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const dataRaw = XLSX.utils.sheet_to_json(ws, { header: 1 });
-            const headers = dataRaw[0].map(h => h ? h.toString().trim().toLowerCase() : '');
+
+            // --- NORMALIZACIÓN AVANZADA ---
+            const headers = dataRaw[0].map(h => {
+                if (!h) return '';
+                return h.toString()
+                    .trim()
+                    .toLowerCase()
+                    .normalize("NFD") // Separa tildes de las letras
+                    .replace(/[\u0300-\u036f]/g, "") // Elimina las tildes
+                    .replace(/\s+/g, '_') // Convierte espacios en guiones bajos
+                    .replace(/contacto$/, '_contacto'); // Parche por si la columna solo dice 'telefono'
+            });
+
             const rows = dataRaw.slice(1).map(row => {
                 let obj = {};
-                headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+                headers.forEach((h, i) => {
+                    if (h) {
+                        // Mapeo manual para asegurar compatibilidad si el Excel varía
+                        let finalKey = h;
+                        if (h === 'telefono' || h === 'celular') finalKey = 'telefono_contacto';
+
+                        if (h === 'detalles_direccion' || h === 'direccion' || h === 'dir')
+                            finalKey = 'direccion_detalles';
+
+
+                        obj[finalKey] = row[i];
+
+                    }
+                });
+                console.log("Fila procesada:", obj); // <--- AÑADE ESTO
                 return obj;
             });
-            const docsExistentes = medicos.map(m => m.documento ? m.documento.toString().trim() : '');
-            const duplicados = rows.filter(row => {
-                const docValue = row.documento || row.DOCUMENTO || row.Documento;
-                if (!docValue) return false;
-                return docsExistentes.includes(docValue.toString().trim());
+
+            // Creamos un Set de documentos existentes para detectar duplicados rápido
+            const docsExistentes = new Set(medicos.map(m => m.documento?.toString().trim()));
+
+            const duplicados = [];
+            const filasParaProcesar = rows.map(row => {
+                const docValue = (row.documento || row.DOCUMENTO)?.toString().trim();
+
+                // Buscamos si el médico ya existe en la base de datos
+                const original = medicos.find(m => m.documento?.toString().trim() === docValue);
+                const existe = !!original;
+
+                if (existe) {
+                    duplicados.push(row);
+                }
+
+                // COMPARACIÓN DE CAMBIOS (Para las alertas de color naranja)
+                const valNombreExcel = String(row.nombre || "").trim().toUpperCase();
+                const valNombreDB = String(original?.nombre || "").trim().toUpperCase();
+
+                const valApellidoExcel = String(row.apellido || "").trim().toUpperCase();
+                const valApellidoDB = String(original?.apellido || "").trim().toUpperCase();
+
+                const valEspExcel = String(row.especialidad || "").trim().toUpperCase();
+                const valEspDB = String(original?.especialidad || "").trim().toUpperCase();
+
+                // NUEVO: Comparación de Categoría
+                const valCatExcel = String(row.categoria || "").trim().toUpperCase();
+                const valCatDB = String(original?.categoria?.nombre || "").trim().toUpperCase();
+
+                const valTelExcel = String(row.telefono_contacto || "").trim().toUpperCase();
+                const valTelDB = String(original?.telefono_contacto || "").trim().toUpperCase();
+
+                const valGeolocalizacionExcel = String(row.geolocalizacion || "").trim().toUpperCase();
+                const valGeolocalizacionDB = String(original?.geolocalizacion || "").trim().toUpperCase();
+
+                const valDireccionDetallesExcel = String(row.direccion_detalles || "").trim().toUpperCase();
+                const valDireccionDetallesDB = String(original?.direccion_detalles || "").trim().toUpperCase();
+
+                const valHorarioAtencionExcel = String(row.horario_atencion || "").trim().toUpperCase();
+                const valHorarioAtencionDB = String(original?.horario_atencion || "").trim().toUpperCase();
+
+                const valVisitadorExcel = String(row.visitador_id || "").trim().toUpperCase();
+                const valVisitadorDB = String(original?.visitador_id || "").trim().toUpperCase();
+
+                const valFechaInicioRelacionExcel = String(row.fecha_inicio_relacion || "").trim().toUpperCase();
+                const valFechaInicioRelacionDB = String(original?.fecha_inicio_relacion || "").trim().toUpperCase();
+
+                const esModificado = existe && (
+                    valNombreExcel !== valNombreDB ||
+                    valApellidoExcel !== valApellidoDB ||
+                    valEspExcel !== valEspDB ||
+                    valCatExcel !== valCatDB ||
+                    valTelExcel !== valTelDB ||
+                    valGeolocalizacionExcel !== valGeolocalizacionDB ||
+                    valDireccionDetallesExcel !== valDireccionDetallesDB ||
+                    valHorarioAtencionExcel !== valHorarioAtencionDB ||
+                    valVisitadorExcel !== valVisitadorDB ||
+                    valFechaInicioRelacionExcel !== valFechaInicioRelacionDB
+                );
+
+                return {
+                    ...row,
+                    _status: !existe ? 'nuevo' : (esModificado ? 'modificado' : 'sin_cambios'),
+                    _original: original // Guardamos el original para mostrar el "Actual: ..."
+                };
             });
 
             setDuplicatesFound(duplicados);
-            setPreviewData(rows);
+            setPreviewData(filasParaProcesar);
             setIsPreviewModalOpen(true);
         };
         reader.readAsBinaryString(file);
-
-        const docsExistentes = new Set(medicos.map(m => m.documento?.toString().trim())); // Uso de Set
-
-        const duplicados = [];
-        const filasParaProcesar = [];
-
-        rows.forEach(row => {
-            const docValue = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
-            if (docValue && docsExistentes.has(docValue)) {
-                duplicados.push(row);
-            }
-            // Opcional: Solo guardar las primeras 10 para vista previa
-            if (filasParaProcesar.length < 50) {
-                filasParaProcesar.push(row);
-            }
-        });
-
-        setDuplicatesFound(duplicados);
-        setPreviewData(filasParaProcesar);
     };
 
     const handleProcessImport = () => {
@@ -192,7 +266,9 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
     };
 
     const openEditModal = (medico) => {
+        console.log("1. Datos originales del médico:", medico); // <--- LOG AQUÍ
         clearErrors();
+
         setData({
             id: medico.id,
             nombre: medico.nombre,
@@ -205,6 +281,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
             horario_atencion: medico.horario_atencion || '',
             visitador_id: medico.visitador_id || '',
             tipo_documento_id: medico.tipo_documento_id || '',
+            categoria_id: medico.categoria_id || '',
             fecha_inicio_relacion: medico.fecha_inicio_relacion ? medico.fecha_inicio_relacion.substring(0, 10) : '',
         });
         setIsEditing(true);
@@ -307,8 +384,16 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
         });
     };
 
+    const openViewModal = (medico) => {
+        setSelectedMedico(medico);
+        setIsViewModalOpen(true);
+    };
+
     // Detecta si alguno de los médicos que se van a reasignar ya tiene un visitador
     const hasPreviousAssignment = medicosSeleccionadosData.some(m => m.visitador_id !== null);
+
+
+
     return (
         <PanelAdmin>
             <Head title="Directorio de Médicos" />
@@ -443,7 +528,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                     <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Nombre Completo</th>
                                     <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Documento</th>
                                     <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Especialidad</th>
-                                    <th className="px-4 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Teléfono / Horario</th>
+                                    <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Categoría</th>
                                     <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Visitador</th>
                                     <th className="px-6 py-4 text-slate-500 font-bold text-[10px] uppercase text-center">Acción</th>
                                 </tr>
@@ -470,12 +555,17 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                                 {m.especialidad || 'GENERAL'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 border-r border-slate-50">
-                                            <div className="flex flex-col leading-tight">
-                                                <span className="text-[10px] text-slate-700 font-bold">{m.telefono_contacto || '---'}</span>
-                                                <span className="text-[9px] text-slate-400 italic font-medium">{m.horario_atencion || 'Sin horario'}</span>
-                                            </div>
+
+                                        <td className="px-6 py-3 border-r border-slate-50">
+                                            {m.categoria ? (
+                                                <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 uppercase">
+                                                    {m.categoria.nombre}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px] text-slate-300 italic">N/A</span>
+                                            )}
                                         </td>
+
                                         <td className="px-6 py-3 border-r border-slate-50">
                                             {m.visitador ? (
                                                 <span className="text-[10px] text-emerald-600 font-black uppercase tracking-tight">
@@ -490,10 +580,24 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                                 onClick={() => openEditModal(m)}
                                                 className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm"
                                             >
+
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                                 </svg>
                                             </button>
+                                            <button
+                                                onClick={() => openViewModal(m)} // <--- Esta es la función que creamos antes
+                                                className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                                title="Ver detalles completo"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            </button>
+
+
+
                                         </td>
                                     </tr>
                                 ))}
@@ -544,6 +648,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Nombre</th>
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Apellido</th>
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Especialidad</th>
+                                                <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Categoría</th>
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Teléfono</th>
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Geolocalización</th>
                                                 <th className="px-2 py-2 font-bold text-slate-600 border border-slate-200">Detalles Dirección</th>
@@ -560,6 +665,15 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">{m.nombre}</td>
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">{m.apellido}</td>
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">{m.especialidad}</td>
+                                                    <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">
+                                                        {m.categoria ? (
+                                                            <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 uppercase">
+                                                                {m.categoria.nombre}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] text-slate-300 italic">N/A</span>
+                                                        )}
+                                                    </td>
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">{m.telefono_contacto}</td>
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap font-mono text-[8px]">{m.geolocalizacion}</td>
                                                     <td className="px-2 py-1 border border-slate-100 text-slate-600 whitespace-nowrap">{m.direccion_detalles}</td>
@@ -615,10 +729,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
             {isPreviewModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setIsPreviewModalOpen(false)}></div>
-
                     <div className="relative bg-white w-full max-w-[95vw] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-
-                        {/* CABECERA */}
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 uppercase">Sincronización de Médicos</h3>
@@ -627,16 +738,12 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                             <button onClick={() => setIsPreviewModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold p-2 text-xl">✕</button>
                         </div>
 
-                        {/* PESTAÑAS */}
                         <div className="flex bg-slate-50 border-b border-slate-200 px-4">
                             {['todos', 'nuevos', 'modificados', 'sin_cambios'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
-                                    className={`px-4 py-3 text-[10px] font-bold uppercase transition-all border-b-2 ${activeTab === tab
-                                        ? 'border-blue-500 text-blue-700 bg-white shadow-sm'
-                                        : 'border-transparent text-slate-400 hover:bg-slate-100'
-                                        }`}
+                                    className={`px-4 py-3 text-[10px] font-bold uppercase transition-all border-b-2 ${activeTab === tab ? 'border-blue-500 text-blue-700 bg-white shadow-sm' : 'border-transparent text-slate-400 hover:bg-slate-100'}`}
                                 >
                                     {tab.replace('_', ' ')}
                                 </button>
@@ -649,78 +756,118 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                     <tr>
                                         <th className="px-3 py-2 font-bold text-slate-600 border-b">Estado</th>
                                         <th className="px-3 py-2 font-bold text-slate-600 border-b">Documento</th>
-                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Nombre del Médico</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Nombre</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Apellido</th>
                                         <th className="px-3 py-2 font-bold text-slate-600 border-b">Especialidad</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Categoría</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Telefono</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Geolocalización</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Dirección Detalles</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Horario Atención</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Visitador</th>
+                                        <th className="px-3 py-2 font-bold text-slate-600 border-b">Fecha Inicio Relación</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {previewData
+                                        // En el .filter del Modal, usa esto y no fallará nunca:
                                         .filter(row => {
-                                            const docExcel = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
-                                            const original = medicos.find(m => m.documento?.toString().trim() === docExcel);
-                                            const existe = !!original;
-
-                                            // Lógica estricta de comparación (como en productos)
-                                            const valNombreExcel = String(row.nombre || row.NOMBRE || "").trim().toUpperCase();
-                                            const valNombreDB = String(original?.nombre || "").trim().toUpperCase();
-                                            const valEspExcel = String(row.especialidad || row.ESPECIALIDAD || "").trim().toUpperCase();
-                                            const valEspDB = String(original?.especialidad || "").trim().toUpperCase();
-
-                                            const esModificado = existe && (valNombreExcel !== valNombreDB || valEspExcel !== valEspDB);
-
-                                            if (activeTab === 'nuevos') return !existe;
-                                            if (activeTab === 'modificados') return esModificado;
-                                            if (activeTab === 'sin_cambios') return existe && !esModificado;
+                                            if (activeTab === 'nuevos') return row._status === 'nuevo';
+                                            if (activeTab === 'modificados') return row._status === 'modificado';
+                                            if (activeTab === 'sin_cambios') return row._status === 'sin_cambios';
                                             return true;
+
                                         })
                                         .map((row, i) => {
                                             const docExcel = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
                                             const original = medicos.find(m => m.documento?.toString().trim() === docExcel);
                                             const existe = !!original;
-
-                                            // Valores para mostrar
                                             const nombreExcel = row.nombre || row.NOMBRE || "---";
+                                            const apellidoExcel = row.apellido || row.APELLIDO || "---";
                                             const especialidadExcel = row.especialidad || row.ESPECIALIDAD || "---";
+                                            const categoriaExcel = row.categoria || row.CATEGORIA || "---";
+                                            const telExcel = row.telefono_contacto || row.TELEFONO_CONTACTO || "---";
+                                            const nombreCambio = existe && String(nombreExcel).trim().toUpperCase() !== String(original?.nombre).trim().toUpperCase();
+                                            const apellidoCambio = existe && String(apellidoExcel).trim().toUpperCase() !== String(original?.apellido).trim().toUpperCase();
+                                            const espCambio = existe && String(especialidadExcel).trim().toUpperCase() !== String(original?.especialidad).trim().toUpperCase();
+                                            const catCambio = existe && String(categoriaExcel).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") !== String(original?.categoria?.nombre || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            const telCambio = existe && String(telExcel).trim().toUpperCase() !== String(original?.telefono_contacto).trim().toUpperCase();
+                                            const geolocalizacionCambio = existe && String(row.geolocalizacion || "").trim().toUpperCase() !== String(original?.geolocalizacion || "").trim().toUpperCase();
+                                            const direccionDetallesCambio = existe && String(row.direccion_detalles || "").trim().toUpperCase() !== String(original?.direccion_detalles || "").trim().toUpperCase();
+                                            const horarioAtencionCambio = existe && String(row.horario_atencion || "").trim().toUpperCase() !== String(original?.horario_atencion || "").trim().toUpperCase();
+                                            const visitadorCambio = existe && String(row.visitador_id || "").trim().toUpperCase() !== String(original?.visitador_id || "").trim().toUpperCase();
+                                            const fechaInicioRelacionCambio = existe && String(row.fecha_inicio_relacion || "").trim().toUpperCase() !== String(original?.fecha_inicio_relacion || "").trim().toUpperCase();
 
-                                            // Re-calculamos si es modificado para el estilo visual
-                                            const esModificado = existe && (
-                                                String(nombreExcel).trim().toUpperCase() !== String(original?.nombre || "").trim().toUpperCase() ||
-                                                String(especialidadExcel).trim().toUpperCase() !== String(original?.especialidad || "").trim().toUpperCase()
-                                            );
+                                            const esModificado = existe && (nombreCambio || apellidoCambio || espCambio || catCambio || telCambio || geolocalizacionCambio || direccionDetallesCambio || horarioAtencionCambio || visitadorCambio || fechaInicioRelacionCambio);
 
                                             return (
-                                                <tr key={i} className={`border-b border-slate-50 transition-all ${esModificado ? 'bg-orange-50' : !existe ? 'bg-emerald-50' : 'bg-white'
-                                                    }`}>
+                                                <tr key={i} className={`border-b border-slate-50 transition-all ${esModificado ? 'bg-orange-50' : !existe ? 'bg-emerald-50' : 'bg-white'}`}>
                                                     <td className="px-3 py-2">
-                                                        {esModificado ? (
-                                                            <span className="bg-orange-600 text-white px-2 py-1 rounded text-[8px] font-black shadow-sm">● MODIFICADO</span>
-                                                        ) : existe ? (
-                                                            <span className="text-slate-400 font-bold text-[8px] uppercase">[ SIN CAMBIOS ]</span>
-                                                        ) : (
-                                                            <span className="bg-emerald-600 text-white px-2 py-1 rounded text-[8px] font-black shadow-sm">● NUEVO</span>
-                                                        )}
+                                                        {esModificado ? <span className="bg-orange-600 text-white px-2 py-1 rounded text-[8px] font-black shadow-sm">● MODIFICADO</span> : existe ? <span className="text-slate-400 font-bold text-[8px] uppercase">[ SIN CAMBIOS ]</span> : <span className="bg-emerald-600 text-white px-2 py-1 rounded text-[8px] font-black shadow-sm">● NUEVO</span>}
                                                     </td>
                                                     <td className="px-3 py-2 font-mono text-slate-500">{docExcel}</td>
                                                     <td className="px-3 py-2">
                                                         <div className="flex flex-col">
-                                                            <span className={esModificado && String(nombreExcel).trim().toUpperCase() !== String(original?.nombre).trim().toUpperCase() ? 'font-black text-orange-700' : 'text-slate-700'}>
-                                                                {nombreExcel}
-                                                            </span>
-                                                            {esModificado && String(nombreExcel).trim().toUpperCase() !== String(original?.nombre).trim().toUpperCase() && (
-                                                                <span className="text-[8px] text-orange-400 italic">Actual: {original.nombre}</span>
-                                                            )}
+                                                            <span className={nombreCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{nombreExcel}</span>
+                                                            {nombreCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original.nombre}</span>}
                                                         </div>
                                                     </td>
                                                     <td className="px-3 py-2">
                                                         <div className="flex flex-col">
-                                                            <span className={esModificado && String(especialidadExcel).trim().toUpperCase() !== String(original?.especialidad).trim().toUpperCase() ? 'font-black text-orange-700' : 'text-slate-700'}>
-                                                                {especialidadExcel}
-                                                            </span>
-                                                            {esModificado && String(especialidadExcel).trim().toUpperCase() !== String(original?.especialidad).trim().toUpperCase() && (
-                                                                <span className="text-[8px] text-orange-400 italic">Actual: {original.especialidad}</span>
-                                                            )}
+                                                            <span className={apellidoCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{apellidoExcel}</span>
+                                                            {apellidoCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original.apellido}</span>}
                                                         </div>
                                                     </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={espCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{especialidadExcel}</span>
+                                                            {espCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original.especialidad}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={catCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{categoriaExcel}</span>
+                                                            {catCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.categoria?.nombre || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={telCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{telExcel}</span>
+                                                            {telCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.telefono_contacto || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={geolocalizacionCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.geolocalizacion || "").trim()}</span>
+                                                            {geolocalizacionCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.geolocalizacion || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={direccionDetallesCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.direccion_detalles || "").trim()}</span>
+                                                            {direccionDetallesCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.direccion_detalles || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={horarioAtencionCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.horario_atencion || "").trim()}</span>
+                                                            {horarioAtencionCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.horario_atencion || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={visitadorCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.visitador_id || "").trim()}</span>
+                                                            {visitadorCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.visitador?.nombre || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-col">
+                                                            <span className={fechaInicioRelacionCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.fecha_inicio_relacion || "").trim()}</span>
+                                                            {fechaInicioRelacionCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.fecha_inicio_relacion || 'N/A'}</span>}
+                                                        </div>
+                                                    </td>
+
                                                 </tr>
                                             );
                                         })}
@@ -735,7 +882,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                     </div>
                 </div>
             )}
-
             {/* --- MODAL DE ADVERTENCIA (DUPLICADOS) --- */}
             {
                 isWarningModalOpen && (
@@ -789,6 +935,20 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                                             {tiposDocumento.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                                         </select>
                                         <input placeholder="Documento" type="number" value={data.documento} onChange={e => setData('documento', e.target.value)} className="w-2/3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" required />
+                                    </div>
+                                    <div className="col-span-1 md:col-span-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase block mb-1 tracking-widest">Categoría del Médico</label>
+                                        <select
+                                            value={data.categoria_id}
+                                            onChange={e => setData('categoria_id', e.target.value)}
+                                            className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="">Sin Categoría / Seleccionar...</option>
+                                            {categorias.map(cat => (
+                                                <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                                            ))}
+                                        </select>
+                                        {errors.categoria_id && <div className="text-red-500 text-[9px] mt-1 font-bold">{errors.categoria_id}</div>}
                                     </div>
                                     <input placeholder="Especialidad" value={data.especialidad} onChange={e => setData('especialidad', e.target.value)} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
                                     <input placeholder="Teléfono" value={data.telefono_contacto} onChange={e => setData('telefono_contacto', e.target.value)} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
@@ -1089,9 +1249,11 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [] })
                 </div>
             )}
 
-
-
-
+            <MedicoViewModal
+                isOpen={isViewModalOpen}
+                onClose={() => setIsViewModalOpen(false)}
+                medico={selectedMedico}
+            />
 
         </PanelAdmin >
     );

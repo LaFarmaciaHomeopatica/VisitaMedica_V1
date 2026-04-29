@@ -13,7 +13,6 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
 
     /**
      * Recibimos los IDs seleccionados desde el controlador.
-     * Si el array está vacío, se asume que se exportarán todos.
      */
     public function __construct(array $ids = [])
     {
@@ -21,13 +20,13 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
     }
 
     /**
-    * Retorna la colección de médicos filtrada si hay IDs seleccionados.
+    * Retorna la colección de médicos filtrada.
     */
     public function collection()
     {
-        $query = Medico::with(['tipoDocumento', 'visitador']);
+        // Añadimos 'categoria' al eager loading
+        $query = Medico::with(['tipoDocumento', 'visitador', 'categoria']);
 
-        // Si hay IDs en el array, filtramos la consulta
         if (!empty($this->ids)) {
             $query->whereIn('id', $this->ids);
         }
@@ -46,6 +45,7 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             $medico->nombre,
             $medico->apellido,
             $medico->especialidad,
+            $medico->categoria->nombre ?? 'Sin Categoría', // <--- Agregado después de especialidad
             $medico->telefono_contacto,
             $medico->geolocalizacion,
             $medico->direccion_detalles,
@@ -66,6 +66,7 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             'Nombre',
             'Apellido',
             'Especialidad',
+            'Categoría', // <--- Agregado después de Especialidad
             'Teléfono',
             'Geolocalización',
             'Detalles Dirección',

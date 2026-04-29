@@ -30,58 +30,59 @@ class VisitasController extends Controller
      * Almacena una nueva visita con validación de relación, disponibilidad y horario.
      */
     public function store(Request $request)
-    {
-        // 1. Validaciones básicas de Laravel
-        $validated = $request->validate([
-            'visitador_id'     => 'required|exists:visitadores,id',
-            'medico_id'        => [
-                'required',
-                Rule::exists('medicos', 'id')->where(function ($query) use ($request) {
-                    $query->where('visitador_id', $request->visitador_id);
-                }),
-            ],
-            'fecha_programada' => 'required|date',
-            'fecha_realizada'  => 'nullable|date',
-            'estado'           => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
-            'comentarios'      => 'nullable|string',
-        ]);
+{
+    // 1. Validaciones básicas de Laravel
+    $validated = $request->validate([
+        'visitador_id'     => 'required|exists:visitadores,id',
+        'medico_id'        => [
+            'required',
+            Rule::exists('medicos', 'id')->where(function ($query) use ($request) {
+                $query->where('visitador_id', $request->visitador_id);
+            }),
+        ],
+        'fecha_programada' => 'required|date',
+        'fecha_realizada'  => 'nullable|date',
+        'estado'           => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
+        'comentarios'      => 'nullable|string',
+    ]);
 
-        // 2. Validación de Horario Laboral (8:00 AM a 6:00 PM) y Fines de Semana
-        $fechaCarbon = Carbon::parse($request->fecha_programada);
-        $horaInicio = '08:00';
-        $horaFin = '18:00';
+    // 2. Validación de Horario Laboral y Fines de Semana
+    $fecha = Carbon::parse($request->fecha_programada);
 
-        if ($fechaCarbon->isWeekend()) {
-            return back()->withErrors([
-                'fecha_programada' => 'No se pueden programar visitas los fines de semana.'
-            ]);
-        }
-
-        if (!$fechaCarbon->between($horaInicio, $horaFin)) {
-            return back()->withErrors([
-                'fecha_programada' => "La hora debe estar entre las $horaInicio y las $horaFin."
-            ]);
-        }
-
-        // 3. Validación de Disponibilidad (Cruce de horarios)
-        $existeCruce = Visita::where('fecha_programada', $request->fecha_programada)
-            ->where(function($query) use ($request) {
-                $query->where('visitador_id', $request->visitador_id)
-                      ->orWhere('medico_id', $request->medico_id);
-            })
-            ->exists();
-
-        if ($existeCruce) {
-            return back()->withErrors([
-                'fecha_programada' => 'El visitador o el médico ya tienen una cita en esta fecha y hora exacta.'
-            ]);
-        }
-
-        Visita::create($validated);
-
-        return Redirect::route('Gvisitas.index')->with('success', 'Visita creada correctamente.');
+    // Validar Fin de Semana
+    if ($fecha->isWeekend()) {
+        return back()->withErrors([
+            'fecha_programada' => 'No se pueden programar visitas los fines de semana.'
+        ])->withInput();
     }
 
+    // Validar Horario (8:00 AM a 6:00 PM)
+    // 8 es 8:00 AM | 18 es 6:00 PM
+    if ($fecha->hour < 8 || $fecha->hour >= 18) {
+        return back()->withErrors([
+            'fecha_programada' => 'El horario de visita debe ser entre las 8:00 AM y las 6:00 PM.'
+        ])->withInput();
+    }
+
+    // 3. Validación de Disponibilidad (Cruce de horarios)
+    $existeCruce = Visita::where('fecha_programada', $request->fecha_programada)
+        ->where(function($query) use ($request) {
+            $query->where('visitador_id', $request->visitador_id)
+                  ->orWhere('medico_id', $request->medico_id);
+        })
+        ->exists();
+
+    if ($existeCruce) {
+        return back()->withErrors([
+            'fecha_programada' => 'El visitador o el médico ya tienen una cita programada para este momento.'
+        ])->withInput();
+    }
+
+    // 4. Crear la visita
+    Visita::create($validated);
+
+    return Redirect::route('Gvisitas.index')->with('success', 'Visita creada correctamente.');
+}
     /**
      * Actualiza una visita existente con validación de disponibilidad y horario.
      */

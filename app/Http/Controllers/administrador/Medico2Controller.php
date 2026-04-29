@@ -14,18 +14,21 @@ use App\Exports\MedicosExport;
 use App\Imports\MedicosImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Excel as ExcelFormat;
+use App\Models\Categoria; // <--- Importamos el modelo
 
 class Medico2Controller extends Controller
 {
     /**
      * Mostrar listado de médicos.
      */
-    public function index()
+   public function index()
     {
         return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
-            'medicos' => Medico::with(['visitador', 'tipoDocumento'])->get(), 
+            // Cargamos también la relación categoria en el with si la tienes definida en el modelo Medico
+            'medicos' => Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get(), 
             'visitadores' => Visitador::all(['id', 'nombre', 'apellido']),
-            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']) 
+            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']),
+            'categorias' => Categoria::all(['id', 'nombre']) // <--- Enviado a la vista
         ]);
     }
 
@@ -35,6 +38,7 @@ class Medico2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'categoria_id' => 'required|exists:categoria,id', // <--- Agregado antes de documento
             'documento' => 'required|numeric|unique:medicos,documento',
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
@@ -53,6 +57,7 @@ class Medico2Controller extends Controller
             'exists'   => 'El :attribute seleccionado no existe.',
             'date'     => 'La :attribute no tiene un formato válido.',
         ], [
+            'categoria_id' => 'Categoría', // <--- Nombre amigable
             'documento' => 'Número de Documento',
             'nombre' => 'Nombre',
             'apellido' => 'Apellido',
@@ -72,6 +77,7 @@ class Medico2Controller extends Controller
     public function update(Request $request, Medico $medico)
     {
         $validated = $request->validate([
+            'categoria_id' => 'required|exists:categoria,id', // <--- Agregado antes de documento
             'documento' => 'required|numeric|unique:medicos,documento,' . $medico->id,
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
@@ -88,6 +94,7 @@ class Medico2Controller extends Controller
             'unique'   => 'Este :attribute ya pertenece a otro médico.',
             'numeric'  => 'El campo :attribute debe ser solo números.',
         ], [
+            'categoria_id' => 'Categoría', // <--- Nombre amigable
             'documento' => 'Número de Documento',
             'nombre' => 'Nombre',
             'apellido' => 'Apellido',
@@ -98,7 +105,6 @@ class Medico2Controller extends Controller
 
         return Redirect::route('Gmedicos.index')->with('message', 'Médico actualizado con éxito.');
     }
-
     /**
      * Eliminar el médico.
      */
