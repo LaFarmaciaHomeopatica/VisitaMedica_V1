@@ -10,6 +10,8 @@ use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
 use App\Http\Controllers\administrador\VisitasController;
 use App\Http\Controllers\administrador\ProductosController;
+use App\Http\Controllers\administrador\TransaccionesController;
+use App\Http\Controllers\administrador\MedicoTemporalController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -83,6 +85,24 @@ Route::middleware(['auth'])->group(function () {
     // Ruta para procesar el archivo subido (Importar)
     Route::post('productos/importar', [ProductosController::class, 'import'])->name('productos.import');
     });
+
+
+
+Route::get('/Gtransacciones', [TransaccionesController::class, 'index'])->name('Gtransacciones.index');
+Route::post('/Gtransacciones', [TransaccionesController::class, 'store'])->name('Gtransacciones.store');
+Route::put('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'update'])->name('Gtransacciones.update');
+Route::delete('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'destroy'])->name('Gtransacciones.destroy');
+
+Route::delete('/Gtransacciones-multiple', [TransaccionesController::class, 'destroyMultiple'])->name('Gtransacciones.destroy_multiple');
+
+
+Route::get('/GmedicosTemporales', [MedicoTemporalController::class, 'index'])->name('GmedicosTemporales.index');
+Route::post('/GmedicosTemporales/{id}/promover', [MedicoTemporalController::class, 'promover'])->name('GmedicosTemporales.promover');
+
+
+
+
+
 
     /*
     |----------------------------------------------------------------------------------------

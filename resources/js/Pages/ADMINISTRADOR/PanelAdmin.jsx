@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, Head, usePage } from '@inertiajs/react';
 import {
     FaHouse, FaUsers, FaBoxesStacked, FaCalendarCheck,
-    FaUserDoctor, FaPowerOff, FaHouseMedical,
-    FaChevronLeft, FaChevronRight, FaUserGear
+    FaUserDoctor, FaPowerOff, FaHouseMedical, FaUserClock,
+    FaChevronLeft, FaChevronRight, FaUserGear, FaFileInvoiceDollar
 } from 'react-icons/fa6';
 
 const PanelAdmin = ({ children }) => {
@@ -25,6 +25,8 @@ const PanelAdmin = ({ children }) => {
         { name: 'Medicos', icon: <FaUserDoctor />, route: '/Gmedicos' },
         { name: 'Visitas', icon: <FaCalendarCheck />, route: '/Gvisitas' },
         { name: 'Productos', icon: <FaBoxesStacked />, route: '/Gproductos' },
+        { name: 'Transacciones', icon: <FaFileInvoiceDollar />, route: '/Gtransacciones' },
+        { name: 'Médicos Temp.', icon: <FaUserClock />, route: '/GmedicosTemporales' },
     ];
 
     return (
