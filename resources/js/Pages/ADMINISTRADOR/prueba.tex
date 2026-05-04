@@ -1,0 +1,247 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Head, useForm, router } from '@inertiajs/react';
+import PanelAdmin from "../PanelAdmin";
+import {
+    FaPlus, FaPencil, FaMagnifyingGlass, FaChevronLeft, FaChevronRight, FaTrashCan,
+    FaFileExcel, FaXmark, FaGear, FaEye
+} from 'react-icons/fa6';
+
+const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = [], errors: serverErrors }) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const fileInputRef = useRef(null);
+
+    // --- NUEVO: ESTADO PARA VISIBILIDAD DE COLUMNAS ---
+    const [showColumnFilter, setShowColumnFilter] = useState(false);
+    const columnFilterRef = useRef(null);
+    const [visibleColumns, setVisibleColumns] = useState({
+        semana: true,
+        documento: true,
+        medico: true,
+        codigoProducto: true,
+        producto: true,
+        compras: true,
+        formulaciones: true,
+        valorComprado: true,
+        valorFormulado: true,
+    });
+
+    // Cerrar el desplegable al hacer clic fuera
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (columnFilterRef.current && !columnFilterRef.current.contains(event.target)) {
+                setShowColumnFilter(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleColumn = (column) => {
+        setVisibleColumns(prev => ({ ...prev, [column]: !prev[column] }));
+    };
+
+    // --- BÚSQUEDA Y PAGINACIÓN ---
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const { data, setData, post, put, reset, clearErrors } = useForm({
+        id: null, medico_documento: '', producto_codigo: '', unidades_compradas: 0,
+        unidades_formuladas: 0, valor_comprado: 0, valor_formulado: 0, semana: '',
+    });
+
+    const filteredItems = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        return transacciones.filter(t =>
+            t.medico?.nombre?.toLowerCase().includes(term) ||
+            t.medico_documento?.toString().includes(term) ||
+            t.producto?.nombre?.toLowerCase().includes(term) ||
+            t.semana?.toString().includes(term)
+        );
+    }, [transacciones, searchTerm]);
+
+    const totalPages = useMemo(() => Math.ceil(filteredItems.length / (itemsPerPage || 1)), [filteredItems.length, itemsPerPage]);
+
+    const currentItems = useMemo(() => {
+        const lastIndex = currentPage * itemsPerPage;
+        return filteredItems.slice(lastIndex - itemsPerPage, lastIndex);
+    }, [filteredItems, currentPage, itemsPerPage]);
+
+    const toggleSelectAll = () => {
+        if (currentItems.length > 0 && selectedIds.length === currentItems.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(currentItems.map(t => t.id));
+        }
+    };
+
+    const openEditModal = (t) => {
+        clearErrors();
+        setIsEditing(true);
+        setData({
+            id: t.id,
+            medico_documento: t.medico_documento || '',
+            producto_codigo: t.producto_codigo || '',
+            unidades_compradas: t.unidades_compradas || 0,
+            unidades_formuladas: t.unidades_formuladas || 0,
+            valor_comprado: t.valor_comprado || 0,
+            valor_formulado: t.valor_formulado || 0,
+            semana: t.semana || '',
+        });
+        setIsModalOpen(true);
+    };
+
+    return (
+        <PanelAdmin user={auth?.user}>
+            <Head title="Gestión de Transacciones" />
+
+            <div className="w-full min-h-screen flex flex-col bg-white">
+                {/* BARRA SUPERIOR */}
+                <div className="flex flex-col xl:flex-row items-center justify-between border-b border-slate-200 px-6 py-6 gap-4">
+                    <div className="flex-1 max-w-md w-full relative">
+                        <FaMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <input
+                            type="text"
+                            placeholder="BUSCAR MÉDICO, PRODUCTO O SEMANA..."
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-12 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-[#3D3FD8]/20 transition-all"
+                        />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        <button
+                            disabled={selectedIds.length === 0}
+                            onClick={() => setIsDeleteModalOpen(true)}
+                            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase border transition-all ${selectedIds.length > 0 ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-600 hover:text-white' : 'bg-slate-50 text-slate-300 border-slate-100'}`}
+                        >
+                            <FaTrashCan className="inline mr-2" /> ELIMINAR {selectedIds.length > 0 && `(${selectedIds.length})`}
+                        </button>
+
+                        <a href={route('Gtransacciones.exportar')} className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-2xl font-black text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2">
+                            <FaFileExcel className="w-3.5 h-3.5" /> Exportar
+                        </a>
+
+                        <button onClick={() => setIsModalOpen(true)} className="bg-[#3D3FD8] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2">
+                            <FaPlus className="w-3 h-3" /> Nueva Transacción
+                        </button>
+                    </div>
+                </div>
+
+                {/* SUB-BARRA: PAGINACIÓN Y FILTRO DE COLUMNAS */}
+                <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 pr-6 border-r border-slate-200">
+                            <input type="checkbox" onChange={toggleSelectAll} checked={currentItems.length > 0 && selectedIds.length === currentItems.length} className="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Todo</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Mostrar</span>
+                            <input
+                                type="number"
+                                value={itemsPerPage}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItemsPerPage(val === '' || parseInt(val) === 0 ? 1 : parseInt(val, 10));
+                                    setCurrentPage(1);
+                                }}
+                                className="w-16 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-center p-1 outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {/* PAGINACIÓN */}
+                        <div className="flex items-center gap-1 border-r border-slate-200 pr-4">
+                            <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="p-2 disabled:opacity-30 hover:bg-slate-200 rounded-full transition-colors">
+                                <FaChevronLeft className="w-3 h-3 text-slate-600" />
+                            </button>
+                            <span className="text-[10px] font-bold text-slate-400 px-2 uppercase">
+                                {currentPage} de {totalPages || 1}
+                            </span>
+                            <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="p-2 disabled:opacity-30 hover:bg-slate-200 rounded-full transition-colors">
+                                <FaChevronRight className="w-3 h-3 text-slate-600" />
+                            </button>
+                        </div>
+
+                        {/* BOTÓN DESPLEGABLE DE COLUMNAS */}
+                        <div className="relative" ref={columnFilterRef}>
+                            <button
+                                onClick={() => setShowColumnFilter(!showColumnFilter)}
+                                className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:bg-slate-100 transition-all shadow-sm"
+                            >
+                                <FaGear className={`w-3 h-3 transition-transform ${showColumnFilter ? 'rotate-90' : ''}`} />
+                                Columnas
+                            </button>
+
+                            {showColumnFilter && (
+                                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-3 flex flex-col gap-1">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase px-2 mb-1">Ver/Ocultar Campos</span>
+                                    {Object.keys(visibleColumns).map((col) => (
+                                        <label key={col} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
+                                            <input
+                                                type="checkbox"
+                                                checked={visibleColumns[col]}
+                                                onChange={() => toggleColumn(col)}
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-[#3D3FD8] focus:ring-[#3D3FD8]"
+                                            />
+                                            <span className={`text-[10px] font-bold uppercase ${visibleColumns[col] ? 'text-slate-700' : 'text-slate-400'}`}>
+                                                {col.replace(/([A-Z])/g, ' $1')}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* TABLA DINÁMICA */}
+                <div className="flex-grow overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="px-6 py-5 text-center w-16">
+                                    <input type="checkbox" onChange={toggleSelectAll} checked={currentItems.length > 0 && selectedIds.length === currentItems.length} className="w-4 h-4 rounded border-slate-300 text-[#3D3FD8] focus:ring-[#3D3FD8]" />
+                                </th>
+                                {visibleColumns.semana && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Semana</th>}
+                                {visibleColumns.documento && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Documento</th>}
+                                {visibleColumns.medico && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Médico</th>}
+                                {visibleColumns.codigoProducto && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Cód. Prod</th>}
+                                {visibleColumns.producto && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Producto</th>}
+                                {visibleColumns.compras && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Compras</th>}
+                                {visibleColumns.formulaciones && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Formulaciones</th>}
+                                {visibleColumns.valorComprado && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Val. Comprado</th>}
+                                {visibleColumns.valorFormulado && <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest">Val. Formulado</th>}
+                                <th className="px-6 py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {currentItems.map((t) => (
+                                <tr key={t.id} className="hover:bg-slate-50/80 transition-colors group">
+                                    <td className="px-6 py-4 text-center">
+                                        <input type="checkbox" checked={selectedIds.includes(t.id)} onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])} className="w-4 h-4 rounded border-slate-300 text-[#3D3FD8] focus:ring-[#3D3FD8]" />
+                                    </td>
+                                    {visibleColumns.semana && <td className="px-6 py-4"><span className="text-[10px] font-black text-[#3D3FD8] bg-blue-50 px-3 py-1.5 rounded-lg">SEM {t.semana}</span></td>}
+                                    {visibleColumns.documento && <td className="px-6 py-4 text-[10px] font-bold text-slate-500">{t.medico_documento}</td>}
+                                    {visibleColumns.medico && <td className="px-6 py-4 text-[10px] font-black text-slate-700 uppercase">{t.medico ? `${t.medico.nombre} ${t.medico.apellido}` : '---'}</td>}
+                                    {visibleColumns.codigoProducto && <td className="px-6 py-4 text-[10px] font-bold text-slate-500">{t.producto_codigo}</td>}
+                                    {visibleColumns.producto && <td className="px-6 py-4 text-[10px] font-black text-slate-700 uppercase">{t.producto?.nombre || '---'}</td>}
+                                    {visibleColumns.compras && <td className="px-6 py-4 text-[10px] font-black text-slate-700">{t.unidades_compradas} U.</td>}
+                                    {visibleColumns.formulaciones && <td className="px-6 py-4 text-[10px] font-black text-slate-700">{t.unidades_formuladas} U.</td>}
+                                    {visibleColumns.valorComprado && <td className="px-6 py-4 text-[10px] font-black text-emerald-600">${Number(t.valor_comprado).toLocaleString()}</td>}
+                                    {visibleColumns.valorFormulado && <td className="px-6 py-4 text-[10px] font-black text-purple-600">${Number(t.valor_formulado).toLocaleString()}</td>}
+                                    <td className="px-6 py-4 text-center">
+                                        <button onClick={() => openEditModal(t)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-[#3D3FD8] hover:text-white transition-all transform hover:scale-110">
+                                            <FaPencil className="w-3 h-3" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
