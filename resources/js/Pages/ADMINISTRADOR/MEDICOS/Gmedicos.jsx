@@ -767,18 +767,34 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                                         <th className="px-3 py-2 font-bold text-slate-600 border-b">Visitador</th>
                                         <th className="px-3 py-2 font-bold text-slate-600 border-b">Fecha Inicio Relación</th>
                                     </tr>
-                                </thead>
-                                <tbody>
+                                </thead><tbody>
                                     {previewData
-                                        // En el .filter del Modal, usa esto y no fallará nunca:
                                         .filter(row => {
-                                            if (activeTab === 'nuevos') return row._status === 'nuevo';
-                                            if (activeTab === 'modificados') return row._status === 'modificado';
-                                            if (activeTab === 'sin_cambios') return row._status === 'sin_cambios';
-                                            return true;
+                                            // Calculamos el estado rápidamente para el filtro
+                                            const docExcel = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
+                                            const original = medicos.find(m => m.documento?.toString().trim() === docExcel);
+                                            const existe = !!original;
 
+                                            // Lógica de detección de cambios (idéntica a la de abajo para coherencia)
+                                            const nombreCambio = existe && String(row.nombre || row.NOMBRE || "").trim().toUpperCase() !== String(original?.nombre || "").trim().toUpperCase();
+                                            const apellidoCambio = existe && String(row.apellido || row.APELLIDO || "").trim().toUpperCase() !== String(original?.apellido || "").trim().toUpperCase();
+                                            const espCambio = existe && String(row.especialidad || row.ESPECIALIDAD || "").trim().toUpperCase() !== String(original?.especialidad || "").trim().toUpperCase();
+
+                                            // ... puedes simplificar esto uniendo todas las condiciones en una sola variable para el filtro
+                                            const esModificado = existe && (
+                                                nombreCambio || apellidoCambio || espCambio ||
+                                                (existe && String(row.categoria || row.CATEGORIA || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") !== String(original?.categoria?.nombre || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) ||
+                                                (existe && String(row.telefono_contacto || row.TELEFONO_CONTACTO || "").trim().toUpperCase() !== String(original?.telefono_contacto || "").trim().toUpperCase())
+                                                // Agrega aquí el resto si quieres un filtro 100% estricto
+                                            );
+
+                                            if (activeTab === 'nuevos') return !existe;
+                                            if (activeTab === 'modificados') return esModificado;
+                                            if (activeTab === 'sin_cambios') return existe && !esModificado;
+                                            return true;
                                         })
                                         .map((row, i) => {
+                                            // --- AQUÍ MANTENEMOS TODO TU CÓDIGO ORIGINAL DE MAPEADO ---
                                             const docExcel = (row.documento || row.DOCUMENTO || row.Documento)?.toString().trim();
                                             const original = medicos.find(m => m.documento?.toString().trim() === docExcel);
                                             const existe = !!original;
@@ -787,6 +803,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                                             const especialidadExcel = row.especialidad || row.ESPECIALIDAD || "---";
                                             const categoriaExcel = row.categoria || row.CATEGORIA || "---";
                                             const telExcel = row.telefono_contacto || row.TELEFONO_CONTACTO || "---";
+
                                             const nombreCambio = existe && String(nombreExcel).trim().toUpperCase() !== String(original?.nombre).trim().toUpperCase();
                                             const apellidoCambio = existe && String(apellidoExcel).trim().toUpperCase() !== String(original?.apellido).trim().toUpperCase();
                                             const espCambio = existe && String(especialidadExcel).trim().toUpperCase() !== String(original?.especialidad).trim().toUpperCase();
@@ -836,7 +853,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                                                             {telCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.telefono_contacto || 'N/A'}</span>}
                                                         </div>
                                                     </td>
-
                                                     <td className="px-3 py-2">
                                                         <div className="flex flex-col">
                                                             <span className={geolocalizacionCambio ? 'font-black text-orange-700' : 'text-slate-700'}>{String(row.geolocalizacion || "").trim()}</span>
@@ -867,7 +883,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                                                             {fechaInicioRelacionCambio && <span className="text-[8px] text-orange-400 italic">Actual: {original?.fecha_inicio_relacion || 'N/A'}</span>}
                                                         </div>
                                                     </td>
-
                                                 </tr>
                                             );
                                         })}

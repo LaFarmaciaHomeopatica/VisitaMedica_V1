@@ -35,8 +35,15 @@ Route::middleware(['auth'])->group(function () {
 
     Route::middleware(['role:1'])->group(function () {
         Route::get('/PanelAdmin', function () {
-            return Inertia::render('ADMINISTRADOR/PanelAdmin'); 
-        })->name('PanelAdmin');
+            return Inertia::render('ADMINISTRADOR/Ginicio'); 
+        })->name('Ginicio');
+
+        Route::get('/Ginicio', function () {
+            return Inertia::render('ADMINISTRADOR/Ginicio'); 
+        })->name('Ginicio');
+
+
+
 
 
         Route::get('/Gusuarios', [UsuarioController::class, 'index'])->name('Gusuarios.index');

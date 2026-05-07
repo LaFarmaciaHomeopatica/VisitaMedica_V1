@@ -19,7 +19,7 @@ const PanelAdmin = ({ children }) => {
     }, [isCollapsed]);
 
     const menuItems = [
-        { name: 'inicio', icon: <FaHouse />, route: '/PanelAdmin' },
+        { name: 'inicio', icon: <FaHouse />, route: '/Ginicio' },
         { name: 'Usuarios', icon: <FaUserGear />, route: '/Gusuarios' },
         { name: 'Visitadores', icon: <FaUsers />, route: '/Gvisitadores' },
         { name: 'Medicos', icon: <FaUserDoctor />, route: '/Gmedicos' },
