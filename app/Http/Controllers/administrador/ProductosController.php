@@ -20,7 +20,7 @@ class ProductosController extends Controller
         // Usamos Productos::
         $productos = Productos::latest()->get(); 
         
-        return Inertia::render('ADMINISTRADOR/Gproductos', [
+        return Inertia::render('ADMINISTRADOR/PRODUCTO/Gproductos', [
             'productos' => $productos
         ]);
     }
