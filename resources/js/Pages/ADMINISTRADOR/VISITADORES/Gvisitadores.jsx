@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import PanelAdmin from './PanelAdmin';
+import PanelAdmin from '../PanelAdmin';
 import axios from 'axios';
 
 const Index = ({ visitadores = [], tiposDocumento = [] }) => {

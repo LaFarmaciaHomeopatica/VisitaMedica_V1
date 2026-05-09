@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import PanelAdmin from './PanelAdmin';
+import PanelAdmin from '../PanelAdmin';
 
 const UsuarioIndex = ({ usuarios = [], roles = [] }) => {
     // --- ESTADOS DE UI ---

@@ -18,7 +18,7 @@ class DvisitadoresController extends Controller
         // apuntando al modelo User (que ahora usa la tabla usuarios)
         $visitadores = Visitador::with(['tipoDocumento', 'user'])->get();
 
-        return Inertia::render('ADMINISTRADOR/Gvisitadores', [
+        return Inertia::render('ADMINISTRADOR/VISITADORES/Gvisitadores', [
             'visitadores' => $visitadores,
             'tiposDocumento' => TipoDocumento::all(['id', 'nombre']),
         ]);

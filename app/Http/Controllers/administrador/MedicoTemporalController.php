@@ -15,7 +15,7 @@ class MedicoTemporalController extends Controller
 {
    public function index()
 {
-    return Inertia::render('ADMINISTRADOR/GmedicosTemporales', [
+    return Inertia::render('ADMINISTRADOR/MEDICOSTEMP/GmedicosTemporales', [
         'medicosTemporales' => MedicoTemporal::all(),
         'categorias' => Categoria::all(),
         'tiposDocumento' => TipoDocumento::all(),

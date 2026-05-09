@@ -19,7 +19,7 @@ class VisitasController extends Controller
      */
     public function index()
     {
-        return Inertia::render('ADMINISTRADOR/Gvisitas', [
+        return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
             'visitas' => Visita::with(['medico', 'visitador'])->orderBy('id', 'desc')->get(),
             'medicos' => Medico::select('id', 'nombre', 'visitador_id')->get(),
             'visitadores' => Visitador::select('id', 'nombre')->get(),

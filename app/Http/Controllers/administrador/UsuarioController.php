@@ -16,7 +16,7 @@ class UsuarioController extends Controller
         $usuarios = User::all();
         $roles = Rol::all(); 
         
-        return Inertia::render('ADMINISTRADOR/Gusuarios', [
+        return Inertia::render('ADMINISTRADOR/USUARIOS/Gusuarios', [
             'usuarios' => $usuarios,
             'roles' => $roles
         ]);
