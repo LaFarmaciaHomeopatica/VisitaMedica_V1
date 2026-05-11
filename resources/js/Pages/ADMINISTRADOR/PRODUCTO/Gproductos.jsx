@@ -67,11 +67,10 @@ const Gproductos = ({ productos = [] }) => {
                     onExport={handleExport}
                     onDelete={() => { if (selection.selectedIds.length > 0) setIsDeleteModalOpen(true); }}
                     onNew={form.openCreateModal}
-                />
 
-                <ProductosPaginator
+
+
                     currentItems={filter.currentItems}
-                    selectedIds={selection.selectedIds}
                     onSelectAll={selection.handleSelectAll}
                     itemsPerPage={filter.itemsPerPage}
                     onItemsPerPageChange={filter.setItemsPerPage}

@@ -3,11 +3,14 @@ import { useState } from 'react';
 export const useTransaccionesSelection = () => {
     const [selectedIds, setSelectedIds] = useState([]);
 
-    const toggleSelectAll = (currentItems) => {
-        if (currentItems.length > 0 && selectedIds.length === currentItems.length) {
-            setSelectedIds([]);
+    const toggleSelectAll = (e, items) => {
+        // "items" es lo que pasas desde el Toolbar como "currentItems"
+        if (e.target.checked) {
+            // Si items no es un array, aquí es donde explota el .map()
+            const ids = items.map(i => i.id);
+            setSelectedIds(ids);
         } else {
-            setSelectedIds(currentItems.map(t => t.id));
+            setSelectedIds([]);
         }
     };
 

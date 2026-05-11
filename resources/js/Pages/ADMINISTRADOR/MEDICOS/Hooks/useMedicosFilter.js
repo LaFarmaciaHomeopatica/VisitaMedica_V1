@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 
 export const useMedicosFilter = (medicos) => {
     const [searchTerm, setSearchTermRaw] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPageRaw] = useState(1);
     const [itemsPerPage, setItemsPerPageRaw] = useState(10);
 
     const filteredMedicos = useMemo(() => {
@@ -26,18 +26,43 @@ export const useMedicosFilter = (medicos) => {
         });
     }, [medicos, searchTerm]);
 
-    const totalPages = Math.ceil(filteredMedicos.length / (itemsPerPage || 1));
-    const indexOfFirst = (currentPage - 1) * itemsPerPage;
-    const currentItems = filteredMedicos.slice(indexOfFirst, indexOfFirst + itemsPerPage);
+    const totalPages = Math.max(1, Math.ceil(filteredMedicos.length / (itemsPerPage || 1)));
+
+    // --- AJUSTE AQUÍ ---
+    // Si la página es 0 (porque borraron el input), usamos 1 para el cálculo del slice
+    // así la tabla no se queda en blanco ni da error mientras el usuario escribe.
+    const effectivePage = currentPage < 1 ? 1 : currentPage;
+    const indexOfFirst = (effectivePage - 1) * (itemsPerPage || 0);
+    const currentItems = filteredMedicos.slice(indexOfFirst, indexOfFirst + (itemsPerPage || 0));
 
     const setSearchTerm = (value) => {
         setSearchTermRaw(value);
-        setCurrentPage(1);
+        setCurrentPageRaw(1);
     };
 
     const setItemsPerPage = (value) => {
-        setItemsPerPageRaw(value === '' ? 0 : parseInt(value, 10));
-        setCurrentPage(1);
+        // Acepta el valor vacío o 0 para permitir borrar en el input
+        if (value === '' || value === 0) {
+            setItemsPerPageRaw(0);
+        } else {
+            const num = Math.abs(parseInt(value, 10));
+            setItemsPerPageRaw(isNaN(num) ? 0 : num);
+        }
+        setCurrentPageRaw(1);
+    };
+
+    const setCurrentPage = (value) => {
+        // Acepta el valor vacío o 0 para permitir borrar en el input
+        if (value === '' || value === 0) {
+            setCurrentPageRaw(0);
+        } else {
+            let num = Math.abs(parseInt(value, 10));
+            if (isNaN(num)) num = 0;
+
+            // Si el número es mayor al total, lo limitamos al máximo
+            const targetPage = num > totalPages ? totalPages : num;
+            setCurrentPageRaw(targetPage);
+        }
     };
 
     return {

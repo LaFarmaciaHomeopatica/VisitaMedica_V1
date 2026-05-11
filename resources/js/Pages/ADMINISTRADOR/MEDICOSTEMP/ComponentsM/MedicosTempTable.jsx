@@ -1,47 +1,83 @@
 import React from 'react';
 import { FaUserPlus } from 'react-icons/fa6';
 
-export default function MedicosTempTable({ currentItems, onPromote }) {
+// Agregamos default values para evitar el error de undefined
+export default function MedicosTempTable({
+    currentItems = [],
+    selectedIds = [], // <--- Protección: si no llega, será un array vacío
+    onSelectOne,
+    onPromote
+}) {
     return (
-        <div className="p-0 overflow-x-auto">
-            <table className="w-full">
-                <thead>
-                    <tr className="text-left border-b border-slate-50">
-                        <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Documento</th>
-                        <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Médico (Referencia Excel)</th>
-                        <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Origen de Datos</th>
-                        <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 bg-white">
-                    {currentItems.map(m => (
-                        <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
-                            <td className="px-8 py-2">
-                                <span className="text-[11px] font-black text-slate-600">{m.documento}</span>
-                            </td>
-                            <td className="px-8 py-2">
-                                <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">
-                                    {m.nombre_referencia}
-                                </span>
-                            </td>
-                            <td className="px-8 py-2">
-                                <span className="inline-block px-3 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-tighter">
-                                    {m.origen_datos}
-                                </span>
-                            </td>
-                            <td className="px-8 py-2 text-right">
-                                <button
-                                    onClick={() => onPromote(m)}
-                                    className="inline-flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors p-2"
-                                    title="Completar Perfil"
-                                >
-                                    <FaUserPlus className="text-lg" />
-                                </button>
-                            </td>
+        <div className="flex-grow w-full mt-[30px]">
+            <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse table-auto">
+                    <thead className="sticky top-[-30px] z-30 shadow-sm">
+                        <tr className="bg-blue-600 border-b border-slate-200">
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100 text-center w-10">
+                                Sel.
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Documento
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Médico (Referencia Excel)
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Origen de Datos
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase text-center">
+                                Acción
+                            </th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                        {currentItems.map(m => (
+                            <tr
+                                key={m.id}
+                                // Ahora esto no fallará porque selectedIds siempre será al menos []
+                                className={`${selectedIds?.includes(m.id) ? 'bg-blue-50/50' : 'hover:bg-blue-50/30'} transition-colors group`}
+                            >
+                                <td className="px-6 py-1 border-r border-slate-50 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds?.includes(m.id)}
+                                        onChange={() => onSelectOne(m.id)}
+                                        className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </td>
+
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[11px] font-black text-slate-600">
+                                        {m.documento}
+                                    </span>
+                                </td>
+
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[11px] font-bold text-slate-700 uppercase leading-none tracking-tight">
+                                        {m.nombre_referencia}
+                                    </span>
+                                </td>
+
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-black uppercase tracking-tighter">
+                                        {m.origen_datos}
+                                    </span>
+                                </td>
+
+                                <td className="px-6 py-2 text-center flex gap-1 justify-center">
+                                    <button
+                                        onClick={() => onPromote(m)}
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm group/btn"
+                                    >
+                                        <FaUserPlus className="h-4 w-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

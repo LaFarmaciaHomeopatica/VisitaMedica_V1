@@ -2,13 +2,6 @@ import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
-
-
-
-
-
-
-
 // Hooks
 import { useTransaccionesFilter } from './HooksT/useTransaccionesFilter';
 import { useTransaccionesSelection } from './HooksT/useTransaccionesSelection';
@@ -21,9 +14,6 @@ import TransaccionesPaginator from './ComponentsT/TransaccionesPaginator';
 import TransaccionesTable from './ComponentsT/TransaccionesTable';
 import TransaccionFormModal from './ComponentsT/TransaccionFormModal';
 import TransaccionDeleteModal from './ComponentsT/TransaccionDeleteModal';
-
-
-
 
 const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = [] }) => {
     const filter = useTransaccionesFilter(transacciones);
@@ -64,15 +54,16 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
                     searchTerm={filter.searchTerm}
                     onSearchChange={filter.setSearchTerm}
                     selectedIds={selection.selectedIds}
-                    onDelete={() => { if (selection.selectedIds.length > 0) setIsDeleteModalOpen(true); }}
+                    onDelete={() => {
+                        if (selection.selectedIds.length > 0) setIsDeleteModalOpen(true);
+                    }}
                     onNew={form.openCreateModal}
                     onFileChange={handleImportExcel}
-                />
 
-                <TransaccionesPaginator
                     currentItems={filter.currentItems}
-                    selectedIds={selection.selectedIds}
-                    onToggleSelectAll={selection.toggleSelectAll}
+                    // CORRECCIÓN AQUÍ: Cambiado de onToggleSelectAll a onSelectAll
+                    onSelectAll={selection.toggleSelectAll}
+
                     itemsPerPage={filter.itemsPerPage}
                     onItemsPerPageChange={filter.setItemsPerPage}
                     currentPage={filter.currentPage}

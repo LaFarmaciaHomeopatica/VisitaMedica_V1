@@ -2,82 +2,139 @@ import React from 'react';
 import { getEstadoEstilo, getNameById } from './visitaHelpers';
 
 export default function VisitasTable({
-    currentItems, medicos, visitadores,
-    onView, onEdit, onDelete,
+    currentItems,
+    medicos,
+    visitadores,
+    selectedIds = [],
+    onSelectOne,
+    onView,
+    onEdit,
+    onDelete
 }) {
     return (
-        <div className="flex-grow w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase text-slate-400 font-black">
-                        <th className="px-6 py-5 tracking-widest">Médico</th>
-                        <th className="px-6 py-5 tracking-widest">Visitador</th>
-                        <th className="px-6 py-5 tracking-widest">F. Programada</th>
-                        <th className="px-6 py-5 tracking-widest">Estado</th>
-                        <th className="px-6 py-5 text-center tracking-widest">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {currentItems.length > 0 ? currentItems.map(v => (
-                        <tr key={v.id} className="hover:bg-slate-50/80 transition-colors group">
-                            <td className="px-6 py-4 font-black text-slate-700 text-[11px] uppercase">
-                                {getNameById(medicos, v.medico_id)}
-                            </td>
-                            <td className="px-6 py-4 text-slate-500 text-[10px] font-bold uppercase">
-                                {getNameById(visitadores, v.visitador_id)}
-                            </td>
-                            <td className="px-6 py-4 text-slate-500 text-[10px] font-medium">
-                                {v.fecha_programada}
-                            </td>
-                            <td className="px-6 py-4">
-                                <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${getEstadoEstilo(v.estado)}`}>
-                                    {v.estado}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="flex justify-center gap-1.5">
+        /* mt-[40px] para dar aire respecto al Toolbar fixed. 
+           Si el Toolbar es muy alto, ajusta este valor.
+        */
+        <div className="flex-grow w-full mt-[30px]">
+            <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse table-auto">
+                    {/* Header Sticky: Fondo azul y texto blanco para consistencia */}
+                    <thead className="sticky top-[-30px] z-30 shadow-sm">
+                        <tr className="bg-blue-600 border-b border-slate-200">
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100 text-center w-10">
+                                Sel.
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Médico
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Visitador
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Fecha Programada
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Estado
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase text-center">
+                                Acciones
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                        {currentItems.length > 0 ? currentItems.map(v => (
+                            <tr
+                                key={v.id}
+                                className={`${selectedIds.includes(v.id) ? 'bg-blue-50/50' : 'hover:bg-blue-50/30'} transition-colors group`}
+                            >
+                                {/* Checkbox de Selección */}
+                                <td className="px-6 py-1 border-r border-slate-50 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.includes(v.id)}
+                                        onChange={() => onSelectOne(v.id)}
+                                        className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </td>
+
+                                {/* Médico */}
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[11px] font-bold text-slate-700 uppercase leading-none tracking-tight">
+                                        {getNameById(medicos, v.medico_id)}
+                                    </span>
+                                </td>
+
+                                {/* Visitador */}
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[10px] text-slate-600 font-bold uppercase">
+                                        {getNameById(visitadores, v.visitador_id)}
+                                    </span>
+                                </td>
+
+                                {/* Fecha */}
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[10px] text-slate-500 font-medium italic">
+                                        {v.fecha_programada}
+                                    </span>
+                                </td>
+
+                                {/* Estado con estilo de Badge */}
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className={`inline-block px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter border ${getEstadoEstilo(v.estado)}`}>
+                                        {v.estado}
+                                    </span>
+                                </td>
+
+                                {/* Botones de Acción Estilizados */}
+                                <td className="px-6 py-2 text-center flex gap-1 justify-center">
                                     {/* Ver */}
                                     <button
                                         onClick={() => onView(v)}
-                                        className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm group/btn"
+                                        title="Ver detalle"
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                         </svg>
                                     </button>
+
                                     {/* Editar */}
                                     <button
                                         onClick={() => onEdit(v)}
-                                        className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm group/btn"
+                                        title="Editar visita"
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2.5" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                         </svg>
                                     </button>
+
                                     {/* Eliminar */}
                                     <button
                                         onClick={() => onDelete(v.id)}
-                                        className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm group/btn"
+                                        title="Eliminar registro"
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                     </button>
-                                </div>
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr>
-                            <td colSpan="5" className="px-6 py-20 text-center">
-                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
-                                    No se encontraron visitas registradas
-                                </p>
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
+                                </td>
+                            </tr>
+                        )) : (
+                            <tr>
+                                <td colSpan="6" className="px-6 py-20 text-center">
+                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
+                                        No se encontraron visitas registradas
+                                    </p>
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
