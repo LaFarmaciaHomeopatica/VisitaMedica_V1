@@ -19,7 +19,7 @@ export default function TransaccionesToolbar({
 
     // Mapeo de keys técnicas a nombres legibles
     const columnLabels = {
-        semana: "Semana",
+        fecha: "Fecha",
         documento: "Documento",
         medico: "Médico",
         codigoProducto: "Cód. Producto",

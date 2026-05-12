@@ -8,10 +8,10 @@ use App\Models\Medico;
 use App\Models\Productos; 
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-// Importamos las clases de Excel
 use App\Exports\TransaccionesExport;
 use App\Imports\TransaccionesImport;
 use Maatwebsite\Excel\Facades\Excel;
+use Carbon\Carbon;
 
 class TransaccionesController extends Controller
 {
@@ -38,25 +38,56 @@ class TransaccionesController extends Controller
     }
 
     /**
-     * Importar transacciones desde Excel
+     * Importar transacciones desde Excel (Versión Limpia)
      */
-   // TransaccionesController.php
+    public function importar(Request $request)
+    {
+        $request->validate([
+            'archivo' => 'required|mimes:xlsx,xls,csv',
+        ]);
 
-public function importar(Request $request)
-{
-    $request->validate([
-        'archivo' => 'required|mimes:xlsx,xls,csv|max:10240',
-    ]);
-
-    try {
-        Excel::import(new TransaccionesImport, $request->file('archivo'));
-
-        return redirect()->back()->with('message', 'Proceso finalizado. Algunos registros pudieron ser enviados a Médicos Temporales para su revisión.');
-        
-    } catch (\Exception $e) {
-        return redirect()->back()->withErrors(['archivo' => 'Error: ' . $e->getMessage()]);
+        try {
+            // Ya no es estrictamente necesario el mes para validar, 
+            // pero lo pasamos por si en el futuro quieres registrar qué importación fue.
+            $mes = $request->input('mes_referencia', now()->format('Y-m'));
+            
+            Excel::import(new TransaccionesImport($mes), $request->file('archivo'));
+            
+            return redirect()->back()->with('message', 'Importación completada con éxito');
+        } catch (\Exception $e) {
+            // En lugar de dd, devolvemos el error a la vista para que el sistema no se rompa
+            return redirect()->back()->withErrors(['archivo' => 'Error al procesar el archivo: ' . $e->getMessage()]);
+        }
     }
-}
+
+    /**
+     * Obtener métricas mensuales para el dashboard/vista
+     */
+    public function metricas(Request $request)
+    {
+        // Aquí es donde la magia ocurre: el filtro de fecha se aplica aquí
+        // para que las métricas sean exactas aunque el Excel traiga otros meses.
+        $mes = $request->input('mes', now()->month);
+        $anio = $request->input('anio', now()->year);
+
+        $stats = Transaccion::whereMonth('fecha', $mes)
+            ->whereYear('fecha', $anio)
+            ->selectRaw('
+                SUM(unidades_compradas) as total_compradas,
+                SUM(unidades_formuladas) as total_formuladas,
+                SUM(valor_comprado) as total_valor_comprado,
+                SUM(valor_formulado) as total_valor_formulado
+            ')
+            ->first();
+
+        return Inertia::render('ADMINISTRADOR/TRANSACCIONES/Metricas', [
+            'stats' => $stats,
+            'filtros' => [
+                'mes' => $mes,
+                'anio' => $anio
+            ]
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -67,7 +98,7 @@ public function importar(Request $request)
             'unidades_formuladas' => 'integer|min:0',
             'valor_comprado'      => 'numeric|min:0',
             'valor_formulado'     => 'numeric|min:0',
-            'semana'              => 'required|integer|between:1,53',
+            'fecha'               => 'required|date', 
         ]);
 
         Transaccion::create($validated);
@@ -85,7 +116,7 @@ public function importar(Request $request)
             'unidades_formuladas' => 'integer|min:0',
             'valor_comprado'      => 'numeric|min:0',
             'valor_formulado'     => 'numeric|min:0',
-            'semana'              => 'required|integer|between:1,53',
+            'fecha'               => 'required|date', 
         ]);
 
         $transaccion->update($validated);

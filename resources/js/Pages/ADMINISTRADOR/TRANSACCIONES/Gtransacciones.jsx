@@ -33,6 +33,13 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
         });
     };
 
+    // --- Exportación ---
+    const handleExport = () => {
+        // Usamos window.location.href para que el navegador gestione 
+        // la respuesta como una descarga de archivo y no como una navegación de Inertia.
+        window.location.href = route('Gtransacciones.exportar');
+    };
+
     // --- Eliminación ---
     const handleConfirmDelete = () => {
         if (selection.selectedIds.length === 0) return;
@@ -60,8 +67,9 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
                     onNew={form.openCreateModal}
                     onFileChange={handleImportExcel}
 
+                    onExport={handleExport}
+
                     currentItems={filter.currentItems}
-                    // CORRECCIÓN AQUÍ: Cambiado de onToggleSelectAll a onSelectAll
                     onSelectAll={selection.toggleSelectAll}
 
                     itemsPerPage={filter.itemsPerPage}

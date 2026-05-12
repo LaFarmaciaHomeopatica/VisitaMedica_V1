@@ -14,7 +14,7 @@ export default function TransaccionesTable({
                     <thead className="sticky top-[-30px] z-30 shadow-sm">
                         <tr className="bg-blue-600 border-b border-slate-200">
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100 text-center w-10">Sel.</th>
-                            {visibleColumns.semana && <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Semana</th>}
+                            {visibleColumns.fecha && <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Fecha</th>}
                             {visibleColumns.documento && <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Documento</th>}
                             {visibleColumns.medico && <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Médico</th>}
                             {visibleColumns.codigoProducto && <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Cód. Prod</th>}
@@ -41,10 +41,10 @@ export default function TransaccionesTable({
                                     />
                                 </td>
 
-                                {visibleColumns.semana && (
+                                {visibleColumns.fecha && (
                                     <td className="px-6 py-2 border-r border-slate-50">
                                         <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 uppercase">
-                                            SEM {t.semana}
+                                            FECHA: {t.fecha}
                                         </span>
                                     </td>
                                 )}

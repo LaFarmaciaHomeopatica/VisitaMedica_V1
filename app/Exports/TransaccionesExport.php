@@ -30,8 +30,7 @@ class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, Shoul
             'Unidades Formuladas',
             'Valor Comprado',
             'Valor Formulado',
-            'Semana',
-            'Fecha de Registro',
+            'Fecha',
         ];
     }
 
@@ -48,9 +47,8 @@ class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, Shoul
             $transaccion->unidades_formuladas,
             $transaccion->valor_comprado,
             $transaccion->valor_formulado,
-            $transaccion->semana,
+            $transaccion->fecha,
             // Verificamos que sea una instancia de Carbon antes de formatear
-            $transaccion->created_at ? $transaccion->created_at->format('d-m-Y') : 'Sin fecha',
         ];
     }
 }

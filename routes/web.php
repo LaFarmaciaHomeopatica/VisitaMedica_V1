@@ -12,6 +12,7 @@ use App\Http\Controllers\administrador\VisitasController;
 use App\Http\Controllers\administrador\ProductosController;
 use App\Http\Controllers\administrador\TransaccionesController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
+use App\Http\Controllers\administrador\MetricasController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -42,6 +43,7 @@ Route::middleware(['auth'])->group(function () {
             return Inertia::render('ADMINISTRADOR/Ginicio'); 
         })->name('Ginicio');
 
+Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.index');
 
 
 
@@ -109,6 +111,10 @@ Route::middleware(['auth'])->group(function () {
    // Ejemplo de cómo deberían estar tus rutas
 Route::get('/Gtransacciones/exportar', [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
 Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'importar'])->name('Gtransacciones.importar');
+
+
+
+
 
     /*
     |----------------------------------------------------------------------------------------

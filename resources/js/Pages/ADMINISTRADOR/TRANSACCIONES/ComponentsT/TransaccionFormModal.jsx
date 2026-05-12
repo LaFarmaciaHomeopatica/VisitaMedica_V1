@@ -80,16 +80,39 @@ export default function TransaccionFormModal({
                         />
                     </div>
 
-                    {/* Semana */}
+                    {/* Unidades formuladas*/}
                     <div className="col-span-1">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Semana (1-53)</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Unidades Formuladas</label>
                         <input
                             type="number"
-                            value={data.semana}
-                            onChange={e => setData('semana', e.target.value)}
+                            value={data.unidades_formuladas}
+                            onChange={e => setData('unidades_formuladas', e.target.value)}
                             className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10"
                         />
-                        {errors.semana && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.semana}</p>}
+                    </div>
+
+                    {/* Valor formulado*/}
+                    <div className="col-span-1">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Valor Formulado</label>
+                        <input
+                            type="number"
+                            value={data.valor_formulado}
+                            onChange={e => setData('valor_formulado', e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10"
+                        />
+                    </div>
+
+
+                    {/* Semana */}
+                    <div className="col-span-1">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fecha</label>
+                        <input
+                            type="date"
+                            value={data.fecha}
+                            onChange={e => setData('fecha', e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10"
+                        />
+                        {errors.fecha && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.fecha}</p>}
                     </div>
 
                     {/* Acciones */}

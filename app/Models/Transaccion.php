@@ -20,7 +20,7 @@ class Transaccion extends Model
         'unidades_formuladas',
         'valor_comprado',
         'valor_formulado',
-        'semana',
+        'fecha',
     ];
 
     /**
