@@ -14,7 +14,7 @@ import VisitaFormModal from './ComponentsV/VisitaFormModal';
 import VisitaViewModal from './ComponentsV/VisitaViewModal';
 import VisitaDeleteModal from './ComponentsV/VisitaDeleteModal';
 
-const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [] }) => {
+const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [], productos = [] }) => {
     // 1. Inicialización de Hooks
     const filter = useVisitasFilter(visitas, medicos, visitadores);
     const form = useVisitaForm(visitas, medicos);
@@ -96,6 +96,8 @@ const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [] }) =>
                 medicosFiltradosPorVisitador={form.medicosFiltradosPorVisitador}
                 onFechaProgramadaChange={form.handleFechaProgramadaChange}
                 onMedicoChange={form.handleMedicoChange}
+
+                productos={productos}
             />
 
             <VisitaViewModal

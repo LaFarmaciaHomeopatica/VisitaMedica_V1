@@ -10,7 +10,7 @@ export default function VisitaViewModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white w-full max-w-lg rounded-[30px] shadow-2xl p-8 border border-slate-100">
+            <div className="relative bg-white w-full max-w-lg rounded-[30px] shadow-2xl p-8 border border-slate-100 max-h-[90vh] overflow-y-auto">
 
                 {/* Header */}
                 <div className="flex justify-between items-start mb-8">
@@ -23,7 +23,7 @@ export default function VisitaViewModal({
                     </span>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-6">
                     {/* Médico + Visitador */}
                     <div className="grid grid-cols-2 gap-8">
                         <div>
@@ -56,13 +56,28 @@ export default function VisitaViewModal({
                         </div>
                     </div>
 
-                    {/* Comentarios */}
+                    {/* SECCIÓN DE MUESTRAS (NUEVA) */}
+                    <div className="border-t border-slate-100 pt-6">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">Muestra</label>
+                        <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
+                            <p className="text-[11px] font-black text-[#3D3FD8] uppercase">
+                                {visita.muestras || 'NINGUNA MUESTRA REGISTRADA(PRODUCTO)'}
+                            </p>
+                            {visita.comentario_muestra && (
+                                <p className="text-[10px] font-bold text-slate-500 mt-1 italic">
+                                    Nota: {visita.comentario_muestra}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Comentarios Generales */}
                     <div className="bg-slate-50/80 rounded-[20px] p-6 border border-slate-100">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center border-b border-slate-200 pb-2">
-                            Comentarios del Visitador
+                            Notas de la Visita
                         </label>
                         <p className="text-xs text-slate-600 font-bold leading-relaxed italic text-center">
-                            "{visita.comentarios || 'EL VISITADOR NO HA INGRESADO COMENTARIOS PARA ESTA VISITA.'}"
+                            "{visita.comentarios || 'EL VISITADOR NO HA INGRESADO COMENTARIOS ADICIONALES.'}"
                         </p>
                     </div>
                 </div>

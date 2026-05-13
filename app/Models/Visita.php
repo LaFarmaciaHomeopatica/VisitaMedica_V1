@@ -16,7 +16,9 @@ class Visita extends Model
         'fecha_programada',
         'fecha_realizada',
         'estado',
-        'comentarios'
+        'comentarios',
+        'muestras',           // Nuevo campo
+        'comentario_muestra'  // Nuevo campo
     ];
 
     //  Relación con Médico
@@ -31,36 +33,34 @@ class Visita extends Model
         return $this->belongsTo(Visitador::class);
     }
 
-
     public static function getPossibleStatuses()
-{
-    // CAMBIO CLAVE: Pasa el string directo, sin DB::raw()
-    $results = DB::select("SHOW COLUMNS FROM visitas WHERE Field = 'estado'");
-    
-    if (empty($results)) {
-        return [];
+    {
+        // CAMBIO CLAVE: Pasa el string directo, sin DB::raw()
+        $results = DB::select("SHOW COLUMNS FROM visitas WHERE Field = 'estado'");
+        
+        if (empty($results)) {
+            return [];
+        }
+
+        $type = $results[0]->Type;
+        
+        // Extraemos los valores del enum('valor1','valor2')
+        preg_match('/^enum\((.*)\)$/', $type, $matches);
+        
+        if (!isset($matches[1])) {
+            return [];
+        }
+
+        $enum = array();
+        foreach(explode(',', $matches[1]) as $value){
+            $v = trim($value, "'");
+            $enum[] = $v;
+        }
+        
+        return $enum;
     }
 
-    $type = $results[0]->Type;
-    
-    // Extraemos los valores del enum('valor1','valor2')
-    preg_match('/^enum\((.*)\)$/', $type, $matches);
-    
-    if (!isset($matches[1])) {
-        return [];
-    }
-
-    $enum = array();
-    foreach(explode(',', $matches[1]) as $value){
-        $v = trim($value, "'");
-        $enum[] = $v;
-    }
-    
-    return $enum;
-}
-
-protected $casts = [
-    'fecha_programada' => 'datetime:Y-m-d H:i',
-];
-
+    protected $casts = [
+        'fecha_programada' => 'datetime:Y-m-d H:i',
+    ];
 }

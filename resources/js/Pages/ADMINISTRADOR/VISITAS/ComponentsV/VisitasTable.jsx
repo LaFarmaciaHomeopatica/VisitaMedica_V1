@@ -12,13 +12,9 @@ export default function VisitasTable({
     onDelete
 }) {
     return (
-        /* mt-[40px] para dar aire respecto al Toolbar fixed. 
-           Si el Toolbar es muy alto, ajusta este valor.
-        */
         <div className="flex-grow w-full mt-[30px]">
             <div className="overflow-x-auto w-full">
                 <table className="w-full text-left border-collapse table-auto">
-                    {/* Header Sticky: Fondo azul y texto blanco para consistencia */}
                     <thead className="sticky top-[-30px] z-30 shadow-sm">
                         <tr className="bg-blue-600 border-b border-slate-200">
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100 text-center w-10">
@@ -32,6 +28,10 @@ export default function VisitasTable({
                             </th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
                                 Fecha Programada
+                            </th>
+                            {/* Nueva Columna: Muestras */}
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Muestras
                             </th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
                                 Estado
@@ -48,7 +48,6 @@ export default function VisitasTable({
                                 key={v.id}
                                 className={`${selectedIds.includes(v.id) ? 'bg-blue-50/50' : 'hover:bg-blue-50/30'} transition-colors group`}
                             >
-                                {/* Checkbox de Selección */}
                                 <td className="px-6 py-1 border-r border-slate-50 text-center">
                                     <input
                                         type="checkbox"
@@ -58,37 +57,38 @@ export default function VisitasTable({
                                     />
                                 </td>
 
-                                {/* Médico */}
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className="text-[11px] font-bold text-slate-700 uppercase leading-none tracking-tight">
                                         {getNameById(medicos, v.medico_id)}
                                     </span>
                                 </td>
 
-                                {/* Visitador */}
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className="text-[10px] text-slate-600 font-bold uppercase">
                                         {getNameById(visitadores, v.visitador_id)}
                                     </span>
                                 </td>
 
-                                {/* Fecha */}
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className="text-[10px] text-slate-500 font-medium italic">
                                         {v.fecha_programada}
                                     </span>
                                 </td>
 
-                                {/* Estado con estilo de Badge */}
+                                {/* Datos de Muestras */}
+                                <td className="px-6 py-2 border-r border-slate-50">
+                                    <span className="text-[10px] text-slate-600 font-semibold truncate max-w-[150px] block">
+                                        {v.muestras ? v.muestras : <span className="text-slate-300 italic font-normal text-[9px]">Sin muestras</span>}
+                                    </span>
+                                </td>
+
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className={`inline-block px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter border ${getEstadoEstilo(v.estado)}`}>
                                         {v.estado}
                                     </span>
                                 </td>
 
-                                {/* Botones de Acción Estilizados */}
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
-                                    {/* Ver */}
                                     <button
                                         onClick={() => onView(v)}
                                         className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm group/btn"
@@ -100,7 +100,6 @@ export default function VisitasTable({
                                         </svg>
                                     </button>
 
-                                    {/* Editar */}
                                     <button
                                         onClick={() => onEdit(v)}
                                         className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm group/btn"
@@ -111,7 +110,6 @@ export default function VisitasTable({
                                         </svg>
                                     </button>
 
-                                    {/* Eliminar */}
                                     <button
                                         onClick={() => onDelete(v.id)}
                                         className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm group/btn"
@@ -125,7 +123,7 @@ export default function VisitasTable({
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="6" className="px-6 py-20 text-center">
+                                <td colSpan="7" className="px-6 py-20 text-center">
                                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
                                         No se encontraron visitas registradas
                                     </p>

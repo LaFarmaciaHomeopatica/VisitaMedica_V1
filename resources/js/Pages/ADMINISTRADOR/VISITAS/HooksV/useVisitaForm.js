@@ -16,6 +16,8 @@ export const useVisitaForm = (visitas, medicos) => {
         fecha_programada: '',
         fecha_realizada: '',
         estado: 'sin programar',
+        muestras: '', // <--- AGREGAR ESTO
+        comentario_muestra: '', // <--- AGREGAR ESTO
         comentarios: '',
     });
 
@@ -75,13 +77,27 @@ export const useVisitaForm = (visitas, medicos) => {
     };
 
     // Acciones
+    // En useVisitaForm.js, asegúrate de que esto esté así:
     const openCreateModal = () => {
-        reset();
         clearErrors();
         setIsEditing(false);
+        reset(); // Esto resetea a los valores iniciales del useForm
+
+        // Aseguramos que los campos de productos estén vacíos por si acaso
+        setData({
+            ...data, // Mantenemos la estructura
+            id: null,
+            medico_id: '',
+            visitador_id: '',
+            fecha_programada: '',
+            fecha_realizada: '',
+            estado: 'sin programar',
+            muestras: '', // <--- Vital que esté vacío al crear
+            comentario_muestra: '',
+            comentarios: '',
+        });
         setIsModalOpen(true);
     };
-
     const openEditModal = (visita) => {
         clearErrors();
         setIsEditing(true);
@@ -96,11 +112,12 @@ export const useVisitaForm = (visitas, medicos) => {
                 ? visita.fecha_realizada.replace(' ', 'T').substring(0, 16)
                 : '',
             estado: visita.estado,
+            muestras: visita.muestras || '', // <--- AGREGAR ESTO
+            comentario_muestra: visita.comentario_muestra || '', // <--- AGREGAR ESTO
             comentarios: visita.comentarios || '',
         });
         setIsModalOpen(true);
     };
-
     const openViewModal = (visita) => {
         setSelectedVisita(visita);
         setIsViewModalOpen(true);
@@ -113,12 +130,19 @@ export const useVisitaForm = (visitas, medicos) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        // Opcional: Log para depurar si el valor de muestras está llegando antes de enviar
+        // console.log("Enviando muestras:", data.muestras);
+
         if (isEditing) {
             put(route('Gvisitas.update', data.id), {
                 onSuccess: () => {
                     setIsModalOpen(false);
+                    reset();
                     Swal.fire({ icon: 'success', title: 'ACTUALIZADO', timer: 1500, showConfirmButton: false });
                 },
+                // Agrega esto para ver errores en consola si algo falla en el servidor
+                onError: (err) => console.error("Error al actualizar:", err)
             });
         } else {
             post(route('Gvisitas.store'), {
@@ -127,8 +151,10 @@ export const useVisitaForm = (visitas, medicos) => {
                     reset();
                     Swal.fire({ icon: 'success', title: 'GUARDADO', timer: 1500, showConfirmButton: false });
                 },
+                onError: (err) => console.error("Error al guardar:", err)
             });
         }
+
     };
 
     const handleConfirmDelete = () => {
@@ -154,4 +180,7 @@ export const useVisitaForm = (visitas, medicos) => {
         openViewModal, openDeleteModal,
         handleSubmit, handleConfirmDelete,
     };
+
+
+
 };
