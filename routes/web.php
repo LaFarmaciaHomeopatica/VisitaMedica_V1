@@ -133,47 +133,22 @@ Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'import
         Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
         // Módulo de Visitas
-        Route::get('/GestionVisita', [VisitaController::class, 'index'])->name('GestionVisita.index');
-        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
-        Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('GestionVisita.  efectiva');
-        Route::post('/GestionVisita/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('GestionVisita.reprogramar');
-        Route::post('/GestionVisita/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('GestionVisita.cancelar');
+        Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
+        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
+        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('MisVisitas.  efectiva');
+        Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
+        Route::post('/MisVisitas/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('MisVisitas.cancelar');
 
         Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
 
         Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
        
-        Route::post('/GestionVisita/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
-        Route::post('/GestionVisita', [VisitaController::class, 'store'])->name('visitas.store');
+        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
+        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
 
 
-        Route::get('/calendario-visitas', [VisitaController::class, 'calendario'])->name('visitas.calendario');
-        // RUTA CLAVE: Endpoint que devuelve el JSON para Axios
-        // Esta es la que usa cargarVisitas() en React
-        Route::get('/visitas-json', [VisitaController::class, 'getVisitasJson']);
-
-        // Gestión de visitas (la otra vista que tienes)
-        Route::get('/gestion-visitas', [VisitaController::class, 'index'])->name('visitas.index');
-
-        // Crear visita
-        Route::post('/visitas', [VisitaController::class, 'store']);
-
-        // Marcar como efectiva
-        Route::post('/visitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva']);
-
-        Route::get('/visitas', [VisitaController::class, 'getVisitasJson'])->name('visitas.json');
-        
-        Route::post('/visitas/{id}/reportar', [VisitaController::class, 'marcarEfectiva'])
-            ->name('visitas.marcarEfectiva');
-            
-        Route::get('/ProductoCatalogo', function () {
-            return Inertia::render('VISITADOR/ProductoCatalogo');
-        })->name('productos');
-
-        Route::get('/CalendarioVisitas', function () {
-            return Inertia::render('VISITADOR/CalendarioVisitas');
-        })->name('calendario');
+       
     });
 
     /*

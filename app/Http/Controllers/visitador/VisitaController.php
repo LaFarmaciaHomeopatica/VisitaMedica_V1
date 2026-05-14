@@ -21,12 +21,12 @@ class VisitaController extends Controller
             ->first();
     }
 
-    public function calendario()
+    public function MisVisitas()
     {
         $visitador = $this->getVisitador();
         if (!$visitador) return redirect()->route('login');
 
-        return Inertia::render('VISITADOR/CalendarioVisitas', [
+        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
             'visitas' => Visita::with('medico')
                 ->where('visitador_id', $visitador->id)
                 ->orderBy('fecha_programada', 'asc')
@@ -147,7 +147,7 @@ class VisitaController extends Controller
         $visitador = $this->getVisitador();
         if (!$visitador) return redirect()->route('login');
 
-        return Inertia::render('VISITADOR/GestionVisita', [
+        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
             'visitas' => Visita::with('medico')->where('visitador_id', $visitador->id)->get(),
             'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada'],
             'medicosDisponibles' => $visitador->medicos, 

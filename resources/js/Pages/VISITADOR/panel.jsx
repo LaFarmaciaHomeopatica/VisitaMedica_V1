@@ -11,6 +11,7 @@ import {
     FaUserDoctor,
     FaBriefcase,
     FaGears,
+    FaCalendarCheck,
     FaPills
 } from 'react-icons/fa6';
 
@@ -21,7 +22,7 @@ const DashboardLFH = () => {
     const modules = [
         { icon: <FaUserDoctor />, label: 'Médico', route: '/ListadoMedicos' },
         { icon: <FaBriefcase />, label: 'Mi Progreso', route: '/visitador' },
-        { icon: <FaGears />, label: 'Gestión Vistas', route: '/GestionVisita' },
+        { icon: <FaCalendarCheck />, label: 'Gestión Vistas', route: '/MisVisitas' },
         { icon: <FaPills />, label: 'Producto', route: '/ProductoCatalogo' },
     ];
 

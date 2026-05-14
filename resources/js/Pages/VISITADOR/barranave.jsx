@@ -18,7 +18,7 @@ const BottomNavigation = () => {
         { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
         { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
         { icon: <FaChartLine />, label: 'Mi Progreso', route: '/visitador' },
-        { icon: <FaCalendarCheck />, label: 'Gestión', route: '/GestionVisita' },
+        { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
         { icon: <FaPills />, label: 'Productos', route: '/ProductoCatalogo' },
     ];
 
@@ -30,8 +30,8 @@ const BottomNavigation = () => {
             <div className="fixed bottom-6 left-6 z-50 sm:hidden">
                 {/* Lista de enlaces vertical */}
                 <div className={`flex flex-col-reverse gap-3 mb-4 transition-all duration-300 origin-bottom-left ${isOpen
-                        ? 'opacity-100 scale-100 translate-y-0'
-                        : 'opacity-0 scale-75 translate-y-10 pointer-events-none'
+                    ? 'opacity-100 scale-100 translate-y-0'
+                    : 'opacity-0 scale-75 translate-y-10 pointer-events-none'
                     }`}>
                     {navIcons.map((nav, index) => {
                         const isActive = url === nav.route || url.startsWith(`${nav.route}/`);
