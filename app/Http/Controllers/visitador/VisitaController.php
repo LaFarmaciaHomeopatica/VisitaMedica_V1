@@ -7,6 +7,7 @@ use App\Models\Visita;
 use App\Models\Medico;
 use App\Models\Visitador;
 use Illuminate\Http\Request;
+use App\Models\Productos;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -21,24 +22,25 @@ class VisitaController extends Controller
             ->first();
     }
 
-    public function MisVisitas()
-    {
-        $visitador = $this->getVisitador();
-        if (!$visitador) return redirect()->route('login');
+    public function index()
+{
+    $visitador = $this->getVisitador();
+    if (!$visitador) return redirect()->route('login');
 
-        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
-            'visitas' => Visita::with('medico')
-                ->where('visitador_id', $visitador->id)
-                ->orderBy('fecha_programada', 'asc')
-                ->get()
-                ->map(function ($visita) {
-                    $visita->hora_12h = Carbon::parse($visita->fecha_programada)->format('g:i A');
-                    return $visita;
-                }),
-            'medicosDisponibles' => $visitador->medicos, 
-            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
-        ]);
-    }
+    return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
+        'visitas' => Visita::with('medico')
+            ->where('visitador_id', $visitador->id)
+            ->orderBy('fecha_programada', 'asc')
+            ->get()
+            ->map(function ($visita) {
+                $visita->hora_12h = Carbon::parse($visita->fecha_programada)->format('g:i A');
+                return $visita;
+            }),
+        'medicosDisponibles' => $visitador->medicos,
+        'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(), // 👈
+        'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
+    ]);
+}
 
     public function store(Request $request)
     {
@@ -50,7 +52,10 @@ class VisitaController extends Controller
                 Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)),
             ],
             'fecha_programada' => 'required|date',
+            'fecha_realizada' => 'nullable|date',
             'estado'           => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
+            'muestras'           => 'nullable|string|max:255', // 👈
+    'comentario_muestra' => 'nullable|string',         // 👈
         ]);
 
         $fechaNueva = Carbon::parse($request->fecha_programada);
@@ -95,9 +100,11 @@ class VisitaController extends Controller
             'medico_id'        => $request->medico_id,
             'visitador_id'     => $visitador->id,
             'fecha_programada' => $request->fecha_programada,
-            'fecha_realizada'  => $request->estado === 'efectiva' ? now() : null,
-            'estado'           => $request->estado,
+            'fecha_realizada'    => $request->fecha_realizada,  
+             'estado'             => 'programada', 
             'comentarios'      => $request->comentarios,
+             'muestras'           => $request->muestras,           // 👈
+    'comentario_muestra' => $request->comentario_muestra, // 👈
         ]);
 
         return redirect()->back()->with('success', 'Visita agendada.');
@@ -142,15 +149,5 @@ class VisitaController extends Controller
         return redirect()->back()->with('message', 'Reprogramada.');
     }
 
-    public function index()
-    {
-        $visitador = $this->getVisitador();
-        if (!$visitador) return redirect()->route('login');
-
-        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
-            'visitas' => Visita::with('medico')->where('visitador_id', $visitador->id)->get(),
-            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada'],
-            'medicosDisponibles' => $visitador->medicos, 
-        ]);
-    }
+   
 }

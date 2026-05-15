@@ -10,8 +10,8 @@ import CalendarSection from './ComponentsMv/CalendarSection';
 import ModalNuevaVisita from './ComponentsMv/ModalNuevaVisita';
 import ModalGestionarVisita from './ComponentsMv/ModalGestionarVisita';
 
-const MisVisitas = ({ visitas: visitasDB, doctores }) => {
-    const logic = useMisVisitas(visitasDB, doctores);
+const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
+    const logic = useMisVisitas(visitasDB, medicosDisponibles, productos);
     const overlayVisible = logic.modalNuevoAbierto || logic.modalGestionAbierto;
 
     return (
@@ -20,7 +20,7 @@ const MisVisitas = ({ visitas: visitasDB, doctores }) => {
 
             {!overlayVisible && (
                 <button
-                    onClick={() => logic.setModalNuevoAbierto(true)}
+                    onClick={() => logic.abrirModalNuevo()}
                     className="fixed bottom-28 right-6 w-14 h-14 bg-[#5D8BF4] text-white rounded-2xl shadow-lg z-40 flex items-center justify-center hover:scale-110 transition-all"
                 >
                     <FaPlus className="text-xl" />
@@ -28,7 +28,7 @@ const MisVisitas = ({ visitas: visitasDB, doctores }) => {
             )}
 
             <ModalGestionarVisita logic={logic} />
-            <ModalNuevaVisita logic={logic} doctores={doctores} />
+            <ModalNuevaVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
 
             <div className={`${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : 'blur-0'} transition-all duration-500`}>
                 <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px]">

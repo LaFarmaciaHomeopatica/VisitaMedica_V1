@@ -28,7 +28,7 @@ const CalendarSection = ({ logic }) => {
                     if (seleccionado) claseDia = 'bg-[#5D8BF4] text-white shadow-md scale-110 z-10';
 
                     return (
-                        <button key={idx} onClick={() => logic.setFechaSeleccionada(dia)} className={`aspect-square flex items-center justify-center rounded-xl text-[11px] transition-all ${claseDia}`}>
+                        <button key={idx} onClick={() => logic.handleSeleccionarFecha(dia)} className={`aspect-square flex items-center justify-center rounded-xl text-[11px] transition-all ${claseDia}`}>
                             {format(dia, 'd')}
                         </button>
                     );

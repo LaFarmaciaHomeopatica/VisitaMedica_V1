@@ -3,7 +3,7 @@ import { useForm } from '@inertiajs/react';
 import {
     format, startOfMonth, endOfMonth, eachDayOfInterval,
     isSameDay, addMonths, subMonths, startOfWeek, endOfWeek,
-    addWeeks, subWeeks, parseISO
+    addWeeks, subWeeks, parseISO,
 } from 'date-fns';
 
 export const useMisVisitas = (visitasDB, doctores) => {
@@ -17,11 +17,24 @@ export const useMisVisitas = (visitasDB, doctores) => {
 
     const formNueva = useForm({
         medico_id: '',
-        fecha_programada: format(new Date(), 'yyyy-MM-dd'),
-        hora: '08:00',
-        modalidad: 'PRESENCIAL',
-        tipo: 'VISITA'
+        fecha_programada: format(fechaSeleccionada, "yyyy-MM-dd'T'HH:mm"), // 👈 usa el día seleccionado
+        fecha_realizada: '',   // 👈 nuevo campo
+        muestras: '',
+        estado: 'programada', // 👈 fijo, no lo toca el usuario
+        comentario_muestra: '',
+        comentarios: '',
+
+
     });
+    const handleSeleccionarFecha = (dia) => {
+        setFechaSeleccionada(dia);
+        const fechaFormato = format(dia, "yyyy-MM-dd") + 'T08:00';
+        formNueva.setData({
+            ...formNueva.data,
+            fecha_programada: fechaFormato,
+            fecha_realizada: fechaFormato, // 👈
+        });
+    };
 
     const formReporte = useForm({
         estado: '',
@@ -62,6 +75,18 @@ export const useMisVisitas = (visitasDB, doctores) => {
         return eachDayOfInterval({ start: inicio, end: fin });
     }, [mesActual, vistaSemanal]);
 
+
+    const abrirModalNuevo = () => {
+        const fechaFormato = format(fechaSeleccionada, "yyyy-MM-dd") + 'T08:00';
+        formNueva.setData({
+            ...formNueva.data,
+            fecha_programada: fechaFormato,
+            fecha_realizada: fechaFormato,
+        });
+        setModalNuevoAbierto(true);
+    };
+
+
     return {
         mesActual, fechaSeleccionada, setFechaSeleccionada,
         vistaSemanal, setVistaSemanal,
@@ -71,7 +96,8 @@ export const useMisVisitas = (visitasDB, doctores) => {
         visitaSeleccionada,
         formNueva, formReporte,
         visitas, visitasDelDia, diasAMostrar,
-        abrirGestion, navegarSiguiente, navegarAnterior
+        abrirGestion, navegarSiguiente, navegarAnterior, handleSeleccionarFecha, abrirModalNuevo, // 👈 para abrir
+        setModalNuevoAbierto, // se mantiene para cerrar
     };
 };
 

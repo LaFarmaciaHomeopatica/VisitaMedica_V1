@@ -6,8 +6,8 @@ import {
     FaChartLine,
     FaCalendarCheck,
     FaPills,
-    FaBars,    // Icono de hamburguesa
-    FaXmark    // Icono de cerrar
+    FaBars,
+    FaXmark
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
@@ -27,10 +27,12 @@ const BottomNavigation = () => {
     return (
         <>
             {/* --- MÓVIL: MENÚ FLOTANTE IZQUIERDA --- */}
-            <div className="fixed bottom-6 left-6 z-50 sm:hidden">
+            {/* CORRECCIÓN: Agregamos pointer-events-none para que el contenedor fantasma no interfiera */}
+            <div className="fixed bottom-6 left-6 z-50 sm:hidden pointer-events-none">
+
                 {/* Lista de enlaces vertical */}
                 <div className={`flex flex-col-reverse gap-3 mb-4 transition-all duration-300 origin-bottom-left ${isOpen
-                    ? 'opacity-100 scale-100 translate-y-0'
+                    ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto' // Habilitamos clicks al abrir
                     : 'opacity-0 scale-75 translate-y-10 pointer-events-none'
                     }`}>
                     {navIcons.map((nav, index) => {
@@ -53,9 +55,10 @@ const BottomNavigation = () => {
                 </div>
 
                 {/* Botón Hamburguesa */}
+                {/* CORRECCIÓN: Forzamos pointer-events-auto para que este botón siempre reciba clics */}
                 <button
                     onClick={toggleMenu}
-                    className={`w-14 h-14 flex items-center justify-center rounded-2xl shadow-2xl transition-all duration-300 text-white
+                    className={`w-14 h-14 flex items-center justify-center rounded-2xl shadow-2xl transition-all duration-300 text-white pointer-events-auto
                         ${isOpen ? 'bg-red-500' : 'bg-[#5D8BF4] hover:bg-[#4a76d8]'}`}
                 >
                     {isOpen ? (
