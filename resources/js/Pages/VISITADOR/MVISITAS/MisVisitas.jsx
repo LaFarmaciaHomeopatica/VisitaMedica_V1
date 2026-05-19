@@ -27,7 +27,8 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
                 </button>
             )}
 
-            <ModalGestionarVisita logic={logic} />
+            <ModalGestionarVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
+
             <ModalNuevaVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
 
             <div className={`${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : 'blur-0'} transition-all duration-500`}>

@@ -151,59 +151,13 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                     </div>
 
                     {/* Buscador de Productos */}
-                    <div className="relative" ref={wrapperRef}>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                            Muestras (Producto)
-                        </label>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={e => { setSearchTerm(e.target.value); setShowResults(true); }}
-                            onFocus={() => setShowResults(true)}
-                            placeholder="Buscar por código o nombre..."
-                            className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 focus:ring-2 focus:ring-[#5D8BF4]"
-                        />
-                        {showResults && filteredProducts.length > 0 && (
-                            <div className="absolute z-[110] w-full bg-white border-2 border-[#5D8BF4] rounded-2xl shadow-xl mt-1 max-h-48 overflow-y-auto">
-                                {filteredProducts.map(p => (
-                                    <div
-                                        key={p.id}
-                                        onClick={() => handleSelectProduct(p)}
-                                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-none"
-                                    >
-                                        <p className="text-[10px] font-black text-[#5D8BF4]">{p.codigo}</p>
-                                        <p className="text-[11px] font-bold text-gray-700 uppercase">{p.nombre}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+
 
                     {/* Detalle de Muestra */}
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                            Detalles de la Muestra
-                        </label>
-                        <textarea
-                            value={logic.formNueva.data.comentario_muestra || ''}
-                            onChange={e => logic.formNueva.setData('comentario_muestra', e.target.value)}
-                            className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 h-20 resize-none focus:ring-2 focus:ring-[#5D8BF4]"
-                            placeholder="Lote, cantidad, etc..."
-                        />
-                    </div>
+
 
                     {/* Comentarios */}
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                            Notas / Comentarios
-                        </label>
-                        <textarea
-                            value={logic.formNueva.data.comentarios || ''}
-                            onChange={e => logic.formNueva.setData('comentarios', e.target.value)}
-                            className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 h-24 resize-none focus:ring-2 focus:ring-[#5D8BF4]"
-                            placeholder="Notas adicionales de la visita..."
-                        />
-                    </div>
+
 
                     {/* Errores */}
                     {Object.keys(logic.formNueva.errors).length > 0 && (

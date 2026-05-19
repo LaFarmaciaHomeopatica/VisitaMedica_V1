@@ -30,7 +30,7 @@ const VisitasList = ({ logic }) => {
                                 </div>
                                 <div className="text-left">
                                     <h4 className="text-[13px] font-black uppercase">{v.doctor}</h4>
-                                    <p className="text-[9px] font-bold uppercase opacity-60">{v.estado} • {v.modalidad}</p>
+                                    <p className="text-[9px] font-bold uppercase opacity-60">{v.estado} </p>
                                 </div>
                             </div>
                             <FaChevronRight className="opacity-30 text-xs" />
