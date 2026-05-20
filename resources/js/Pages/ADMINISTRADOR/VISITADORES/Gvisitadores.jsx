@@ -49,7 +49,9 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
             documento: v.documento || '',
             tipo_documento_id: v.tipo_documento_id || '',
             zona_id: v.zona_id || '',
-            estado: v.estado || 'habilitado'
+            estado: v.estado || 'habilitado',
+            meta_visitas_mensual: v.meta_visitas_mensual || null,
+            meta_ventas_mensual: v.meta_ventas_mensual || null
         });
         ui.setUserName(v.user ? `Vinculado a: ${v.user.username || v.user.nombre}` : 'Usuario vinculado');
         ui.setIsFormModalOpen(true);

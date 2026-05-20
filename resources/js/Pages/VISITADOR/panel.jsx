@@ -1,50 +1,88 @@
-import React, { useState } from 'react';
-import { Link, usePage, Head } from '@inertiajs/react';
+import React, { useState, useMemo } from 'react';
+import { Link, usePage, Head, router } from '@inertiajs/react';
 import BarraNave from './barranave';
-// Importamos los iconos necesarios
 import {
     FaMagnifyingGlass,
-    FaMicrophone,
     FaUserTie,
-    FaFileMedical,
     FaPowerOff,
-    FaUserDoctor,
-    FaBriefcase,
-    FaGears,
-    FaCalendarCheck,
-    FaPills
+    FaCheckDouble,
+    FaStethoscope,
+    FaLocationDot,
+    FaChevronRight,
+    FaCalendarCheck
 } from 'react-icons/fa6';
 
-const DashboardLFH = () => {
+const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
     const { auth } = usePage().props;
     const [search, setSearch] = useState('');
 
-    const modules = [
-        { icon: <FaUserDoctor />, label: 'Médico', route: '/ListadoMedicos' },
-        { icon: <FaBriefcase />, label: 'Mi Progreso', route: '/visitador' },
-        { icon: <FaCalendarCheck />, label: 'Gestión Vistas', route: '/MisVisitas' },
-        { icon: <FaPills />, label: 'Producto', route: '/ProductoCatalogo' },
-    ];
+    const visitadorInfo = visitador || {};
+    const rolActual = auth?.user?.rol_nombre || 'Visitador';
 
-    // Esta es la variable que trae el nombre desde la DB
-    const rolActual = auth.user.rol_nombre;
+    // 📊 Cálculos métricos usando los datos inyectados por Inertia
+    const { visitadosHoy, pendientesHoy, porcentaje, idsVisitadosHoy, meta } = useMemo(() => {
+        // Formato YYYY-MM-DD local
+        const hoy = new Date();
+        const de = hoy.getDate().toString().padStart(2, '0');
+        const ma = (hoy.getMonth() + 1).toString().padStart(2, '0');
+        const ye = hoy.getFullYear();
+        const hoyStr = `${ye}-${ma}-${de}`;
+
+        const visitasEfectivasMes = visitasData.filter(v => v.estado === 'efectiva');
+
+        // Filtrar las visitas efectivas de hoy
+        const idsHoy = visitasData
+            .filter(v => v.fecha_programada && v.fecha_programada.startsWith(hoyStr) && v.estado === 'efectiva')
+            .map(v => v.medico_id);
+
+        const visitadosHoyCount = medicos.filter(m => idsHoy.includes(m.id)).length;
+        const pendientesCount = medicos.length - visitadosHoyCount;
+
+        const metaValor = visitadorInfo?.meta_visitas_mensual || 0;
+        const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length / metaValor) * 100) : 0;
+
+        return {
+            visitadosHoy: visitadosHoyCount,
+            pendientesHoy: pendientesCount,
+            porcentaje: calculoPorcentaje,
+            idsVisitadosHoy: idsHoy, // 👈 Se mantiene consistente en español
+            meta: metaValor
+        };
+    }, [visitasData, medicos, visitadorInfo]);
+
+    // 🔥 CORREGIDO: Ahora usa 'idsVisitadosHoy' de forma correcta
+    const fueVisitado = (medicoId) => idsVisitadosHoy.includes(medicoId);
+
+    // 🔍 Filtrado reactivo controlando posibles valores nulos en la DB
+    const medicosFiltrados = medicos.filter(m => {
+        const nombre = m.nombre ? m.nombre.toLowerCase() : '';
+        const apellido = m.apellido ? m.apellido.toLowerCase() : '';
+        const especialidad = m.especialidad ? m.especialidad.toLowerCase() : '';
+        const termino = search.toLowerCase();
+
+        return nombre.includes(termino) || apellido.includes(termino) || especialidad.includes(termino);
+    });
+
+    // Redirección inteligente al módulo de gestión de visitas
+    const irAAgendarVisita = (medicoId) => {
+        router.get('/MisVisitas', { medico_id: medicoId });
+    };
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen pb-24 font-sans text-gray-800">
             <Head title="Dashboard - LFH" />
 
-            {/* Header Unificado - Estilo ListadoMedicos */}
+            {/* Header */}
             <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[30px] md:rounded-b-[40px]">
                 <div className="max-w-[1440px] mx-auto p-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">
-
-                        <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
+                        <div className="hidden md:flex flex-col min-w-0">
                             <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
                                 Panel de Control
                             </h1>
                         </div>
 
-                        {/* Barra de Búsqueda Flexible */}
+                        {/* Barra de Búsqueda */}
                         <div className="relative flex-grow max-w-4xl">
                             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
                                 <FaMagnifyingGlass className="text-xs md:text-sm" />
@@ -53,84 +91,131 @@ const DashboardLFH = () => {
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Buscar medicina, médicos..."
+                                placeholder="Buscar médicos asignados o especialidad..."
                                 className="w-full bg-blue-50 border-none rounded-full py-3 pl-12 pr-12 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner"
                             />
                         </div>
-
                     </div>
                 </div>
             </header>
 
-            {/* Hero Section con Estilo Mejorado */}
-            <section className="bg-[#EBF2FF] p-8 rounded-b-[40px] max-w-5xl mx-auto shadow-inner border-x border-b border-blue-100">
+            {/* Hero Section */}
+            <section className="bg-[#EBF2FF] p-8 rounded-b-[40px] max-w-5xl mx-auto shadow-inner border-x border-b border-blue-100 relative">
+                {pendientesHoy > 0 && (
+                    <div className="absolute top-0 right-0 bg-orange-500 text-white px-4 py-1 rounded-bl-2xl text-xs font-bold shadow-md">
+                        Pendientes: {pendientesHoy}
+                    </div>
+                )}
+
                 <div className="flex items-center gap-4 mb-6">
                     <div className="relative">
                         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md border-2 border-blue-100">
                             <FaUserTie className="text-[#5D8BF4] text-2xl" />
                         </div>
-                        <span className="absolute -bottom-1 -right-1 bg-[#5D8BF4] text-white text-[8px] font-bold px-2 py-1 rounded-full border border-white uppercase tracking-tighter">
-                            {/* CORRECCIÓN: Se usa rolActual en lugar de la función inexistente */}
+                        <span className="absolute -bottom-1 -right-1 bg-[#5D8BF4] text-white text-[8px] font-bold px-2 py-1 rounded-full border border-white uppercase">
                             {rolActual}
                         </span>
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800 leading-tight">
                             Bienvenido, <br />
-
                             <span className="text-[#5D8BF4] capitalize">
-                                {auth.user.nombre} {auth.user.apellido}
-                                <span className="text-gray-400 text-sm font-medium ml-2">
-                                    ({auth.user.username})
-                                </span>
+                                {auth?.user?.nombre} {auth?.user?.apellido}
                             </span>
                         </h1>
                     </div>
                 </div>
 
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                    <button className="bg-[#5D8BF4] text-white px-6 py-2 rounded-2xl flex items-center gap-2 whitespace-nowrap shadow-lg shadow-blue-200/50 hover:bg-blue-600 active:scale-95 transition-all text-xs font-bold uppercase tracking-wide">
-                        <FaFileMedical /> Reportes
-                    </button>
+                {/* Cumplimiento Mensual */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-50 mt-4">
+                    <div className="flex justify-between items-end mb-1.5">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">
+                            Cumplimiento Mensual
+                        </p>
+                        <span className="text-blue-600 font-bold text-sm">{porcentaje}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                        <div
+                            className="bg-blue-600 h-3 rounded-full transition-all duration-700 ease-out"
+                            style={{ width: `${Math.min(porcentaje, 100)}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex justify-between text-[11px] mt-2 text-gray-500 font-medium">
+                        <span>{visitasData.filter(v => v.estado === 'efectiva').length} de {meta} visitas</span>
+                        <span>Meta Ventas: ${new Intl.NumberFormat().format(visitadorInfo?.meta_ventas_mensual || 0)}</span>
+                    </div>
+                </div>
 
+                <div className="flex gap-3 overflow-x-auto pb-2 mt-6">
+                    <Link
+                        href="/MisVisitas"
+                        className="bg-[#5D8BF4] text-white px-6 py-2 rounded-2xl flex items-center gap-2 whitespace-nowrap shadow-lg shadow-blue-200/50 text-xs font-bold uppercase tracking-wide"
+                    >
+                        <FaCalendarCheck /> Agenda y Visitas
+                    </Link>
                     <Link
                         href={route('logout')}
                         method="post"
                         as="button"
-                        className="bg-white text-red-500 px-6 py-2 rounded-2xl border border-red-100 flex items-center gap-2 whitespace-nowrap shadow-sm hover:bg-red-50 active:scale-95 transition-all text-xs font-bold uppercase tracking-wide"
+                        className="bg-white text-red-500 px-6 py-2 rounded-2xl border border-red-100 flex items-center gap-2 whitespace-nowrap shadow-sm text-xs font-bold uppercase tracking-wide"
                     >
                         <FaPowerOff /> Salir
                     </Link>
                 </div>
             </section>
 
-            {/* Aviso de Próxima Visita */}
-            <div className="max-w-4xl mx-auto px-6 -mt-4">
-                <div className="bg-white/90 backdrop-blur-sm text-gray-600 p-3 rounded-2xl text-center text-[11px] font-medium border border-blue-50 shadow-xl shadow-blue-100/50">
-                    <span className="font-black text-blue-500 uppercase tracking-widest mr-2">Próxima Visita Pendiente</span>
-                    <span className="text-gray-400">&rarr;</span>
-                    <span className="text-gray-400"> Revisa tu agenda para hoy</span>
-                </div>
-            </div>
-
-            {/* Módulos Principales */}
-            <main className="max-w-5xl mx-auto p-6 mt-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {modules.filter(m => m.label.toLowerCase().includes(search.toLowerCase())).map((module, index) => (
-                        <Link
-                            key={index}
-                            href={module.route}
-                            className="bg-white p-6 rounded-[32px] shadow-md shadow-blue-100/20 flex flex-col items-center text-center hover:bg-blue-50 transition-all cursor-pointer border border-transparent hover:border-blue-100 group active:scale-95"
-                        >
-                            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-white transition-colors shadow-inner">
-                                <div className="text-[#5D8BF4] text-3xl group-hover:scale-110 transition-transform">
-                                    {module.icon}
-                                </div>
+            {/* Listado de Médicos */}
+            <main className="max-w-5xl mx-auto px-4 mt-6 space-y-4">
+                <h3 className="text-sm font-bold text-gray-500 px-1 uppercase tracking-wider">
+                    Médicos en mi Agenda ({medicosFiltrados.length})
+                </h3>
+                
+                {medicosFiltrados.map((medico) => {
+                    const visitado = fueVisitado(medico.id);
+                    return (
+                        <div key={medico.id} className="bg-white p-4 rounded-2xl flex gap-4 items-center shadow-sm border border-gray-50">
+                            <div className={`w-12 h-12 flex items-center justify-center rounded-xl 
+                                ${visitado ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-500'}`}>
+                                {visitado ? <FaCheckDouble size={20} /> : <FaStethoscope size={20} />}
                             </div>
-                            <span className="text-gray-700 font-black text-[11px] uppercase tracking-wider">{module.label}</span>
-                        </Link>
-                    ))}
-                </div>
+
+                            <div className="flex-1">
+                                <h4 className="font-bold text-gray-800 text-sm leading-tight">{medico.nombre} {medico.apellido}</h4>
+                                <p className="text-xs text-blue-500 font-medium mb-1">{medico.especialidad || 'General'}</p>
+                                <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                                    <FaLocationDot />
+                                    {medico.direccion || 'Dirección no especificada'}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                {!visitado ? (
+                                    <button
+                                        onClick={() => irAAgendarVisita(medico.id)}
+                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm"
+                                    >
+                                        Gestionar
+                                    </button>
+                                ) : (
+                                    <span className="text-[10px] font-bold text-green-500 uppercase bg-green-50 px-2 py-1 rounded-md">Visitado</span>
+                                )}
+
+                                <Link
+                                    href={`/MedicoDetalle/${medico.id}`}
+                                    className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-blue-500 transition-colors"
+                                >
+                                    <FaChevronRight />
+                                </Link>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {medicosFiltrados.length === 0 && (
+                    <div className="text-center py-10 text-gray-400 text-sm italic">
+                        No se encontraron médicos asignados.
+                    </div>
+                )}
             </main>
 
             <BarraNave />

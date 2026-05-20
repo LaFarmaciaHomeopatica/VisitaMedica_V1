@@ -52,6 +52,8 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento',
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
+            'meta_visitas_mensual' => 'nullable|numeric|min:0',
+            'meta_ventas_mensual' => 'nullable|numeric|min:0',
         ]);
 
         Visitador::create($request->all());
@@ -72,6 +74,8 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento,' . $visitador->id,
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
+            'meta_visitas_mensual' => 'nullable|numeric|min:0',
+            'meta_ventas_mensual' => 'nullable|numeric|min:0',
         ]);
 
         $visitador->update($request->all());

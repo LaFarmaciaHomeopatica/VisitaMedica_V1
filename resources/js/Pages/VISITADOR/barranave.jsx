@@ -17,7 +17,6 @@ const BottomNavigation = () => {
     const navIcons = [
             { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
             { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
-            { icon: <FaChartLine />, label: 'Mi Progreso', route: '/visitador' },
             { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
     ];
 

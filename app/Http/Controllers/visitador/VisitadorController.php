@@ -5,6 +5,7 @@ namespace App\Http\Controllers\visitador;
 use App\Http\Controllers\Controller;
 use App\Models\Visitador;
 use App\Models\Medico;
+use App\Models\Visita; // 👈 Importamos Visita para el conteo del panel
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -12,37 +13,48 @@ use Illuminate\Support\Facades\Auth;
 class VisitadorController extends Controller
 {
     /**
-     * Perfil del visitador con su relación cargada + médicos
+     * MÉTODOS DEL PANEL PRINCIPAL UNIFICADO
      */
     public function index()
     {
-        // Cargamos la relación 'tipoDocumento' definida en el modelo
         $visitador = Visitador::with('tipoDocumento')
             ->where('usuario_id', Auth::id())
             ->first();
 
-        // Médicos asociados al visitador encontrado
-        $medicos = $visitador 
-            ? Medico::where('visitador_id', $visitador->id)->get() 
+        $medicos = $visitador ? $visitador->medicos : [];
+
+        // Obtener las visitas para los cálculos métricos directamente mediante Inertia
+        $visitas = $visitador 
+            ? Visita::where('visitador_id', $visitador->id)->get() 
             : [];
 
-        return Inertia::render('VISITADOR/visitador', [
-            'visitador' => $visitador, // Ahora este objeto incluye 'tipo_documento'
-            'medicos'   => $medicos
+        return Inertia::render('VISITADOR/panel', [
+            'visitador' => $visitador,
+            'medicos'   => $medicos,
+            'visitasData' => $visitas // 👈 Enviamos las visitas de forma nativa
         ]);
     }
 
     /**
-     * Ver detalle de un visitador (opcional)
+     * VISTA DEL PERFIL (Simplificada)
      */
+    public function perfil()
+    {
+        $visitador = Visitador::with('tipoDocumento')
+            ->where('usuario_id', Auth::id())
+            ->first();
+
+        return Inertia::render('VISITADOR/visitador', [
+            'visitador' => $visitador
+        ]);
+    }
+
     public function show($id)
     {
-        // También cargamos la relación aquí para ver el nombre del documento
         $visitador = Visitador::with('tipoDocumento')->findOrFail($id);
-
         $medicos = Medico::where('visitador_id', $visitador->id)->get();
 
-        return Inertia::render('VISITADOR/Visitador', [
+        return Inertia::render('VISITADOR/visitador', [
             'visitador' => $visitador,
             'medicos'   => $medicos
         ]);

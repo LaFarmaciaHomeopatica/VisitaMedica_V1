@@ -108,6 +108,21 @@ const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumen
                             </select>
                             {errors.estado && <p className="text-rose-500 text-[9px] font-black mt-1 uppercase">{errors.estado}</p>}
                         </div>
+
+                        {/* Meta de Visitas Mensual */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Meta de Visitas Mensual</label>
+                            <input type="number" value={data.meta_visitas_mensual} onChange={e => setData('meta_visitas_mensual', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm outline-none" />
+                            {errors.meta_visitas_mensual && <p className="text-rose-500 text-[9px] font-black mt-1 uppercase">{errors.meta_visitas_mensual}</p>}
+                        </div>
+
+                        {/* Meta de Ventas Mensual */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Meta de Ventas Mensual</label>
+                            <input type="number" value={data.meta_ventas_mensual} onChange={e => setData('meta_ventas_mensual', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm outline-none" />
+                            {errors.meta_ventas_mensual && <p className="text-rose-500 text-[9px] font-black mt-1 uppercase">{errors.meta_ventas_mensual}</p>}
+                        </div>
+
                     </div>
 
                     <div className="mt-8 flex gap-3">

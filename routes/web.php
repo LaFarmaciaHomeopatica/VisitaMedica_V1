@@ -121,13 +121,10 @@ Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'import
     |--- GRUPO VISITADOR (id_rol 2) ---
     |----------------------------------------------------------------------------------------*/
         Route::middleware(['role:2'])->group(function () {
-        Route::get('/panel', function () {
-            return Inertia::render('VISITADOR/panel');
-        })->name('panel');
+       // 🚀 AHORA SÍ: El Panel pasa por el controlador y cargará los datos reales
+    Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
 
-        // Perfil Visitador
-        Route::get('/visitador', [VisitadorController::class, 'index'])->name('visitador');
-
+    
         // Médicos
         Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
         Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');
