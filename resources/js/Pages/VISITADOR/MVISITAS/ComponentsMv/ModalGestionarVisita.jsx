@@ -1,11 +1,35 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { FaCircleCheck, FaCircleXmark, FaClock, FaBan } from 'react-icons/fa6';
+import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark } from 'react-icons/fa6';
 import { format } from 'date-fns';
 
 const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showResults, setShowResults] = useState(false);
     const wrapperRef = useRef(null);
+    
+    // MODIFICACIÓN: Estado para almacenar y alertar si se intenta reprogramar sin cambiar la fecha
+    const [dateWarning, setDateWarning] = useState('');
+
+    // MODIFICACIÓN: Efecto secundario que auto-selecciona el estado "reprogramada" si el usuario
+    // cambia la fecha u hora original. Si se regresa la fecha a la original, restaura el estado previo.
+    useEffect(() => {
+        if (!logic.modalGestionAbierto || !logic.visitaSeleccionada) return;
+        
+        const originalDate = logic.visitaSeleccionada.fecha_programada?.slice(0, 16).replace(' ', 'T') || '';
+        const currentDate = logic.formReporte.data.fecha_programada?.replace(' ', 'T') || '';
+        const originalState = logic.visitaSeleccionada.estado || '';
+        
+        if (currentDate !== originalDate) {
+            setDateWarning('');
+            if (logic.formReporte.data.estado !== 'reprogramada') {
+                logic.formReporte.setData('estado', 'reprogramada');
+            }
+        } else {
+            if (logic.formReporte.data.estado === 'reprogramada') {
+                logic.formReporte.setData('estado', originalState !== 'reprogramada' ? originalState : '');
+            }
+        }
+    }, [logic.formReporte.data.fecha_programada, logic.modalGestionAbierto, logic.visitaSeleccionada]);
 
     // Al abrir, sincronizar todos los campos con la visita seleccionada
     useEffect(() => {
@@ -21,6 +45,9 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                 medico_id: v.medico_id || '',
             });
             setSearchTerm(v.muestras || '');
+            
+            // MODIFICACIÓN: Resetear advertencia de fecha al abrir
+            setDateWarning('');
         }
     }, [logic.modalGestionAbierto, logic.visitaSeleccionada]);
 
@@ -73,6 +100,22 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
         });
     };
 
+    // MODIFICACIÓN: Validador para la selección manual del estado. 
+    // Si elige "reprogramada" sin cambiar fecha/hora original, bloquea la acción y muestra aviso.
+    const handleSelectOption = (optId) => {
+        const originalDate = logic.visitaSeleccionada?.fecha_programada?.slice(0, 16).replace(' ', 'T') || '';
+        const currentDate = logic.formReporte.data.fecha_programada?.replace(' ', 'T') || '';
+        const dateChanged = originalDate !== currentDate;
+
+        if (optId === 'reprogramada' && !dateChanged) {
+            setDateWarning('Debes cambiar la fecha y hora de la visita para poder reprogramarla.');
+            return;
+        }
+
+        setDateWarning('');
+        logic.formReporte.setData('estado', optId);
+    };
+
     const opciones = [
         { id: 'efectiva', label: 'Efectiva', icon: FaCircleCheck, color: 'text-green-500' },
         { id: 'No contactado', label: 'No contactado', icon: FaCircleXmark, color: 'text-orange-500' },
@@ -90,6 +133,16 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
             />
 
             <div className="relative bg-white w-full max-w-lg rounded-[35px] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+                {/* MODIFICACIÓN: Botón "X" absoluto en la esquina superior derecha para cerrar el modal */}
+                <button
+                    type="button"
+                    onClick={() => logic.setModalGestionAbierto(false)}
+                    className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    aria-label="Cerrar modal"
+                >
+                    <FaXmark className="text-xl" />
+                </button>
+
                 <div className="mb-6">
                     <h2 className="text-xl font-black uppercase text-slate-800">Gestionar Visita</h2>
                     <p className="text-xs text-[#5D8BF4] font-bold mt-1">{logic.visitaSeleccionada.doctor}</p>
@@ -205,14 +258,21 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
                                 Resultado de la visita
                             </label>
-                            <div className="grid grid-cols-2 gap-2">
 
+                            {/* MODIFICACIÓN: Banner de advertencia visual que se muestra si intenta reprogramar con la fecha original */}
+                            {dateWarning && (
+                                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[10px] font-bold text-amber-700 uppercase animate-in fade-in slide-in-from-top-2">
+                                    ⚠ {dateWarning}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-2">
                                 {opciones.map((opt) => (
                                     <button
                                         key={opt.id}
                                         type="button"
                                         disabled={esEfectiva}
-                                        onClick={() => logic.formReporte.setData('estado', opt.id)}
+                                        onClick={() => handleSelectOption(opt.id)}
                                         className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${logic.formReporte.data.estado === opt.id
                                             ? 'bg-blue-50 border-blue-500'
                                             : 'bg-gray-50 border-transparent text-gray-400'
@@ -235,14 +295,24 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                     )}
 
                     {!esEfectiva && (
-                        <button
-                            type="button"
-                            onClick={handleActualizar}
-                            disabled={logic.formReporte.processing}
-                            className="w-full py-4 bg-[#5D8BF4] text-white rounded-2xl font-black text-[10px] tracking-widest shadow-lg hover:bg-blue-600 transition-all disabled:opacity-50"
-                        >
-                            {logic.formReporte.processing ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
-                        </button>
+                        /* MODIFICACIÓN: Fila flexible (flex gap-3) que añade el botón CANCELAR junto al de GUARDAR CAMBIOS */
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => logic.setModalGestionAbierto(false)}
+                                className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-2xl font-black text-[10px] tracking-widest transition-all focus:outline-none"
+                            >
+                                CANCELAR
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleActualizar}
+                                disabled={logic.formReporte.processing}
+                                className="flex-1 py-4 bg-[#5D8BF4] text-white rounded-2xl font-black text-[10px] tracking-widest shadow-lg hover:bg-blue-600 transition-all disabled:opacity-50 focus:outline-none"
+                            >
+                                {logic.formReporte.processing ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+                            </button>
+                        </div>
                     )}
 
                     {esEfectiva && (
@@ -255,5 +325,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
         </div>
     );
 };
+
 
 export default ModalGestionarVisita;

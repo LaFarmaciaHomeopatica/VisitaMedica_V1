@@ -21,7 +21,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
             {!overlayVisible && (
                 <button
                     onClick={() => logic.abrirModalNuevo()}
-                    className="fixed bottom-28 right-6 w-14 h-14 bg-[#5D8BF4] text-white rounded-2xl shadow-lg z-40 flex items-center justify-center hover:scale-110 transition-all"
+                    className="fixed bottom-5 right-5 sm:bottom-28 sm:right-6 w-14 h-14 bg-[#5D8BF4] text-white rounded-2xl shadow-lg z-40 flex items-center justify-center hover:scale-110 transition-all"
                 >
                     <FaPlus className="text-xl" />
                 </button>
@@ -34,7 +34,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
             <div className={`${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : 'blur-0'} transition-all duration-500`}>
                 <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px]">
                     <div className="max-w-[1440px] mx-auto p-4 flex items-center gap-4">
-                        <Link href={route('panel')} className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500">
+                        <Link href="/panel" className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500">
                             <FaArrowLeft className="text-xs" />
                         </Link>
                         <div className="relative flex-grow">

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
+import { FaXmark } from 'react-icons/fa6';
 
 const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -91,6 +92,16 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                 onSubmit={handleSubmit}
                 className="relative bg-white w-full max-w-lg rounded-[35px] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto"
             >
+                {/* MODIFICACIÓN: Botón "X" absoluto en la esquina superior derecha para cerrar el modal */}
+                <button
+                    type="button"
+                    onClick={() => logic.setModalNuevoAbierto(false)}
+                    className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    aria-label="Cerrar modal"
+                >
+                    <FaXmark className="text-xl" />
+                </button>
+
                 <div className="mb-6">
                     <h2 className="text-xl font-black uppercase text-slate-800">Programar Visita</h2>
                     <div className="h-1 w-10 bg-[#5D8BF4] mt-1 rounded-full" />
@@ -168,13 +179,23 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                         </div>
                     )}
 
-                    <button
-                        type="submit"
-                        disabled={logic.formNueva.processing}
-                        className="w-full bg-[#5D8BF4] text-white rounded-2xl py-4 text-[11px] font-black tracking-widest shadow-lg hover:bg-blue-600 transition-all disabled:opacity-50"
-                    >
-                        {logic.formNueva.processing ? 'PROCESANDO...' : 'AGENDAR VISITA'}
-                    </button>
+                    {/* MODIFICACIÓN: Fila flexible (flex gap-3) que añade el botón CANCELAR junto al de AGENDAR VISITA */}
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => logic.setModalNuevoAbierto(false)}
+                            className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-2xl font-black text-[10px] tracking-widest transition-all focus:outline-none"
+                        >
+                            CANCELAR
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={logic.formNueva.processing}
+                            className="flex-1 bg-[#5D8BF4] text-white rounded-2xl py-4 text-[11px] font-black tracking-widest shadow-lg hover:bg-blue-600 transition-all disabled:opacity-50 focus:outline-none"
+                        >
+                            {logic.formNueva.processing ? 'PROCESANDO...' : 'AGENDAR VISITA'}
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
