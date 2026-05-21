@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa6';
 
 const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
+    console.log("Datos del visitador:", visitador);
     const { auth } = usePage().props;
     const [search, setSearch] = useState('');
 
@@ -38,19 +39,20 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
         const visitadosHoyCount = medicos.filter(m => idsHoy.includes(m.id)).length;
         const pendientesCount = medicos.length - visitadosHoyCount;
 
-        const metaValor = visitadorInfo?.meta_visitas_mensual || 0;
-        const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length / metaValor) * 100) : 0;
+        // 🎯 LECTURA DE RELACIÓN: Extrae el valor numérico del primer índice del array devuelto por Laravel
+        const metaValor = visitadorInfo?.metas?.meta_visitas || 0;
+const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length / metaValor) * 100) : 0;
 
         return {
             visitadosHoy: visitadosHoyCount,
             pendientesHoy: pendientesCount,
             porcentaje: calculoPorcentaje,
-            idsVisitadosHoy: idsHoy, // 👈 Se mantiene consistente en español
+            idsVisitadosHoy: idsHoy,
             meta: metaValor
         };
     }, [visitasData, medicos, visitadorInfo]);
 
-    // 🔥 CORREGIDO: Ahora usa 'idsVisitadosHoy' de forma correcta
+    // Validación reactiva de visitas completadas hoy
     const fueVisitado = (medicoId) => idsVisitadosHoy.includes(medicoId);
 
     // 🔍 Filtrado reactivo controlando posibles valores nulos en la DB
@@ -142,8 +144,8 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
                     </div>
                     <div className="flex justify-between text-[11px] mt-2 text-gray-500 font-medium">
                         <span>{visitasData.filter(v => v.estado === 'efectiva').length} de {meta} visitas</span>
-                        <span>Meta Ventas: ${new Intl.NumberFormat().format(visitadorInfo?.meta_ventas_mensual || 0)}</span>
-                    </div>
+                        {/* 💰 LECTURA DE RELACIÓN: Formatea la cifra de dinero desde la tabla metas */}
+                        <span>Meta Ventas: ${new Intl.NumberFormat().format(visitadorInfo?.metas?.meta_dinero || 0)}</span>                    </div>
                 </div>
 
                 <div className="flex gap-3 overflow-x-auto pb-2 mt-6">

@@ -9,14 +9,15 @@ use App\Models\TipoDocumento;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
+use Carbon\Carbon;
 
 class DvisitadoresController extends Controller
 {
     public function index()
     {
-        // Importante: El modelo Visitador debe tener la relación 'user' 
-        // apuntando al modelo User (que ahora usa la tabla usuarios)
-        $visitadores = Visitador::with(['tipoDocumento', 'user'])->get();
+        $visitadores = Visitador::with(['tipoDocumento', 'user', 'metas' => function ($query) {
+            $query->latest('fecha_meta')->limit(1);
+        }])->get();
 
         return Inertia::render('ADMINISTRADOR/VISITADORES/Gvisitadores', [
             'visitadores' => $visitadores,
@@ -31,7 +32,6 @@ class DvisitadoresController extends Controller
         if ($usuario) {
             return response()->json([
                 'success' => true,
-                // Usamos 'username' que es el nombre real en tu tabla usuarios
                 'nombre' => $usuario->username 
             ]);
         }
@@ -52,11 +52,40 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento',
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
-            'meta_visitas_mensual' => 'nullable|numeric|min:0',
-            'meta_ventas_mensual' => 'nullable|numeric|min:0',
+            'meta_dinero' => 'nullable|numeric|min:0',
+            'meta_visitas' => 'nullable|integer|min:0',
+            'fecha_meta' => 'required|date',
+            'fecha_fin_meta' => 'required|date|after_or_equal:fecha_meta', 
+            'mes_visual' => 'required|string', // 👈 Volvemos obligatorio para el control de negocio
         ]);
 
-        Visitador::create($request->all());
+        // 🧠 LÓGICA DEFENSIVA BASADA EN EL MES SELECCIONADO POR EL ADMIN
+        $mesVisual = Carbon::parse($request->input('mes_visual') . '-01'); // Ej: 2026-06-01 o 2026-07-01
+        $lunesSeleccionado = Carbon::parse($request->input('fecha_meta'));
+        $domingoSeleccionado = Carbon::parse($request->input('fecha_fin_meta'));
+
+        // Forzamos el rango a quedarse encerrado ESTRICTAMENTE dentro del mes visual activo
+        $fechaInicioAjustada = $lunesSeleccionado->timestamp < $mesVisual->startOfMonth()->timestamp
+            ? $mesVisual->startOfMonth()->format('Y-m-d')
+            : $lunesSeleccionado->format('Y-m-d');
+
+        $fechaFinAjustada = $domingoSeleccionado->timestamp > $mesVisual->endOfMonth()->timestamp
+            ? $mesVisual->endOfMonth()->format('Y-m-d')
+            : $domingoSeleccionado->format('Y-m-d');
+
+        // 1. Creamos el visitador omitiendo los campos de la meta y de UI
+        $visitador = Visitador::create($request->except(['meta_dinero', 'meta_visitas', 'fecha_meta', 'fecha_fin_meta', 'mes_visual']));
+
+        // 2. Guardamos la meta asociada con las fechas blindadas
+        if ($request->has('meta_dinero') || $request->has('meta_visitas')) {
+            $visitador->metas()->create([
+                'meta_dinero' => $request->input('meta_dinero', 0),
+                'meta_visitas' => $request->input('meta_visitas', 0),
+                'fecha_meta' => $fechaInicioAjustada,     
+                'fecha_fin_meta' => $fechaFinAjustada,   
+            ]);
+        }
+
         return Redirect::route('Gvisitadores.index')->with('message', 'Registrado con éxito');
     }
 
@@ -65,8 +94,6 @@ class DvisitadoresController extends Controller
         $visitador = Visitador::findOrFail($id);
 
         $request->validate([
-            // REGLA CLAVE: Validamos contra 'usuarios' y permitimos que el usuario_id
-            // se mantenga igual si pertenece a este mismo visitador ($visitador->id)
             'usuario_id' => 'required|exists:usuarios,id|unique:visitadores,usuario_id,' . $visitador->id,
             'nombre' => 'required|string|max:255',
             'apellido' => 'required|string|max:255',
@@ -74,13 +101,43 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento,' . $visitador->id,
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
-            'meta_visitas_mensual' => 'nullable|numeric|min:0',
-            'meta_ventas_mensual' => 'nullable|numeric|min:0',
+            'meta_dinero' => 'nullable|numeric|min:0',
+            'meta_visitas' => 'nullable|integer|min:0',
+            'fecha_meta' => 'required|date', 
+            'fecha_fin_meta' => 'required|date|after_or_equal:fecha_meta', 
+            'mes_visual' => 'required|string', // 👈 Volvemos obligatorio aquí también
         ]);
 
-        $visitador->update($request->all());
+        // 🧠 LÓGICA DEFENSIVA BASADA EN EL MES SELECCIONADO POR EL ADMIN
+        $mesVisual = Carbon::parse($request->input('mes_visual') . '-01');
+        $lunesSeleccionado = Carbon::parse($request->input('fecha_meta'));
+        $domingoSeleccionado = Carbon::parse($request->input('fecha_fin_meta'));
 
-        // Es mejor usar back() para recargar la página actual con los nuevos datos
+        // Forzamos el rango a quedarse encerrado ESTRICTAMENTE dentro del mes visual activo
+        $fechaInicioAjustada = $lunesSeleccionado->timestamp < $mesVisual->startOfMonth()->timestamp
+            ? $mesVisual->startOfMonth()->format('Y-m-d')
+            : $lunesSeleccionado->format('Y-m-d');
+
+        $fechaFinAjustada = $domingoSeleccionado->timestamp > $mesVisual->endOfMonth()->timestamp
+            ? $mesVisual->endOfMonth()->format('Y-m-d')
+            : $domingoSeleccionado->format('Y-m-d');
+
+        // 1. Actualizamos el visitador omitiendo las metas y UI
+        $visitador->update($request->except(['meta_dinero', 'meta_visitas', 'fecha_meta', 'fecha_fin_meta', 'mes_visual']));
+
+        // 2. Actualizamos o creamos la meta asociada (usando updateOrCreate)
+        if ($request->has('meta_dinero') || $request->has('meta_visitas')) {
+            $visitador->metas()->updateOrCreate(
+                ['visitador_id' => $visitador->id], 
+                [                                   
+                    'meta_dinero' => $request->input('meta_dinero', 0),
+                    'meta_visitas' => $request->input('meta_visitas', 0),
+                    'fecha_meta' => $fechaInicioAjustada,   
+                    'fecha_fin_meta' => $fechaFinAjustada, 
+                ]
+            );
+        }
+
         return Redirect::back()->with('message', 'Registro actualizado');
     }
 
@@ -88,6 +145,7 @@ class DvisitadoresController extends Controller
     {
         $visitador = Visitador::findOrFail($id);
         $visitador->delete();
+        
         return Redirect::back()->with('message', 'Visitador eliminado');
     }
 }

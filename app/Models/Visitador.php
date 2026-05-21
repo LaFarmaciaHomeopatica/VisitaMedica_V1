@@ -54,4 +54,13 @@ class Visitador extends Model
     {
         return $this->hasMany(Visita::class, 'visitador_id');
     }
+
+    /**
+     * Relación con las Metas
+     * Un visitador tiene una meta (relación uno a uno)
+     */
+    public function metas()
+    {
+        return $this->hasOne(Meta::class, 'visitador_id');  
+}
 }

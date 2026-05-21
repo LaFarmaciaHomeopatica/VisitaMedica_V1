@@ -50,8 +50,10 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
             tipo_documento_id: v.tipo_documento_id || '',
             zona_id: v.zona_id || '',
             estado: v.estado || 'habilitado',
-            meta_visitas_mensual: v.meta_visitas_mensual || null,
-            meta_ventas_mensual: v.meta_ventas_mensual || null
+            meta_visitas: v.metas ? v.metas.meta_visitas : '',
+            meta_dinero: v.metas ? v.metas.meta_dinero : '',
+            fecha_meta: v.metas ? v.metas.fecha_meta : '',
+            mes_visual: v.metas ? v.metas.mes_visual : '',
         });
         ui.setUserName(v.user ? `Vinculado a: ${v.user.username || v.user.nombre}` : 'Usuario vinculado');
         ui.setIsFormModalOpen(true);

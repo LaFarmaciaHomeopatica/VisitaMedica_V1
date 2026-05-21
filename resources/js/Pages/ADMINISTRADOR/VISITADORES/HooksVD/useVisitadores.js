@@ -24,7 +24,12 @@ export const useVisitadores = (visitadores = []) => {
         documento: '',
         tipo_documento_id: '',
         zona_id: '',
-        estado: 'habilitado'
+        estado: 'habilitado',
+        meta_visitas: '', 
+        meta_dinero: '',
+        fecha_meta: '',
+        fecha_fin_meta: '',
+        mes_visual: '',
     });
 
     // --- EFECTO: BUSCAR USUARIO POR ID (DEBOUNCE) ---

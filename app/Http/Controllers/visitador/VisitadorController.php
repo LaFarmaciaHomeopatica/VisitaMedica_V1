@@ -15,11 +15,14 @@ class VisitadorController extends Controller
     /**
      * MÉTODOS DEL PANEL PRINCIPAL UNIFICADO
      */
-    public function index()
+   public function index()
     {
-        $visitador = Visitador::with('tipoDocumento')
-            ->where('usuario_id', Auth::id())
-            ->first();
+        // Cargamos el visitador y le ordenamos que traiga la meta más nueva según 'created_at'
+        $visitador = Visitador::with(['tipoDocumento', 'metas' => function ($query) {
+            $query->latest()->limit(1);
+        }])
+        ->where('usuario_id', Auth::id())
+        ->first();
 
         $medicos = $visitador ? $visitador->medicos : [];
 
@@ -31,16 +34,16 @@ class VisitadorController extends Controller
         return Inertia::render('VISITADOR/panel', [
             'visitador' => $visitador,
             'medicos'   => $medicos,
-            'visitasData' => $visitas // 👈 Enviamos las visitas de forma nativa
+            'visitasData' => $visitas 
         ]);
     }
-
     /**
      * VISTA DEL PERFIL (Simplificada)
      */
     public function perfil()
     {
-        $visitador = Visitador::with('tipoDocumento')
+        // 🔥 CORREGIDO: También añadimos 'metas' aquí por si tu vista de perfil las necesita mostrar
+        $visitador = Visitador::with(['tipoDocumento', 'metas'])
             ->where('usuario_id', Auth::id())
             ->first();
 
@@ -51,12 +54,13 @@ class VisitadorController extends Controller
 
     public function show($id)
     {
-        $visitador = Visitador::with('tipoDocumento')->findOrFail($id);
+        // 🔥 CORREGIDO: Añadimos 'metas' para la consistencia al ver el detalle
+        $visitador = Visitador::with(['tipoDocumento', 'metas'])->findOrFail($id);
         $medicos = Medico::where('visitador_id', $visitador->id)->get();
 
         return Inertia::render('VISITADOR/visitador', [
             'visitador' => $visitador,
             'medicos'   => $medicos
         ]);
-    }
+    } 
 }
