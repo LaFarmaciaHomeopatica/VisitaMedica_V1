@@ -9,14 +9,17 @@ export default function MedicoTempPromoteModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-            <form
-                onSubmit={onSubmit}
-                className="relative bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl p-12 overflow-y-auto max-h-[90vh]"
-            >
+            <div
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                onClick={onClose}
+            />
+            <div className="relative bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl p-12 overflow-y-auto max-h-[90vh]">
+
                 {/* Cabecera */}
                 <div className="mb-10 text-center">
-                    <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Oficializar Médico</h3>
+                    <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
+                        Oficializar Médico
+                    </h3>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">
                         Convierte este registro temporal en un perfil oficial
                     </p>
@@ -24,6 +27,7 @@ export default function MedicoTempPromoteModal({
 
                 {/* Campos */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
                     {/* Tipo de documento */}
                     <div>
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">
@@ -40,7 +44,9 @@ export default function MedicoTempPromoteModal({
                                 <option key={t.id} value={t.id}>{t.nombre}</option>
                             ))}
                         </select>
-                        {errors.tipo_documento_id && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.tipo_documento_id}</p>}
+                        {errors.tipo_documento_id && (
+                            <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.tipo_documento_id}</p>
+                        )}
                     </div>
 
                     {/* Documento */}
@@ -55,7 +61,9 @@ export default function MedicoTempPromoteModal({
                             className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                             required
                         />
-                        {errors.documento && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.documento}</p>}
+                        {errors.documento && (
+                            <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.documento}</p>
+                        )}
                     </div>
 
                     {/* Nombre */}
@@ -70,7 +78,9 @@ export default function MedicoTempPromoteModal({
                             className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                             required
                         />
-                        {errors.nombre && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.nombre}</p>}
+                        {errors.nombre && (
+                            <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.nombre}</p>
+                        )}
                     </div>
 
                     {/* Apellido */}
@@ -85,7 +95,9 @@ export default function MedicoTempPromoteModal({
                             className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                             required
                         />
-                        {errors.apellido && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.apellido}</p>}
+                        {errors.apellido && (
+                            <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.apellido}</p>
+                        )}
                     </div>
 
                     {/* Especialidad */}
@@ -182,7 +194,9 @@ export default function MedicoTempPromoteModal({
                         >
                             <option value="">Sin asignar</option>
                             {visitadores.map(v => (
-                                <option key={v.id} value={v.id}>{v.nombre} {v.apellido}</option>
+                                <option key={v.id} value={v.id}>
+                                    {v.nombre} {v.apellido}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -204,21 +218,22 @@ export default function MedicoTempPromoteModal({
                 {/* Acciones */}
                 <div className="mt-12 flex gap-4">
                     <button
-                        type="submit"
+                        onClick={onSubmit}
                         disabled={processing}
-                        className="flex-1 bg-indigo-600 text-white py-5 rounded-3xl font-black text-[12px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                        className="flex-1 bg-indigo-600 text-white py-5 rounded-3xl font-black text-[12px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-60"
                     >
                         {processing ? 'PROCESANDO...' : 'GUARDAR Y ACTIVAR MÉDICO'}
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600"
+                        disabled={processing}
+                        className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-40"
                     >
                         Descartar
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     );
 }

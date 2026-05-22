@@ -6,52 +6,67 @@ export const useMedicoTempForm = () => {
     const [selectedMedico, setSelectedMedico] = useState(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        documento: '',
-        nombre: '',
-        apellido: '',
-        especialidad: '',
-        geolocalizacion: '',
-        categoria_id: '',
-        direccion_detalles: '',
-        telefono_contacto: '',
-        horario_atencion: '',
-        visitador_id: '',
+        tipo_documento_id:     '',
+        documento:             '',
+        nombre:                '',
+        apellido:              '',
+        especialidad:          '',
+        geolocalizacion:       '',
+        categoria_id:          '',
+        direccion_detalles:    '',
+        telefono_contacto:     '',
+        horario_atencion:      '',
+        visitador_id:          '',
         fecha_inicio_relacion: new Date().toISOString().split('T')[0],
-        tipo_documento_id: '',
     });
 
     const openPromoteModal = (m) => {
         setSelectedMedico(m);
-        reset();
+
+        const partes   = (m.nombre_referencia ?? '').trim().split(/\s+/);
+        const nombre   = m.nombre   ?? partes[0]               ?? '';
+        const apellido = m.apellido ?? partes.slice(1).join(' ') ?? '';
+
         setData({
-            documento: m.documento,
-            nombre: m.nombre_referencia.split(' ')[0] || '',
-            apellido: m.nombre_referencia.split(' ').slice(1).join(' ') || '',
-            especialidad: '',
-            geolocalizacion: '',
-            categoria_id: '',
-            direccion_detalles: '',
-            telefono_contacto: '',
-            horario_atencion: '',
-            visitador_id: '',
-            fecha_inicio_relacion: new Date().toISOString().split('T')[0],
-            tipo_documento_id: '',
+            tipo_documento_id:     m.tipo_documento_id   ?? '',
+            documento:             m.documento            ?? '',
+            nombre,
+            apellido,
+            especialidad:          m.especialidad         ?? '',
+            geolocalizacion:       m.geolocalizacion      ?? '',
+            categoria_id:          m.categoria_id         ?? '',
+            direccion_detalles:    m.direccion_detalles   ?? '',
+            telefono_contacto:     m.telefono_contacto    ?? '',
+            horario_atencion:      m.horario_atencion     ?? '',
+            visitador_id:          m.visitador_id         ?? '',
+            fecha_inicio_relacion: m.fecha_inicio_relacion
+                ?? new Date().toISOString().split('T')[0],
         });
+
         setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedMedico(null);
+        reset();
     };
 
     const handlePromote = (e) => {
         e.preventDefault();
+        if (!selectedMedico) return;
+
         post(route('GmedicosTemporales.promover', { id: selectedMedico.id }), {
-            onSuccess: () => { setIsModalOpen(false); reset(); },
+            onSuccess: closeModal,
         });
     };
 
     return {
         data, setData, processing, errors,
-        isModalOpen, setIsModalOpen,
+        isModalOpen,
         selectedMedico,
         openPromoteModal,
+        closeModal,
         handlePromote,
     };
 };

@@ -108,13 +108,7 @@ export default function VisitasToolbar({
                         {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} BORRAR
                     </button>
 
-                    <button
-                        onClick={onExport}
-                        className="text-emerald-600 hover:bg-emerald-50 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all flex items-center gap-1.5"
-                    >
-                        <FaFileExport size={12} /> EXPORTAR
-                    </button>
-
+                   
                     <button
                         onClick={onNew}
                         className="bg-[#3D3FD8] text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase shadow-md hover:bg-[#2d2fb1] transition-all flex items-center gap-1.5"
