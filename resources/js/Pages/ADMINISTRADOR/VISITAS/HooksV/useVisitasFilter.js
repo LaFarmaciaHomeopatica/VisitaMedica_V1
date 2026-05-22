@@ -29,10 +29,11 @@ export const useVisitasFilter = (visitas, medicos, visitadores) => {
         setCurrentPage(1);
     };
 
-    const setItemsPerPage = (value) => {
-        setItemsPerPageRaw(value === '' ? 0 : parseInt(value, 10));
-        setCurrentPage(1);
-    };
+  const setItemsPerPage = (value) => {
+    // Si está vacío, guardamos el string vacío en lugar de forzar un 0
+    setItemsPerPageRaw(value === '' ? '' : parseInt(value, 10));
+    setCurrentPage(1);
+};
 
     return {
         searchTerm, setSearchTerm,

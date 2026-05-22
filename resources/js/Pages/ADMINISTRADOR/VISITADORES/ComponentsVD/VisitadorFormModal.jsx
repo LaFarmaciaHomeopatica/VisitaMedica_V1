@@ -103,8 +103,8 @@ const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumen
                                 className={`w-full border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none transition-all ${data.estado === 'habilitado' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}
                                 required
                             >
-                                <option value="habilitado">Habilitado</option>
-                                <option value="inhabilitado">Inhabilitado</option>
+                                <option value="Habilitado">Habilitado</option>
+                                <option value="Inhabilitado">Inhabilitado</option>
                             </select>
                             {errors.estado && <p className="text-rose-500 text-[9px] font-black mt-1 uppercase">{errors.estado}</p>}
                         </div>
