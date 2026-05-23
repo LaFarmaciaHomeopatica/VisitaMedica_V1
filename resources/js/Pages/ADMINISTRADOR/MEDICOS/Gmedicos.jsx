@@ -27,7 +27,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
     // --- Hooks ---
     const filter = useMedicosFilter(medicos);
     const selection = useMedicosSelection();
-    const importHook = useMedicosImport(medicos);
+    const importHook = useMedicosImport(medicos,visitadores);
     const form = useMedicoForm(visitadores);
 
     // --- Estado de modales simples ---

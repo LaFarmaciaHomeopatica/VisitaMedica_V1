@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { router } from '@inertiajs/react';
 
-export const useMedicosImport = (medicos) => {
+export const useMedicosImport = (medicos, visitadores) => {
     const [previewData, setPreviewData] = useState([]);
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
@@ -12,6 +12,21 @@ export const useMedicosImport = (medicos) => {
     const fileInputRef = useRef(null);
 
     const handleImportClick = () => fileInputRef.current.click();
+
+    const normalizar = (str) => str?.toString().trim().toLowerCase()
+        .replace(/\s+/g, ' ')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') ?? '';
+
+    const cmp = (a, b) => normalizar(a) === normalizar(b);
+
+    const normFecha = (val) => {
+        if (!val) return '';
+        return val.toString().trim()
+            .replace('T', ' ')
+            .replace(/\.000000Z$/, '')
+            .replace(/Z$/, '')
+            .trim();
+    };
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -52,19 +67,30 @@ export const useMedicosImport = (medicos) => {
 
                 if (existe) duplicados.push(row);
 
-                // Comparación campo a campo para detectar modificaciones
-                const cmp = (a, b) => String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
+                // Resuelve nombre del visitador → ID
+                const nombreVisitadorExcel = normalizar(row.visitador_asignado || '');
+                const esSinAsignar = nombreVisitadorExcel === 'sin asignar' || nombreVisitadorExcel === '';
+                const visitadorResuelto = esSinAsignar ? null :
+                    visitadores?.find(v =>
+                        normalizar(v.nombre + ' ' + v.apellido) === nombreVisitadorExcel
+                    );
+                const visitadorIdResuelto = esSinAsignar ? null : (visitadorResuelto?.id ?? null);
+
+                // Normaliza categoría: "Sin Categoría" en Excel = sin categoría en BD
+                const catExcel = (row.categoria === 'Sin Categoría' || !row.categoria) ? '' : row.categoria;
+                const catBD = original?.categoria?.nombre ?? '';
+
                 const esModificado = existe && !(
                     cmp(row.nombre, original.nombre) &&
                     cmp(row.apellido, original.apellido) &&
                     cmp(row.especialidad, original.especialidad) &&
-                    cmp(row.categoria, original.categoria?.nombre) &&
+                    cmp(catExcel, catBD) &&
                     cmp(row.telefono_contacto, original.telefono_contacto) &&
                     cmp(row.geolocalizacion, original.geolocalizacion) &&
-                    cmp(row.direccion_detalles, original.direccion_detalles) &&
+                    cmp(row.direccion_detalles ?? '', original.direccion_detalles ?? '') &&
                     cmp(row.horario_atencion, original.horario_atencion) &&
-                    cmp(row.visitador_id, original.visitador_id) &&
-                    cmp(row.fecha_inicio_relacion, original.fecha_inicio_relacion)
+                    String(visitadorIdResuelto ?? '') === String(original.visitador_id ?? '') &&
+                    normFecha(row.fecha_inicio_relacion) === normFecha(original.fecha_inicio_relacion)
                 );
 
                 return {

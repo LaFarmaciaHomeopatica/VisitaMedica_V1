@@ -7,6 +7,16 @@ const cmp = (a, b) => String(a || '').trim().toUpperCase()
     String(b || '').trim().toUpperCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+// ✅ Debe estar ANTES de calcCambios
+function normalizeFecha(val) {
+    if (!val) return '';
+    return val.toString().trim()
+        .replace('T', ' ')
+        .replace(/\.000000Z$/, '')
+        .replace(/Z$/, '')
+        .trim();
+}
+
 function calcCambios(row, original) {
     if (!original) return {};
     return {
@@ -18,8 +28,8 @@ function calcCambios(row, original) {
         geolocalizacion: !cmp(row.geolocalizacion, original.geolocalizacion),
         direccion_detalles: !cmp(row.direccion_detalles, original.direccion_detalles),
         horario_atencion: !cmp(row.horario_atencion, original.horario_atencion),
-        visitador_id: !cmp(row.visitador_id, original.visitador_id),
-        fecha_inicio_relacion: !cmp(row.fecha_inicio_relacion, original.fecha_inicio_relacion),
+        visitador_id: !cmp(row.visitador_id, original.visitador?.id ?? original.visitador_id),
+        fecha_inicio_relacion: normalizeFecha(row.fecha_inicio_relacion) !== normalizeFecha(original.fecha_inicio_relacion),
     };
 }
 
