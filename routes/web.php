@@ -37,10 +37,10 @@ Route::middleware(['auth'])->group(function () {
     //|--- GRUPO ADMINISTRADOR (id_rol 1)
 
     Route::middleware(['role:1'])->group(function () {
-        Route::get('/PanelAdmin', [GinicioController::class, 'index'])->name('Ginicio');
-        Route::get('/Ginicio',   [GinicioController::class, 'index']);
+        Route::get('/PanelAdmin', [GinicioController::class, 'index']);
+        Route::get('/Ginicio',   [GinicioController::class, 'index'])->name('Ginicio');
 
-Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.index');
+Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
 
         Route::get('/Gmetas', [MetasController::class, 'index'])->name('Gmetas.index');
         Route::post('/Gmetas/upsert', [MetasController::class, 'upsert'])->name('Gmetas.upsert');

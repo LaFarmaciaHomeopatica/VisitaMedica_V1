@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
     AreaChart, Area, PieChart, Pie, Cell,
@@ -69,8 +69,17 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
+const PERIODOS = [
+    { key: 'all', label: 'Todo' },
+    { key: '2y',  label: '2 años' },
+    { key: '1y',  label: '1 año' },
+    { key: '6m',  label: '6 meses' },
+    { key: '3m',  label: '3 meses' },
+];
+
 export default function MedicoDetalle({
-    auth, medico, txStats, tendencia, topProductos,
+    auth, medico, periodoActivo = 'all',
+    txStats, tendencia, topProductos,
     porLaboratorio, todosProductos,
     visitasStats, visitas, visitadoresAsignados,
 }) {
@@ -90,7 +99,7 @@ export default function MedicoDetalle({
         label:     d.mes,
         comprado:  Number(d.valor_comprado),
         formulado: Number(d.valor_formulado),
-    }));
+    })).slice(-12);
 
     const prodData = (topProductos ?? []).map(p => ({
         name:      p.nombre,
@@ -98,6 +107,13 @@ export default function MedicoDetalle({
         formulado: Number(p.valor_formulado),
         unidades:  Number(p.unidades),
     }));
+
+    const geoCoords = (() => {
+        if (!medico.geolocalizacion) return null;
+        const [lat, lng] = medico.geolocalizacion.split(',').map(Number);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        return { lat, lng };
+    })();
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -139,7 +155,7 @@ export default function MedicoDetalle({
                     </div>
 
                     {/* Info de contacto */}
-                    {(medico.telefono_contacto || medico.horario_atencion || medico.direccion_detalles) && (
+                    {(medico.telefono_contacto || medico.horario_atencion || medico.direccion_detalles || geoCoords) && (
                         <div className="flex flex-wrap gap-5 mt-3 pt-3 border-t border-slate-50">
                             {medico.telefono_contacto && (
                                 <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
@@ -156,8 +172,39 @@ export default function MedicoDetalle({
                                     <FaLocationDot className="text-rose-400" /> {medico.direccion_detalles}
                                 </div>
                             )}
+                            {geoCoords && (
+                                <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
+                                   target="_blank" rel="noopener noreferrer"
+                                   className="flex items-center gap-1.5 text-[9px] text-blue-500 hover:text-blue-700 font-bold transition">
+                                    <FaLocationDot className="text-blue-400" />
+                                    {geoCoords.lat.toFixed(5)}, {geoCoords.lng.toFixed(5)}
+                                    <span className="text-[8px] text-slate-400">(ver mapa)</span>
+                                </a>
+                            )}
                         </div>
                     )}
+
+                    {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
+                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-50">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-1">Período:</p>
+                        {PERIODOS.map(p => (
+                            <button
+                                key={p.key}
+                                onClick={() => router.get(
+                                    route('Gmedicos.show', medico.id),
+                                    p.key !== 'all' ? { periodo: p.key } : {},
+                                    { preserveScroll: true }
+                                )}
+                                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
+                                    periodoActivo === p.key
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
+                                }`}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="px-8 pt-7 space-y-7">

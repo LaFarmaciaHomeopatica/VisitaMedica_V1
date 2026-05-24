@@ -51,10 +51,13 @@ function MedicoSearch({ medicos, value, onChange }) {
 
     const selected = medicos.find(m => m.documento === value);
 
-    const filtered = useMemo(() =>
-        medicos.filter(m => m.nombre.toLowerCase().includes(query.toLowerCase()) ||
-                            m.documento.includes(query)),
-    [medicos, query]);
+    const filtered = useMemo(() => {
+        const term = query.toLowerCase();
+        return medicos.filter(m =>
+            (m.nombre   ?? '').toLowerCase().includes(term) ||
+            (m.documento ?? '').toLowerCase().includes(term)
+        );
+    }, [medicos, query]);
 
     useEffect(() => {
         const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -122,11 +125,15 @@ function MedicoSearch({ medicos, value, onChange }) {
 }
 
 // ── main page ─────────────────────────────────────────────────────────────────
-const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, tabla, medicos }) => {
+const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, tabla, medicos, visitadoresAnalisis = [] }) => {
     const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
     const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
     const [busquedaTabla, setBusquedaTabla] = useState('');
+    const [tablaPage, setTablaPage] = useState(1);
+    const TABLA_PER_PAGE = 50;
+    const [prodPage, setProdPage] = useState(1);
+    const PROD_PER_PAGE = 10;
 
     const aplicar = () => {
         router.get(route('Metricas.index'), {
@@ -142,7 +149,7 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
         label: d.mes?.slice(0, 7),
         compradas:  Number(d.compradas),
         formuladas: Number(d.formuladas),
-    }));
+    })).slice(-12);
 
     // Pie: top productos por valor comprado y formulado
     const pieData = topProductos.map((p, i) => ({
@@ -155,6 +162,9 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
         value: Number(p.valor_formulado),
         color: COLORS[i % COLORS.length],
     }));
+    const prodPages    = Math.max(1, Math.ceil(pieData.length / PROD_PER_PAGE));
+    const prodSlice    = pieData.slice((prodPage - 1) * PROD_PER_PAGE, prodPage * PROD_PER_PAGE);
+    const prodSliceForm= pieDataForm.slice((prodPage - 1) * PROD_PER_PAGE, prodPage * PROD_PER_PAGE);
 
     // Top médicos
     const medicosData = topMedicos.slice(0, 8).map(m => ({
@@ -166,6 +176,7 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
 
     // Tabla filtrada
     const tablaFiltrada = useMemo(() => {
+        setTablaPage(1);
         const t = busquedaTabla.toLowerCase();
         if (!t) return tabla;
         return tabla.filter(r =>
@@ -175,6 +186,10 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
             r.producto_codigo?.toLowerCase().includes(t)
         );
     }, [tabla, busquedaTabla]);
+
+    const tablaTotal  = tablaFiltrada.length;
+    const tablaPages  = Math.max(1, Math.ceil(tablaTotal / TABLA_PER_PAGE));
+    const tablaSlice  = tablaFiltrada.slice((tablaPage - 1) * TABLA_PER_PAGE, tablaPage * TABLA_PER_PAGE);
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -301,18 +316,43 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
-                                    {/* Leyenda compartida */}
+                                    {/* Leyenda paginada */}
                                     <ul className="mt-3 space-y-1.5">
-                                        {pieData.map((p, i) => (
+                                        {prodSlice.map((p, i) => (
                                             <li key={i} className="flex items-center gap-2 text-[10px]">
                                                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
                                                 <span className="font-bold text-slate-600 truncate flex-1">{p.name}</span>
                                                 <span className="font-black text-emerald-600">{fmtM(p.value)}</span>
                                                 <span className="text-slate-300 text-[8px]">|</span>
-                                                <span className="font-black text-purple-600">{fmtM(pieDataForm[i]?.value ?? 0)}</span>
+                                                <span className="font-black text-purple-600">{fmtM(prodSliceForm[i]?.value ?? 0)}</span>
                                             </li>
                                         ))}
                                     </ul>
+                                    {/* Controles de paginación */}
+                                    {prodPages > 1 && (
+                                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
+                                            <p className="text-[9px] font-bold text-slate-400">
+                                                {(prodPage - 1) * PROD_PER_PAGE + 1}–{Math.min(prodPage * PROD_PER_PAGE, pieData.length)} de {pieData.length}
+                                            </p>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => setProdPage(p => Math.max(1, p - 1))}
+                                                    disabled={prodPage === 1}
+                                                    className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-30 transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
+                                                </button>
+                                                <span className="text-[10px] font-black text-slate-600">{prodPage}<span className="font-normal text-slate-400"> / {prodPages}</span></span>
+                                                <button
+                                                    onClick={() => setProdPage(p => Math.min(prodPages, p + 1))}
+                                                    disabled={prodPage === prodPages}
+                                                    className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-30 transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -340,6 +380,71 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
                             </ResponsiveContainer>
                         )}
                     </div>
+
+                    {/* ── ANÁLISIS VISITADORES ────────────────────────── */}
+                    {visitadoresAnalisis.length > 0 && (() => {
+                        const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-slate-50">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Equipo</p>
+                                    <p className="text-[13px] font-black text-slate-800">Análisis de visitadores</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-indigo-600">
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Visitador</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Méd. activos</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Visitas</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectivas</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectividad</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Valor comprado</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider">Valor formulado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {visitadoresAnalisis.map((v, i) => {
+                                                const pct = Math.round((v.valor_comprado / maxVal) * 100);
+                                                const ef  = v.efectividad;
+                                                const efColor = ef >= 70 ? '#10b981' : ef >= 40 ? '#f59e0b' : '#ef4444';
+                                                return (
+                                                    <tr key={i} className="hover:bg-indigo-50/20 transition-colors">
+                                                        <td className="px-5 py-3 border-r border-slate-50">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 shrink-0">
+                                                                    {i + 1}
+                                                                </div>
+                                                                <p className="text-[10px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.medicos_activos}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.total_visitas}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-emerald-600">{v.visitas_efectivas}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center">
+                                                            <span className="inline-block text-[9px] font-black px-2 py-0.5 rounded-full border"
+                                                                  style={{ color: efColor, background: `${efColor}18`, borderColor: `${efColor}40` }}>
+                                                                {ef}%
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-5 py-3 border-r border-slate-50">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-indigo-600 whitespace-nowrap">{fmtM(v.valor_comprado)}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-[10px] font-black text-purple-600">{fmtM(v.valor_formulado)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* ── TABLA DESGLOSE ──────────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -381,7 +486,7 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
                                                 {busquedaTabla ? 'Sin resultados para la búsqueda' : 'Sin datos en el período seleccionado'}
                                             </td>
                                         </tr>
-                                    ) : tablaFiltrada.map((row, i) => {
+                                    ) : tablaSlice.map((row, i) => {
                                         return (
                                             <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
                                                 <td className="px-5 py-2.5 border-r border-slate-50">
@@ -415,11 +520,32 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
                                 </tbody>
                             </table>
                         </div>
-                        <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/50">
+                        <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/50 flex items-center justify-between gap-4">
                             <p className="text-[9px] font-bold text-slate-400">
-                                {tablaFiltrada.length} de {tabla.length} registros
+                                {(tablaPage - 1) * TABLA_PER_PAGE + 1}–{Math.min(tablaPage * TABLA_PER_PAGE, tablaTotal)} de {tablaTotal} registros
                                 {busquedaTabla && ' · filtrados'}
                             </p>
+                            {tablaPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setTablaPage(p => Math.max(1, p - 1))}
+                                        disabled={tablaPage === 1}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-30 transition-colors"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
+                                    </button>
+                                    <span className="text-[10px] font-black text-slate-600">
+                                        {tablaPage} <span className="font-normal text-slate-400">de</span> {tablaPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setTablaPage(p => Math.min(tablaPages, p + 1))}
+                                        disabled={tablaPage === tablaPages}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-30 transition-colors"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 

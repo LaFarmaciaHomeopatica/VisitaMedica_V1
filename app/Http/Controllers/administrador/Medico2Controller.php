@@ -16,6 +16,7 @@ use App\Imports\MedicosImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\Categoria;
+use Carbon\Carbon;
 
 class Medico2Controller extends Controller
 {
@@ -197,40 +198,52 @@ public function eliminarMasivo(Request $request)
     return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
 }
 
-public function show($id)
+public function show(Request $request, $id)
 {
     $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
-    $doc = $medico->documento;
+    $doc    = $medico->documento;
 
-    // KPIs de transacciones (por documento del médico)
-    $txStats = DB::table('transacciones')
-        ->where('medico_documento', $doc)
-        ->select(
-            DB::raw('COUNT(*) as total_transacciones'),
-            DB::raw('COALESCE(SUM(valor_comprado), 0) as total_valor_comprado'),
-            DB::raw('COALESCE(SUM(valor_formulado), 0) as total_valor_formulado'),
-            DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades'),
-            DB::raw('COUNT(DISTINCT producto_codigo) as total_productos'),
-            DB::raw('COUNT(DISTINCT DATE_FORMAT(fecha, \'%Y-%m\')) as meses_activo')
-        )->first();
+    // ── Período de tiempo ────────────────────────────────────────────────
+    $periodo    = $request->input('periodo', 'all');
+    $fechaDesde = match($periodo) {
+        '3m' => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
+        '6m' => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
+        '1y' => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
+        '2y' => Carbon::now()->subMonths(24)->startOfMonth()->format('Y-m-d'),
+        default => null,
+    };
 
-    // Tendencia mensual
-    $tendencia = DB::table('transacciones')
+    $txBase = fn() => DB::table('transacciones')
         ->where('medico_documento', $doc)
+        ->when($fechaDesde, fn($q) => $q->where('fecha', '>=', $fechaDesde));
+
+    $visitaBase = fn() => DB::table('visitas')
+        ->where('medico_id', $id)
+        ->when($fechaDesde, fn($q) => $q->where('fecha_programada', '>=', $fechaDesde));
+
+    // ── KPIs transacciones ────────────────────────────────────────────────
+    $txStats = $txBase()->select(
+        DB::raw('COUNT(*) as total_transacciones'),
+        DB::raw('COALESCE(SUM(valor_comprado), 0) as total_valor_comprado'),
+        DB::raw('COALESCE(SUM(valor_formulado), 0) as total_valor_formulado'),
+        DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades'),
+        DB::raw('COUNT(DISTINCT producto_codigo) as total_productos'),
+        DB::raw("COUNT(DISTINCT DATE_FORMAT(fecha, '%Y-%m')) as meses_activo")
+    )->first();
+
+    // ── Tendencia mensual ─────────────────────────────────────────────────
+    $tendencia = $txBase()
         ->select(
             DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
             DB::raw('SUM(valor_comprado) as valor_comprado'),
             DB::raw('SUM(valor_formulado) as valor_formulado'),
             DB::raw('SUM(unidades_compradas) as unidades')
         )
-        ->groupBy('mes')
-        ->orderBy('mes')
-        ->get();
+        ->groupBy('mes')->orderBy('mes')->get();
 
-    // Top productos (mini widget, top 6)
-    $topProductos = DB::table('transacciones')
+    // ── Top productos (top 6) ─────────────────────────────────────────────
+    $topProductos = $txBase()
         ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
-        ->where('transacciones.medico_documento', $doc)
         ->select(
             'productos.nombre',
             'productos.codigo',
@@ -240,13 +253,11 @@ public function show($id)
         )
         ->groupBy('productos.nombre', 'productos.codigo')
         ->orderByDesc('valor_comprado')
-        ->take(6)
-        ->get();
+        ->take(6)->get();
 
-    // Por laboratorio
-    $porLaboratorio = DB::table('transacciones')
+    // ── Por laboratorio ───────────────────────────────────────────────────
+    $porLaboratorio = $txBase()
         ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
-        ->where('transacciones.medico_documento', $doc)
         ->select(
             'productos.laboratorio',
             DB::raw('SUM(transacciones.valor_comprado) as valor_comprado'),
@@ -255,13 +266,11 @@ public function show($id)
             DB::raw('COUNT(DISTINCT productos.codigo) as total_productos')
         )
         ->groupBy('productos.laboratorio')
-        ->orderByDesc('valor_comprado')
-        ->get();
+        ->orderByDesc('valor_comprado')->get();
 
-    // Todos los productos (tabla completa)
-    $todosProductos = DB::table('transacciones')
+    // ── Todos los productos (tabla completa) ──────────────────────────────
+    $todosProductos = $txBase()
         ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
-        ->where('transacciones.medico_documento', $doc)
         ->select(
             'productos.nombre',
             'productos.codigo',
@@ -271,24 +280,20 @@ public function show($id)
             DB::raw('SUM(transacciones.unidades_compradas) as unidades')
         )
         ->groupBy('productos.nombre', 'productos.codigo', 'productos.laboratorio')
-        ->orderByDesc('valor_comprado')
-        ->get();
+        ->orderByDesc('valor_comprado')->get();
 
-    // KPIs de visitas
-    $visitasStats = DB::table('visitas')
-        ->where('medico_id', $id)
-        ->select(
-            DB::raw('COUNT(*) as total'),
-            DB::raw("SUM(CASE WHEN estado = 'efectiva'     THEN 1 ELSE 0 END) as efectivas"),
-            DB::raw("SUM(CASE WHEN estado = 'programada'   THEN 1 ELSE 0 END) as programadas"),
-            DB::raw("SUM(CASE WHEN estado = 'cancelada'    THEN 1 ELSE 0 END) as canceladas"),
-            DB::raw("SUM(CASE WHEN estado = 'reprogramada' THEN 1 ELSE 0 END) as reprogramadas"),
-            DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
-        )->first();
+    // ── KPIs visitas ──────────────────────────────────────────────────────
+    $visitasStats = $visitaBase()->select(
+        DB::raw('COUNT(*) as total'),
+        DB::raw("SUM(CASE WHEN estado = 'efectiva'      THEN 1 ELSE 0 END) as efectivas"),
+        DB::raw("SUM(CASE WHEN estado = 'programada'    THEN 1 ELSE 0 END) as programadas"),
+        DB::raw("SUM(CASE WHEN estado = 'cancelada'     THEN 1 ELSE 0 END) as canceladas"),
+        DB::raw("SUM(CASE WHEN estado = 'reprogramada'  THEN 1 ELSE 0 END) as reprogramadas"),
+        DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
+    )->first();
 
-    // Historial de visitas (últimas 20) con nombre del visitador
-    $visitas = DB::table('visitas')
-        ->where('visitas.medico_id', $id)
+    // ── Historial de visitas ──────────────────────────────────────────────
+    $visitas = $visitaBase()
         ->leftJoin('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
         ->select(
             'visitas.id',
@@ -299,10 +304,9 @@ public function show($id)
             DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre_visitador")
         )
         ->orderByDesc('visitas.fecha_programada')
-        ->take(20)
-        ->get();
+        ->take(50)->get();
 
-    // Visitadores que han visitado a este médico (únicos)
+    // ── Visitadores asignados (sin filtrar por período) ───────────────────
     $visitadoresAsignados = DB::table('visitas')
         ->where('visitas.medico_id', $id)
         ->join('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
@@ -314,11 +318,11 @@ public function show($id)
             DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
         )
         ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
-        ->orderByDesc('total_visitas')
-        ->get();
+        ->orderByDesc('total_visitas')->get();
 
     return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
         'medico'               => $medico,
+        'periodoActivo'        => $periodo,
         'txStats'              => $txStats,
         'tendencia'            => $tendencia,
         'topProductos'         => $topProductos,

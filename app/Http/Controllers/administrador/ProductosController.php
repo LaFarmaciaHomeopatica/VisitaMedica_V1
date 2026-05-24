@@ -5,23 +5,117 @@ use App\Exports\ProductosExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\ProductosImport;
 use App\Http\Controllers\Controller;
-use App\Models\Productos; // <--- Importas el modelo plural
+use App\Models\Productos;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class ProductosController extends Controller
 {
     /**
      * Muestra la lista de productos.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Usamos Productos::
-        $productos = Productos::latest()->get(); 
-        
+        $productos       = Productos::latest()->get();
+        $productoFiltro  = $request->input('producto_codigo');
+
+        // Closure base para filtrar transacciones por producto (opcional)
+        $tx = fn() => DB::table('transacciones')
+            ->when($productoFiltro, fn($q) => $q->where('producto_codigo', $productoFiltro));
+
+        // ── KPIs ──────────────────────────────────────────────────────────────
+        $kpis = $tx()->select(
+            DB::raw('COALESCE(SUM(valor_comprado),  0) as valor_comprado'),
+            DB::raw('COALESCE(SUM(valor_formulado), 0) as valor_formulado'),
+            DB::raw('COALESCE(SUM(unidades_compradas),  0) as unidades_compradas'),
+            DB::raw('COALESCE(SUM(unidades_formuladas), 0) as unidades_formuladas'),
+            DB::raw('COUNT(DISTINCT producto_codigo)       as productos_activos'),
+            DB::raw('COUNT(*)                              as total_transacciones')
+        )->first();
+
+        // ── Top 10 productos ──────────────────────────────────────────────────
+        $topProductos = DB::table('transacciones')
+            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+            ->when($productoFiltro, fn($q) => $q->where('transacciones.producto_codigo', $productoFiltro))
+            ->select(
+                'productos.nombre',
+                'productos.laboratorio',
+                DB::raw('SUM(transacciones.valor_comprado)       as valor_comprado'),
+                DB::raw('SUM(transacciones.valor_formulado)      as valor_formulado'),
+                DB::raw('SUM(transacciones.unidades_compradas)   as unidades_compradas'),
+                DB::raw('SUM(transacciones.unidades_formuladas)  as unidades_formuladas'),
+                DB::raw('COUNT(DISTINCT transacciones.medico_documento) as medicos')
+            )
+            ->groupBy('productos.nombre', 'productos.laboratorio')
+            ->orderByDesc('valor_comprado')
+            ->take(10)->get();
+
+        // ── Ranking por laboratorio ────────────────────────────────────────────
+        $porLaboratorio = DB::table('transacciones')
+            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+            ->when($productoFiltro, fn($q) => $q->where('transacciones.producto_codigo', $productoFiltro))
+            ->select(
+                'productos.laboratorio',
+                DB::raw('COUNT(DISTINCT productos.codigo)               as num_productos'),
+                DB::raw('SUM(transacciones.valor_comprado)              as valor_comprado'),
+                DB::raw('SUM(transacciones.valor_formulado)             as valor_formulado'),
+                DB::raw('SUM(transacciones.unidades_compradas)          as unidades_compradas'),
+                DB::raw('COUNT(DISTINCT transacciones.medico_documento) as medicos')
+            )
+            ->groupBy('productos.laboratorio')
+            ->orderByDesc('valor_comprado')
+            ->get();
+
+        // ── Tendencia histórica completa (todos los meses con datos) ──────────
+        $tendencia = $tx()
+            ->select(
+                DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
+                DB::raw('SUM(valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(unidades_compradas)  as unidades_compradas'),
+                DB::raw('SUM(unidades_formuladas) as unidades_formuladas')
+            )
+            ->groupBy('mes')->orderBy('mes')->get();
+
+        // ── Top 10 médicos por comprado y por formulado ───────────────────────
+        $medBase = fn($orderBy) => DB::table('transacciones')
+            ->leftJoin('medicos',           'transacciones.medico_documento', '=', 'medicos.documento')
+            ->leftJoin('medicos_temporales','transacciones.medico_documento', '=', 'medicos_temporales.documento')
+            ->when($productoFiltro, fn($q) => $q->where('transacciones.producto_codigo', $productoFiltro))
+            ->select(
+                'transacciones.medico_documento',
+                DB::raw("MIN(COALESCE(CONCAT(medicos.nombre,' ',medicos.apellido), medicos_temporales.nombre_referencia, transacciones.medico_documento)) as nombre_medico"),
+                DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(transacciones.valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(transacciones.unidades_compradas)  as unidades_compradas'),
+                DB::raw('SUM(transacciones.unidades_formuladas) as unidades_formuladas'),
+                DB::raw('COUNT(*)                               as transacciones')
+            )
+            ->groupBy('transacciones.medico_documento')
+            ->orderByDesc($orderBy)
+            ->take(10)->get();
+
         return Inertia::render('ADMINISTRADOR/PRODUCTO/Gproductos', [
-            'productos' => $productos
+            'productos'       => $productos,
+            'productoActivo'  => $productoFiltro,
+            'statsProductos'  => [
+                'total'               => $productos->count(),
+                'laboratorios'        => $productos->pluck('laboratorio')->unique()->filter()->count(),
+                'activos'             => (int)   ($kpis->productos_activos    ?? 0),
+                'total_transacciones' => (int)   ($kpis->total_transacciones  ?? 0),
+                'valor_comprado'      => (float) ($kpis->valor_comprado       ?? 0),
+                'valor_formulado'     => (float) ($kpis->valor_formulado      ?? 0),
+                'unidades_compradas'  => (int)   ($kpis->unidades_compradas   ?? 0),
+                'unidades_formuladas' => (int)   ($kpis->unidades_formuladas  ?? 0),
+            ],
+            'topProductos'    => $topProductos,
+            'porLaboratorio'  => $porLaboratorio,
+            'tendencia'       => $tendencia,
+            'topCompradores'  => $medBase('valor_comprado'),
+            'topFormuladores' => $medBase('valor_formulado'),
         ]);
     }
 

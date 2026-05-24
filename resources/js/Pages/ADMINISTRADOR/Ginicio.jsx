@@ -1,24 +1,15 @@
-import React, { useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from './PanelAdmin';
 import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+    AreaChart, Area, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import {
-    FaUsers, FaUserDoctor, FaUserClock, FaFileInvoiceDollar,
-    FaArrowRight, FaChartLine, FaCalendarCheck,
-    FaChevronLeft, FaChevronRight, FaCalendar,
+    FaUsers, FaUserDoctor, FaUserClock, FaFileInvoiceDollar, FaCalendarCheck, FaArrowRight,
 } from 'react-icons/fa6';
 
-const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const labelMes = ym => {
-    if (!ym) return '';
-    const [y, m] = ym.split('-');
-    return `${MESES[parseInt(m, 10) - 1]} ${y}`;
-};
-
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
 const fmtM = n => {
     n = n ?? 0;
@@ -28,38 +19,36 @@ const fmtM = n => {
     return `$${fmt(n)}`;
 };
 
-const COLORS_ESTADO = {
-    efectiva:       '#10b981',
-    programada:     '#4184F0',
-    reprogramada:   '#f59e0b',
-    cancelada:      '#ef4444',
-    'No contactado':'#94a3b8',
-    'sin programar':'#cbd5e1',
-};
+const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
 const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b'];
+const COLORS_ESTADO = {
+    efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
+    cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
+};
 
-// ── KPI card ─────────────────────────────────────────────────────────────────
+// ── components ────────────────────────────────────────────────────────────────
 function KpiCard({ icon, label, value, sub, accent, href }) {
     const inner = (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4
-                        hover:shadow-md transition-shadow flex items-start gap-4 h-full"
+                        hover:shadow-md transition-shadow flex items-start gap-3 h-full"
              style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-            <div className="mt-0.5 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                 style={{ background: `${accent}18` }}>
-                <span style={{ color: accent }} className="text-[15px]">{icon}</span>
-            </div>
+            {icon && (
+                <div className="mt-0.5 shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
+                     style={{ background: `${accent}18` }}>
+                    <span style={{ color: accent }} className="text-[14px]">{icon}</span>
+                </div>
+            )}
             <div className="min-w-0">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-                <p className="text-[22px] font-black text-slate-800 leading-none">{value}</p>
+                <p className="text-[20px] font-black text-slate-800 leading-none">{value}</p>
                 {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
             </div>
-            {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[11px] shrink-0" />}
+            {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[10px] shrink-0" />}
         </div>
     );
     return href ? <Link href={href} className="block h-full">{inner}</Link> : inner;
 }
 
-// ── tooltip ───────────────────────────────────────────────────────────────────
 function ChartTooltip({ active, payload, label }) {
     if (!active || !payload?.length) return null;
     return (
@@ -74,7 +63,6 @@ function ChartTooltip({ active, payload, label }) {
     );
 }
 
-// ── sección header ────────────────────────────────────────────────────────────
 function SectionHeader({ label, title }) {
     return (
         <div className="mb-4">
@@ -84,41 +72,124 @@ function SectionHeader({ label, title }) {
     );
 }
 
+function MedicoSearch({ medicos, value, onChange }) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen]   = useState(false);
+    const ref = useRef();
+
+    const selected = medicos.find(m => String(m.documento) === String(value));
+    const filtered = useMemo(() => {
+        const term = query.toLowerCase();
+        return medicos.filter(m =>
+            (m.nombre    ?? '').toLowerCase().includes(term) ||
+            String(m.documento ?? '').toLowerCase().includes(term)
+        );
+    }, [medicos, query]);
+
+    useEffect(() => {
+        const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const select = doc => { onChange(String(doc)); setOpen(false); setQuery(''); };
+    const clear  = ()   => { onChange('');  setOpen(false); setQuery(''); };
+
+    return (
+        <div ref={ref} className="relative">
+            <div onClick={() => setOpen(o => !o)}
+                 className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition min-w-[220px]">
+                <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className={`text-[11px] font-bold flex-1 truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
+                    {selected ? selected.nombre : 'Todos los médicos'}
+                </span>
+                {selected && (
+                    <button onClick={e => { e.stopPropagation(); clear(); }} className="text-slate-300 hover:text-rose-400 transition">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
+            </div>
+            {open && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="p-2 border-b border-slate-50">
+                        <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)}
+                               placeholder="Nombre o documento..."
+                               className="w-full text-[11px] px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-400" />
+                    </div>
+                    <ul className="max-h-52 overflow-y-auto">
+                        <li onClick={clear} className="px-4 py-2 text-[11px] font-bold text-slate-400 hover:bg-slate-50 cursor-pointer">
+                            Todos los médicos
+                        </li>
+                        {filtered.length === 0 && (
+                            <li className="px-4 py-3 text-[11px] text-slate-400 text-center">Sin resultados</li>
+                        )}
+                        {filtered.map(m => (
+                            <li key={m.documento} onClick={() => select(m.documento)}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 transition ${String(value) === String(m.documento) ? 'bg-blue-50' : ''}`}>
+                                <p className="text-[11px] font-black text-slate-700 uppercase">{m.nombre}</p>
+                                <p className="text-[9px] text-slate-400">{m.documento}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function Ginicio({
-    auth, stats, tendencia, topProductos,
-    visitadoresResumen, visitasPorEstado, ultimasTransacciones,
-    mesActual,
+    auth, stats, tendencia, topProductos, topMedicos = [],
+    visitadoresResumen, visitadoresAnalisis = [], visitasPorEstado,
+    filtros, medicos = [],
 }) {
-    const inputRef = useRef(null);
+    const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
+    const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
+    const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
 
-    const navMes = delta => {
-        const [y, m] = (mesActual ?? '').split('-').map(Number);
-        const d = new Date(y, m - 1 + delta, 1);
-        const nuevo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        router.get(route('Ginicio'), { mes: nuevo }, { preserveScroll: false });
+    const isFirstRender = useRef(true);
+    const timerRef      = useRef(null);
+
+    useEffect(() => {
+        if (isFirstRender.current) { isFirstRender.current = false; return; }
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+            router.get(route('Ginicio'), {
+                fecha_inicio:     fechaInicio,
+                fecha_fin:        fechaFin,
+                medico_documento: medicoDoc || undefined,
+            }, { preserveState: true });
+        }, 500);
+    }, [fechaInicio, fechaFin, medicoDoc]);
+
+    const limpiar = () => {
+        clearTimeout(timerRef.current);
+        router.get(route('Ginicio'));
     };
-    // Tendencia: label corto por mes
+
+    const ticketPromedio = (stats?.total_transacciones ?? 0) > 0
+        ? (stats.valor_comprado / stats.total_transacciones) : 0;
+    const efectividadPct = (stats?.unidades_compradas ?? 0) > 0
+        ? Math.round((stats.unidades_formuladas / stats.unidades_compradas) * 100) : 0;
+
     const tendenciaData = (tendencia ?? []).map(d => ({
-        label: d.mes?.slice(0, 7),
-        comprado:  Number(d.valor_comprado),
-        formulado: Number(d.valor_formulado),
+        label:    d.mes?.slice(0, 7),
+        comprado: Number(d.valor_comprado),
+        formulado:Number(d.valor_formulado),
     }));
 
-    // Pie de visitas
     const pieVisitas = (visitasPorEstado ?? []).map(v => ({
         name:  v.estado,
         value: Number(v.total),
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    // Visitadores para barras
-    const visitadoresData = (visitadoresResumen ?? []).map(v => ({
-        name:       `${v.nombre} ${v.apellido}`.slice(0, 18),
-        efectivas:  Number(v.efectivas),
-        programadas:Number(v.programadas),
-        canceladas: Number(v.canceladas),
-    }));
+    const medicosData = (topMedicos ?? []).slice(0, 8);
+
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -126,63 +197,54 @@ export default function Ginicio({
 
             <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
 
-                {/* ── ENCABEZADO ─────────────────────────────────── */}
-                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex items-center justify-between gap-4 shadow-sm">
-                    <div>
+                {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
+                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-[80px] z-40 shadow-sm">
+                    <div className="flex-1 min-w-0">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
                         <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
                     </div>
-
-                    {/* Navegador de mes */}
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
-                        <button onClick={() => navMes(-1)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors text-slate-500 hover:text-blue-600 shadow-sm">
-                            <FaChevronLeft className="text-[10px]" />
-                        </button>
-
-                        <div className="relative cursor-pointer" onClick={() => inputRef.current?.showPicker?.()}>
-                            <div className="flex items-center gap-2 px-3">
-                                <FaCalendar className="text-[#4184F0] text-[12px]" />
-                                <span className="text-[12px] font-black text-slate-700 capitalize whitespace-nowrap">
-                                    {labelMes(mesActual)}
-                                </span>
-                            </div>
-                            <input
-                                ref={inputRef}
-                                type="month"
-                                value={mesActual ?? ''}
-                                onChange={e => router.get(route('Ginicio'), { mes: e.target.value }, { preserveScroll: false })}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                            />
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Desde</p>
+                            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                                   className="text-[11px] font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-400" />
                         </div>
-
-                        <button onClick={() => navMes(1)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors text-slate-500 hover:text-blue-600 shadow-sm">
-                            <FaChevronRight className="text-[10px]" />
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Hasta</p>
+                            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                                   className="text-[11px] font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Médico</p>
+                            <MedicoSearch medicos={medicos} value={medicoDoc} onChange={setMedicoDoc} />
+                        </div>
+                        <button onClick={limpiar}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition">
+                            Limpiar
                         </button>
                     </div>
                 </div>
 
                 <div className="px-8 pt-7 space-y-7">
 
-                    {/* ── KPI CARDS ──────────────────────────────── */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-                        <KpiCard icon={<FaUsers />}          label="Visitadores"       value={fmt(stats?.visitadores)}        accent="#4184F0" href="/Gvisitadores" />
-                        <KpiCard icon={<FaUserDoctor />}     label="Médicos"            value={fmt(stats?.medicos)}            accent="#3D3FD8" href="/Gmedicos" />
-                        <KpiCard icon={<FaUserClock />}      label="Méd. Temporales"    value={fmt(stats?.medicos_temporales)} accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard icon={<FaCalendarCheck />}  label="Médicos con Tx"     value={fmt(stats?.medicos_con_tx)}    accent="#06b6d4" />
-                        <KpiCard icon={<FaFileInvoiceDollar />} label="Tx del mes"      value={fmt(stats?.transacciones_mes)} accent="#8b5cf6" href="/Gtransacciones" />
-                        <KpiCard icon={<FaChartLine />}      label="Un. Compradas"      value={fmt(stats?.unidades_compradas)} accent="#10b981" />
-                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado_mes)}  sub={labelMes(mesActual)} accent="#10b981" />
-                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado_mes)} sub={labelMes(mesActual)} accent="#8b5cf6" />
+                    {/* ── KPI CARDS ────────────────────────────────── */}
+                    <div className="grid grid-cols-3 xl:grid-cols-9 gap-3">
+                        <KpiCard icon={<FaUsers />}             label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard icon={<FaUserDoctor />}        label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard icon={<FaUserClock />}         label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard icon={<FaFileInvoiceDollar />} label="Transacciones"   value={fmt(stats?.total_transacciones)} accent="#8b5cf6" href="/Gtransacciones" />
+                        <KpiCard icon={<FaCalendarCheck />}     label="Méd. con Tx"     value={fmt(stats?.medicos_con_tx)}      accent="#06b6d4" />
+                        <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
+                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />
+                        <KpiCard label="Efectividad"     value={`${efectividadPct}%`}          sub="formuladas / compradas"        accent={efectividadPct >= 70 ? '#10b981' : efectividadPct >= 40 ? '#f59e0b' : '#ef4444'} />
                     </div>
 
-                    {/* ── FILA 1: Tendencia + Visitas ─────────────── */}
+                    {/* ── FILA 1: Tendencia + Visitas ──────────────── */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-                        {/* Tendencia de valor 7 meses */}
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Histórico" title="Tendencia de valor — todos los meses" />
+                            <SectionHeader label="Histórico" title="Tendencia de valor en el período" />
                             {tendenciaData.length === 0 ? (
                                 <div className="flex items-center justify-center h-56 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
@@ -210,9 +272,8 @@ export default function Ginicio({
                             )}
                         </div>
 
-                        {/* Visitas por estado */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Visitas" title="Estado de todas las visitas" />
+                            <SectionHeader label="Visitas" title="Estado de visitas en el período" />
                             {pieVisitas.length === 0 ? (
                                 <div className="flex items-center justify-center h-40 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
@@ -220,7 +281,7 @@ export default function Ginicio({
                                     <ResponsiveContainer width="100%" height={160}>
                                         <PieChart>
                                             <Pie data={pieVisitas} cx="50%" cy="50%" innerRadius={44} outerRadius={68}
-                                                dataKey="value" paddingAngle={3}>
+                                                 dataKey="value" paddingAngle={3}>
                                                 {pieVisitas.map((e, i) => <Cell key={i} fill={e.color} />)}
                                             </Pie>
                                             <Tooltip formatter={v => fmt(v)} />
@@ -240,142 +301,155 @@ export default function Ginicio({
                         </div>
                     </div>
 
-                    {/* ── FILA 2: Top productos + Visitadores ─────── */}
+                    {/* ── FILA 2: Top productos + Top médicos ──────── */}
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
-                        {/* Top productos del mes */}
+                        {/* Top productos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label={`Productos · ${labelMes(mesActual)}`} title="Top productos por valor comprado" />
-                            {topProductos?.length === 0 ? (
-                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos este mes</div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {(topProductos ?? []).map((p, i) => {
-                                        const max = topProductos[0]?.valor_comprado ?? 1;
-                                        const pct = Math.round((p.valor_comprado / max) * 100);
-                                        return (
-                                            <div key={i}>
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white"
-                                                              style={{ background: PROD_COLORS[i] }}>
-                                                            {i + 1}
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-slate-700">{p.nombre}</span>
+                            <SectionHeader label="Productos · período" title="Top productos por valor" />
+                            {(topProductos?.length === 0) ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (() => {
+                                const maxC = topProductos[0]?.valor_comprado ?? 1;
+                                const maxF = Math.max(...(topProductos.map(x => x.valor_formulado ?? 0)), 1);
+                                return (
+                                    <div className="space-y-4">
+                                        {(topProductos ?? []).map((p, i) => {
+                                            const pctC = Math.round((p.valor_comprado / maxC) * 100);
+                                            const pctF = Math.round(((p.valor_formulado ?? 0) / maxF) * 100);
+                                            return (
+                                                <div key={i}>
+                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                                                              style={{ background: PROD_COLORS[i] }}>{i + 1}</span>
+                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{p.nombre}</span>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-slate-800">{fmtM(p.valor_comprado)}</span>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full" style={{ width: `${pctC}%`, background: PROD_COLORS[i] }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-slate-700 w-14 text-right shrink-0">{fmtM(p.valor_comprado)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full" style={{ width: `${pctF}%`, background: '#8b5cf6' }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-purple-600 w-14 text-right shrink-0">{fmtM(p.valor_formulado ?? 0)}</span>
+                                                    </div>
                                                 </div>
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div className="h-full rounded-full transition-all"
-                                                         style={{ width: `${pct}%`, background: PROD_COLORS[i] }} />
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Top médicos */}
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Ranking" title="Top médicos por unidades" />
+                            {medicosData.length === 0 ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (() => {
+                                const maxC = Math.max(...medicosData.map(m => m.compradas), 1);
+                                const maxF = Math.max(...medicosData.map(m => m.formuladas), 1);
+                                return (
+                                    <div className="space-y-4">
+                                        {medicosData.map((m, i) => (
+                                            <div key={i} className="flex items-start gap-3">
+                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                    {i + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] font-black text-slate-700 uppercase leading-tight mb-1.5">{m.nombre}</p>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Compradas</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-[#4184F0] rounded-full" style={{ width: `${(m.compradas / maxC) * 100}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-[#4184F0] w-10 text-right shrink-0">{fmt(m.compradas)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Formuladas</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-[#8b5cf6] rounded-full" style={{ width: `${(m.formuladas / maxF) * 100}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-[#8b5cf6] w-10 text-right shrink-0">{fmt(m.formuladas)}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Visitadores: visitas por estado */}
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Equipo" title="Visitas por visitador" />
-                            {visitadoresData.length === 0 ? (
-                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height={visitadoresData.length * 52 + 20}>
-                                    <BarChart data={visitadoresData} layout="vertical"
-                                        margin={{ top: 0, right: 20, left: 8, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                        <XAxis type="number" tick={{ fontSize: 9, fill: '#94a3b8' }} allowDecimals={false} />
-                                        <YAxis type="category" dataKey="name" width={120}
-                                            tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
-                                        <Tooltip content={<ChartTooltip />} />
-                                        <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-                                        <Bar dataKey="efectivas"   name="Efectivas"   fill="#10b981" radius={[0,4,4,0]} barSize={10} />
-                                        <Bar dataKey="programadas" name="Programadas" fill="#4184F0" radius={[0,4,4,0]} barSize={10} />
-                                        <Bar dataKey="canceladas"  name="Canceladas"  fill="#ef4444" radius={[0,4,4,0]} barSize={10} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 
-                    {/* ── FILA 3: Últimas transacciones + Accesos ─── */}
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-                        {/* Últimas transacciones */}
-                        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Actividad reciente</p>
-                                    <p className="text-[13px] font-black text-slate-800">Últimas transacciones</p>
+                    {/* ── ANÁLISIS VISITADORES ──────────────────────── */}
+                    {visitadoresAnalisis.length > 0 && (() => {
+                        const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-slate-50">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Equipo</p>
+                                    <p className="text-[13px] font-black text-slate-800">Análisis de visitadores</p>
                                 </div>
-                                <Link href="/Gtransacciones"
-                                    className="text-[9px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-wider flex items-center gap-1">
-                                    Ver todas <FaArrowRight className="text-[8px]" />
-                                </Link>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-indigo-600">
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Visitador</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Méd. activos</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Visitas</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectivas</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectividad</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Valor comprado</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider">Valor formulado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {visitadoresAnalisis.map((v, i) => {
+                                                const pct = Math.round((v.valor_comprado / maxVal) * 100);
+                                                const ef  = v.efectividad;
+                                                const efColor = ef >= 70 ? '#10b981' : ef >= 40 ? '#f59e0b' : '#ef4444';
+                                                return (
+                                                    <tr key={i} className="hover:bg-indigo-50/20 transition-colors">
+                                                        <td className="px-5 py-3 border-r border-slate-50">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 shrink-0">{i + 1}</div>
+                                                                <p className="text-[10px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.medicos_activos}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.total_visitas}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-emerald-600">{v.visitas_efectivas}</td>
+                                                        <td className="px-5 py-3 border-r border-slate-50 text-center">
+                                                            <span className="inline-block text-[9px] font-black px-2 py-0.5 rounded-full border"
+                                                                  style={{ color: efColor, background: `${efColor}18`, borderColor: `${efColor}40` }}>
+                                                                {ef}%
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-5 py-3 border-r border-slate-50">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-indigo-600 whitespace-nowrap">{fmtM(v.valor_comprado)}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-[10px] font-black text-purple-600">{fmtM(v.valor_formulado)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-100">
-                                        <th className="px-5 py-2.5 text-[9px] font-black uppercase text-slate-400">Médico</th>
-                                        <th className="px-5 py-2.5 text-[9px] font-black uppercase text-slate-400">Producto</th>
-                                        <th className="px-5 py-2.5 text-[9px] font-black uppercase text-slate-400 text-center">Fecha</th>
-                                        <th className="px-5 py-2.5 text-[9px] font-black uppercase text-slate-400 text-right">Val. Comprado</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {(ultimasTransacciones ?? []).map((t, i) => (
-                                        <tr key={i} className="hover:bg-blue-50/20 transition-colors">
-                                            <td className="px-5 py-2.5">
-                                                <p className="text-[10px] font-black text-slate-700 uppercase leading-none">{t.nombre_medico}</p>
-                                                <p className="text-[9px] text-slate-400">{t.medico_documento}</p>
-                                            </td>
-                                            <td className="px-5 py-2.5">
-                                                <p className="text-[10px] font-bold text-slate-600">{t.nombre_producto}</p>
-                                            </td>
-                                            <td className="px-5 py-2.5 text-center">
-                                                <span className="text-[9px] font-black bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded">
-                                                    {t.fecha}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-2.5 text-right text-[10px] font-black text-emerald-600">
-                                                {fmtM(t.valor_comprado)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        );
+                    })()}
 
-                        {/* Accesos rápidos */}
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Navegación" title="Accesos rápidos" />
-                            <div className="space-y-3">
-                                {[
-                                    { label: 'Importar Transacciones', sub: 'Cargar Excel de ventas', href: '/Gtransacciones', color: '#4184F0', icon: <FaFileInvoiceDollar /> },
-                                    { label: 'Validar Médicos Temp.', sub: stats?.medicos_temporales > 0 ? `${stats.medicos_temporales} pendiente(s)` : 'Sin pendientes', href: '/GmedicosTemporales', color: '#f59e0b', icon: <FaUserClock /> },
-                                    { label: 'Ver Métricas Detalladas', sub: 'Análisis por período y médico', href: '/Metricas', color: '#3D3FD8', icon: <FaChartLine /> },
-                                    { label: 'Gestión de Visitadores', sub: 'Equipo de ventas', href: '/Gvisitadores', color: '#10b981', icon: <FaUsers /> },
-                                    { label: 'Gestión de Médicos', sub: 'Base de médicos registrados', href: '/Gmedicos', color: '#8b5cf6', icon: <FaUserDoctor /> },
-                                ].map((item, i) => (
-                                    <Link key={i} href={item.href}
-                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
-                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                                             style={{ background: `${item.color}18` }}>
-                                            <span style={{ color: item.color }} className="text-[13px]">{item.icon}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-black text-slate-700 leading-none">{item.label}</p>
-                                            <p className="text-[9px] text-slate-400 mt-0.5">{item.sub}</p>
-                                        </div>
-                                        <FaArrowRight className="text-slate-200 group-hover:text-blue-400 text-[10px] shrink-0 transition-colors" />
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-
-                    </div>
                 </div>
             </div>
         </PanelAdmin>

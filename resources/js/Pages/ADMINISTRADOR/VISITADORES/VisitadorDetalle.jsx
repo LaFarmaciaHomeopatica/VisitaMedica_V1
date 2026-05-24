@@ -128,7 +128,7 @@ export default function VisitadorDetalle({
         label:    d.mes,
         comprado: Number(d.valor_comprado),
         formulado:Number(d.valor_formulado),
-    }));
+    })).slice(-12);
 
     const prodData = (topProductos ?? []).map(p => ({
         name:  p.nombre,

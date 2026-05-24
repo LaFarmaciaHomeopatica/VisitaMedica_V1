@@ -107,11 +107,46 @@ class MetricasController extends Controller
             ->orderByDesc('compradas')
             ->get();
 
+        // --- Análisis de visitadores ---
+        $visitadoresAnalisis = DB::table('visitadores as v')
+            ->leftJoin('medicos as m', 'm.visitador_id', '=', 'v.id')
+            ->leftJoin('transacciones as t', function ($j) use ($fechaInicio, $fechaFin) {
+                $j->on('t.medico_documento', '=', 'm.documento')
+                  ->whereBetween('t.fecha', [$fechaInicio, $fechaFin]);
+            })
+            ->leftJoin('visitas as vis', function ($j) use ($fechaInicio, $fechaFin) {
+                $j->on('vis.visitador_id', '=', 'v.id')
+                  ->whereBetween('vis.fecha_programada', [$fechaInicio, $fechaFin]);
+            })
+            ->select(
+                'v.id',
+                DB::raw("CONCAT(v.nombre, ' ', v.apellido) as nombre"),
+                DB::raw('COALESCE(SUM(t.valor_comprado),  0) as valor_comprado'),
+                DB::raw('COALESCE(SUM(t.valor_formulado), 0) as valor_formulado'),
+                DB::raw('COUNT(DISTINCT t.medico_documento)  as medicos_activos'),
+                DB::raw('COUNT(DISTINCT vis.id)              as total_visitas'),
+                DB::raw("COUNT(DISTINCT CASE WHEN vis.estado = 'efectiva' THEN vis.id END) as visitas_efectivas")
+            )
+            ->groupBy('v.id', 'v.nombre', 'v.apellido')
+            ->orderByDesc('valor_comprado')
+            ->get()
+            ->map(fn($v) => [
+                'id'               => $v->id,
+                'nombre'           => $v->nombre,
+                'valor_comprado'   => (float) $v->valor_comprado,
+                'valor_formulado'  => (float) $v->valor_formulado,
+                'medicos_activos'  => (int)   $v->medicos_activos,
+                'total_visitas'    => (int)   $v->total_visitas,
+                'visitas_efectivas'=> (int)   $v->visitas_efectivas,
+                'efectividad'      => $v->total_visitas > 0
+                    ? round(($v->visitas_efectivas / $v->total_visitas) * 100, 1) : 0,
+            ]);
+
         // --- Lista de médicos para el filtro ---
         $medicosLista = Medico::select('documento', 'nombre', 'apellido')
             ->get()->map(fn($m) => [
-                'documento' => $m->documento,
-                'nombre'    => "{$m->nombre} {$m->apellido}",
+                'documento' => $m->documento ?? '',
+                'nombre'    => trim(($m->nombre ?? '') . ' ' . ($m->apellido ?? '')),
                 'tipo'      => 'registrado',
             ]);
 
@@ -131,9 +166,10 @@ class MetricasController extends Controller
             ],
             'tendencia'    => $tendencia,
             'topProductos' => $topProductos,
-            'topMedicos'   => $topMedicos,
-            'tabla'        => $tabla,
-            'medicos'      => $medicosLista,
+            'topMedicos'          => $topMedicos,
+            'tabla'               => $tabla,
+            'medicos'             => $medicosLista,
+            'visitadoresAnalisis' => $visitadoresAnalisis,
         ]);
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import * as XLSX from 'xlsx';
 
@@ -8,6 +8,9 @@ export const useProductosImport = (productos) => {
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('todos');
+    const fileInputRef = useRef(null);
+
+    const handleImportClick = () => fileInputRef.current?.click();
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -87,11 +90,13 @@ export const useProductosImport = (productos) => {
     };
 
     return {
+        fileInputRef,
         previewData,
         duplicatesFound,
         activeTab, setActiveTab,
         isPreviewModalOpen, setIsPreviewModalOpen,
         isWarningModalOpen, setIsWarningModalOpen,
+        handleImportClick,
         handleFileChange,
         handleProcessImport,
         executeServerImport,
