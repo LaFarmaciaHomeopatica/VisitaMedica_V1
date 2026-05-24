@@ -13,7 +13,7 @@ export const useTransaccionForm = () => {
         unidades_formuladas: 0,
         valor_comprado: 0,
         valor_formulado: 0,
-        semana: '',
+        fecha: '',
     });
 
     const openCreateModal = () => {
@@ -34,7 +34,7 @@ export const useTransaccionForm = () => {
             unidades_formuladas: t.unidades_formuladas || 0,
             valor_comprado: t.valor_comprado || 0,
             valor_formulado: t.valor_formulado || 0,
-            semana: t.semana || '',
+            fecha: t.fecha || '',
         });
         setIsModalOpen(true);
     };

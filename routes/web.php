@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\visitador\MedicoController;
 use App\Http\Controllers\visitador\VisitadorController;
 use App\Http\Controllers\visitador\VisitaController;
+use App\Http\Controllers\administrador\GinicioController;
 use App\Http\Controllers\administrador\DvisitadoresController;
 use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
@@ -13,6 +14,7 @@ use App\Http\Controllers\administrador\ProductosController;
 use App\Http\Controllers\administrador\TransaccionesController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
 use App\Http\Controllers\administrador\MetricasController;
+use App\Http\Controllers\administrador\MetasController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -35,15 +37,15 @@ Route::middleware(['auth'])->group(function () {
     //|--- GRUPO ADMINISTRADOR (id_rol 1)
 
     Route::middleware(['role:1'])->group(function () {
-        Route::get('/PanelAdmin', function () {
-            return Inertia::render('ADMINISTRADOR/Ginicio'); 
-        })->name('Ginicio');
-
-        Route::get('/Ginicio', function () {
-            return Inertia::render('ADMINISTRADOR/Ginicio'); 
-        })->name('Ginicio');
+        Route::get('/PanelAdmin', [GinicioController::class, 'index'])->name('Ginicio');
+        Route::get('/Ginicio',   [GinicioController::class, 'index']);
 
 Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.index');
+
+        Route::get('/Gmetas', [MetasController::class, 'index'])->name('Gmetas.index');
+        Route::post('/Gmetas/upsert', [MetasController::class, 'upsert'])->name('Gmetas.upsert');
+        Route::post('/Gmetas/masivo', [MetasController::class, 'masivo'])->name('Gmetas.masivo');
+        Route::delete('/Gmetas/{id}', [MetasController::class, 'destroy'])->name('Gmetas.destroy');
 
 
 
@@ -55,12 +57,14 @@ Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.in
 
         // CRUD de Visitadores unificado
         Route::get('/Gvisitadores', [DvisitadoresController::class, 'index'])->name('Gvisitadores.index');
+        Route::get('/Gvisitadores/{id}/detalle', [DvisitadoresController::class, 'show'])->name('Gvisitadores.show');
         Route::post('/Gvisitadores', [DvisitadoresController::class, 'store'])->name('Gvisitadores.store');
         Route::put('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'update'])->name('Gvisitadores.update');
         Route::delete('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'destroy'])->name('Gvisitadores.destroy');
 
         // CRUD de Médicos (Aquí se ejecutan los datos del Medico2Controller)
         Route::get('/Gmedicos', [Medico2Controller::class, 'index'])->name('Gmedicos.index');
+        Route::get('/Gmedicos/{id}/detalle', [Medico2Controller::class, 'show'])->name('Gmedicos.show');
         Route::post('/Gmedicos', [Medico2Controller::class, 'store'])->name('Gmedicos.store');
         Route::put('/Gmedicos/{medico}', [Medico2Controller::class, 'update'])->name('Gmedicos.update');
         Route::delete('/Gmedicos/{medico}', [Medico2Controller::class, 'destroy'])->name('Gmedicos.destroy');
@@ -107,9 +111,12 @@ Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.in
 
     Route::get('/GmedicosTemporales', [MedicoTemporalController::class, 'index'])->name('GmedicosTemporales.index');
     Route::post('/GmedicosTemporales/{id}/promover', [MedicoTemporalController::class, 'promover'])->name('GmedicosTemporales.promover');
+    Route::delete('/GmedicosTemporales/{id}', [MedicoTemporalController::class, 'destroy'])->name('GmedicosTemporales.destroy');
+    Route::delete('/GmedicosTemporales', [MedicoTemporalController::class, 'destroyMultiple'])->name('GmedicosTemporales.destroyMultiple');
 
    // Ejemplo de cómo deberían estar tus rutas
-Route::get('/Gtransacciones/exportar', [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
+Route::get('/Gtransacciones/exportar',  [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
+Route::get('/Gtransacciones/plantilla', [TransaccionesController::class, 'plantilla'])->name('Gtransacciones.plantilla');
 Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'importar'])->name('Gtransacciones.importar');
 
 

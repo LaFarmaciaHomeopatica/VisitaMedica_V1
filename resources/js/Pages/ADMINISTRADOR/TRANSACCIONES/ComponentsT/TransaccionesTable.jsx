@@ -57,9 +57,18 @@ export default function TransaccionesTable({
 
                                 {visibleColumns.medico && (
                                     <td className="px-6 py-2 border-r border-slate-50">
-                                        <span className="text-[11px] font-bold text-slate-700 uppercase leading-none">
-                                            {t.medico ? `${t.medico.nombre} ${t.medico.apellido}` : '---'}
-                                        </span>
+                                        {t.medico ? (
+                                            <span className="text-[11px] font-bold text-slate-700 uppercase leading-none">
+                                                {t.medico.nombre} {t.medico.apellido}
+                                            </span>
+                                        ) : t.medico_temporal_nombre ? (
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="text-[11px] font-bold text-amber-700 uppercase leading-none">{t.medico_temporal_nombre}</span>
+                                                <span className="text-[8px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase">Temp</span>
+                                            </span>
+                                        ) : (
+                                            <span className="text-[11px] text-slate-400">---</span>
+                                        )}
                                     </td>
                                 )}
 

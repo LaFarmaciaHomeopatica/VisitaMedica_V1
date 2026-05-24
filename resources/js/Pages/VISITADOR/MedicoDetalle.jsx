@@ -31,7 +31,7 @@ const MedicoDetalle = ({ medico }) => {
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen pb-20 font-sans text-gray-800">
-            <Head title={`Perfil - ${medico.nombre_completo}`} />
+            <Head title={`Perfil - ${medico.nombre} ${medico.apellido}`} />
 
             {/* Header Adaptado con estilo de ListadoMedicos pero tamaño compacto */}
             <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px] md:rounded-b-[35px]">

@@ -44,11 +44,14 @@ class HandleInertiaRequests extends Middleware
             'user' => $user ? [
                 'id'         => $user->id,
                 'username'   => $user->username,
-                // Si el rol existe en la DB, saca el nombre. Si no, pon 'Usuario'
-                'rol_nombre' => $user->rol->nombre ?? 'Usuario', 
+                'rol_nombre' => $user->rol->nombre ?? 'Usuario',
                 'nombre'     => $visitador->nombre ?? '',
                 'apellido'   => $visitador->apellido ?? '',
             ] : null,
+        ],
+        'flash' => [
+            'import_result' => $request->session()->get('import_result'),
+            'message'       => $request->session()->get('message'),
         ],
     ];
 }

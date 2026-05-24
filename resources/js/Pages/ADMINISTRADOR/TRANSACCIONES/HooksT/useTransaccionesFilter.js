@@ -10,12 +10,18 @@ export const useTransaccionesFilter = (transacciones = []) => {
 
     const filteredItems = useMemo(() => {
         const term = searchTerm.toLowerCase();
-        return safeTransacciones.filter(t =>
-            t.medico?.nombre?.toLowerCase().includes(term) ||
-            t.medico_documento?.toString().includes(term) ||
-            t.producto?.nombre?.toLowerCase().includes(term) ||
-            t.semana?.toString().includes(term)
-        );
+        return safeTransacciones.filter(t => {
+            const nombreMedico = t.medico
+                ? `${t.medico.nombre} ${t.medico.apellido}`.toLowerCase()
+                : (t.medico_temporal_nombre?.toLowerCase() ?? '');
+            return (
+                nombreMedico.includes(term) ||
+                t.medico_documento?.toString().includes(term) ||
+                t.producto?.nombre?.toLowerCase().includes(term) ||
+                t.producto_codigo?.toLowerCase().includes(term) ||
+                t.fecha?.toString().includes(term)
+            );
+        });
     }, [safeTransacciones, searchTerm]);
 
     const totalPages = useMemo(

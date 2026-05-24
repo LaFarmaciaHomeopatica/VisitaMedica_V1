@@ -39,17 +39,34 @@ class MedicoTemporalController extends Controller
             'horario_atencion'      => 'nullable|string|max:255',
             'direccion_detalles'    => 'nullable|string|max:500',
             'geolocalizacion'       => 'nullable|string|max:255',
-            'categoria_id'          => 'nullable|exists:categorias,id',
+            'categoria_id'          => 'nullable|exists:categoria,id',
             // Corregido: Ahora valida que el ID exista en la tabla 'visitadores'
             'visitador_id'          => 'nullable|exists:visitadores,id', 
             'fecha_inicio_relacion' => 'nullable|date',
         ]);
 
         DB::transaction(function () use ($validated, $temporal) {
-            Medico::create($validated);  // 1. Crea en tabla medicos
-            $temporal->delete();         // 2. Elimina de medicos_temporales
+            Medico::create($validated);
+            $temporal->delete();
         });
 
         return redirect()->back()->with('success', 'Médico oficializado correctamente.');
+    }
+
+    public function destroy($id)
+    {
+        MedicoTemporal::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Registro eliminado.');
+    }
+
+    public function destroyMultiple(Request $request)
+    {
+        $request->validate([
+            'ids'   => 'required|array',
+            'ids.*' => 'exists:medicos_temporales,id',
+        ]);
+
+        MedicoTemporal::whereIn('id', $request->ids)->delete();
+        return redirect()->back()->with('success', 'Registros eliminados.');
     }
 }

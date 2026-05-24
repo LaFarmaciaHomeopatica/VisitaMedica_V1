@@ -4,7 +4,7 @@ export default function TransaccionesToolbar({
     searchTerm, onSearchChange,
     selectedIds,
     onDelete, onNew,
-    onFileChange, onExport,
+    onFileChange, onExport, onDownloadTemplate,
     currentItems = [], onSelectAll,
     itemsPerPage, onItemsPerPageChange,
     currentPage, onPageChange, totalPages,
@@ -167,6 +167,17 @@ export default function TransaccionesToolbar({
                         className="text-emerald-600 hover:bg-emerald-50 px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all"
                     >
                         EXPORTAR
+                    </button>
+
+                    <button
+                        onClick={onDownloadTemplate}
+                        className="text-slate-500 hover:bg-slate-100 px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all border border-slate-200 flex items-center gap-1"
+                        title="Descargar plantilla de importación"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PLANTILLA
                     </button>
 
                     <button

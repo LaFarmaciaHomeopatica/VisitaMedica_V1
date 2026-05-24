@@ -1,5 +1,7 @@
 // resources/js/Pages/ADMINISTRADOR/VISITADORES/ComponentsVD/VisitadorTable.jsx
 import React from 'react';
+import { Link } from '@inertiajs/react';
+import { FaChartLine } from 'react-icons/fa6';
 
 const VisitadorTable = ({ currentItems, selectedIds, onSelectOne, onEdit, onDelete }) => {
     return (
@@ -91,6 +93,13 @@ const VisitadorTable = ({ currentItems, selectedIds, onSelectOne, onEdit, onDele
                                     {/* Acciones */}
                                     <td className="px-6 py-2 text-center">
                                         <div className="flex gap-1 justify-center">
+                                            <Link
+                                                href={route('Gvisitadores.show', v.id)}
+                                                className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm inline-flex items-center"
+                                                title="Ver detalle"
+                                            >
+                                                <FaChartLine className="h-4 w-4" />
+                                            </Link>
                                             <button
                                                 onClick={() => onEdit(v)}
                                                 className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm"
