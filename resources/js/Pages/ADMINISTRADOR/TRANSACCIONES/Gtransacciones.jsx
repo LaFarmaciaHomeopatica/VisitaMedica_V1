@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
@@ -14,16 +14,25 @@ import TransaccionesPaginator from './ComponentsT/TransaccionesPaginator';
 import TransaccionesTable from './ComponentsT/TransaccionesTable';
 import TransaccionFormModal from './ComponentsT/TransaccionFormModal';
 import TransaccionDeleteModal from './ComponentsT/TransaccionDeleteModal';
+import TransaccionesCalendar from './ComponentsT/TransaccionesCalendar';
 
-const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = [] }) => {
+const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = [], calendarData = {} }) => {
     const filter = useTransaccionesFilter(transacciones);
     const selection = useTransaccionesSelection();
     const form = useTransaccionForm();
     const columns = useColumnVisibility();
 
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [importing, setImporting] = useState(false);
+    const [importing, setImporting]     = useState(false);
     const [importResult, setImportResult] = useState(null);
+    const [showCalendar, setShowCalendar] = useState(false);
+    const tableRef = useRef(null);
+
+    const handleDayClick = (dateStr) => {
+        filter.setSearchTerm(dateStr);
+        setShowCalendar(false);
+        setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    };
 
     // --- Importación ---
     const handleImportExcel = (e) => {
@@ -71,6 +80,13 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
             <Head title="Gestión de Transacciones" />
 
             <div className="w-full min-h-screen flex flex-col bg-white">
+
+                {showCalendar && (
+                    <div className="px-6 pt-4 pb-2">
+                        <TransaccionesCalendar calendarData={calendarData} onDayClick={handleDayClick} />
+                    </div>
+                )}
+
                 <TransaccionesToolbar
                     searchTerm={filter.searchTerm}
                     onSearchChange={filter.setSearchTerm}
@@ -96,7 +112,25 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
                     setShowColumnFilter={columns.setShowColumnFilter}
                     columnFilterRef={columns.columnFilterRef}
                     onToggleColumn={columns.toggleColumn}
+                    showCalendar={showCalendar}
+                    onToggleCalendar={() => setShowCalendar(v => !v)}
                 />
+
+                {/* Badge filtro por día activo */}
+                {filter.searchTerm.match(/^\d{4}-\d{2}-\d{2}$/) && (
+                    <div ref={tableRef} className="px-6 py-2 flex items-center gap-2">
+                        <span className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase">
+                            Registros del {filter.searchTerm}
+                            <button onClick={() => filter.setSearchTerm('')}
+                                    className="ml-1 hover:text-blue-900 transition">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold">{filter.filteredItems.length} registros</span>
+                    </div>
+                )}
 
                 <TransaccionesTable
                     currentItems={filter.currentItems}

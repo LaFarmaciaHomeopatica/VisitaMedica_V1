@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
@@ -9,6 +9,7 @@ import { useMedicosTempSelection } from './HooksM/useMedicosTempSelection';
 import MedicosTempToolbar    from './ComponentsM/MedicosTempToolbar';
 import MedicosTempTable      from './ComponentsM/MedicosTempTable';
 import MedicoTempPromoteModal from './ComponentsM/MedicoTempPromoteModal';
+import MedicoTempStatsPanel  from './ComponentsM/MedicoTempStatsPanel';
 
 const GmedicosTemporales = ({
     auth,
@@ -20,6 +21,7 @@ const GmedicosTemporales = ({
     const filter    = useMedicosTempFilter(medicosTemporales);
     const form      = useMedicoTempForm();
     const selection = useMedicosTempSelection();
+    const [statsmedico, setStatsmedico] = useState(null);
 
     const handleDeleteOne = (id) => {
         if (!confirm('¿Eliminar este médico temporal?')) return;
@@ -69,8 +71,14 @@ const GmedicosTemporales = ({
                     onSelectOne={selection.toggleSelectOne}
                     onPromote={form.openPromoteModal}
                     onDelete={handleDeleteOne}
+                    onStats={setStatsmedico}
                 />
             </div>
+
+            <MedicoTempStatsPanel
+                medico={statsmedico}
+                onClose={() => setStatsmedico(null)}
+            />
 
             <MedicoTempPromoteModal
                 isOpen={form.isModalOpen}

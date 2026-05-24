@@ -8,6 +8,7 @@ use App\Models\Medico;
 use App\Models\MedicoTemporal;
 use App\Models\Productos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Exports\TransaccionesExport;
 use App\Imports\TransaccionesImport;
@@ -30,10 +31,25 @@ class TransaccionesController extends Controller
             return $t;
         });
 
+        $calendarData = DB::table('transacciones')
+            ->select(
+                DB::raw('DATE(fecha) as dia'),
+                DB::raw('COUNT(*) as total_tx'),
+                DB::raw('COUNT(DISTINCT medico_documento) as total_medicos')
+            )
+            ->groupBy('dia')
+            ->orderBy('dia')
+            ->get()
+            ->mapWithKeys(fn($d) => [$d->dia => [
+                'total_tx' => (int) $d->total_tx,
+                'medicos'  => (int) $d->total_medicos,
+            ]]);
+
         return Inertia::render('ADMINISTRADOR/TRANSACCIONES/Gtransacciones', [
             'transacciones' => $transacciones,
-            'medicos' => Medico::select('nombre', 'apellido', 'documento')->get(),
-            'productos' => Productos::select('nombre', 'codigo')->get()
+            'medicos'       => Medico::select('nombre', 'apellido', 'documento')->get(),
+            'productos'     => Productos::select('nombre', 'codigo')->get(),
+            'calendarData'  => $calendarData,
         ]);
     }
 

@@ -59,7 +59,7 @@ class GinicioController extends Controller
             )
             ->groupBy('productos.nombre')
             ->orderByDesc('valor_comprado')
-            ->take(5)->get();
+            ->take(10)->get();
 
         // --- Top 10 médicos del período ---
         $medicoNombres = Medico::all(['documento', 'nombre', 'apellido'])

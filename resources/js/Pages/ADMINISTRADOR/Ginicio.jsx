@@ -5,9 +5,7 @@ import {
     AreaChart, Area, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import {
-    FaUsers, FaUserDoctor, FaUserClock, FaFileInvoiceDollar, FaCalendarCheck, FaArrowRight,
-} from 'react-icons/fa6';
+import { FaArrowRight } from 'react-icons/fa6';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
@@ -20,7 +18,7 @@ const fmtM = n => {
 };
 
 const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
-const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b'];
+const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16'];
 const COLORS_ESTADO = {
     efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
     cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
@@ -173,9 +171,6 @@ export default function Ginicio({
 
     const ticketPromedio = (stats?.total_transacciones ?? 0) > 0
         ? (stats.valor_comprado / stats.total_transacciones) : 0;
-    const efectividadPct = (stats?.unidades_compradas ?? 0) > 0
-        ? Math.round((stats.unidades_formuladas / stats.unidades_compradas) * 100) : 0;
-
     const tendenciaData = (tendencia ?? []).map(d => ({
         label:    d.mes?.slice(0, 7),
         comprado: Number(d.valor_comprado),
@@ -188,7 +183,7 @@ export default function Ginicio({
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    const medicosData = (topMedicos ?? []).slice(0, 8);
+    const medicosData = topMedicos ?? [];
 
 
     return (
@@ -228,16 +223,15 @@ export default function Ginicio({
                 <div className="px-8 pt-7 space-y-7">
 
                     {/* ── KPI CARDS ────────────────────────────────── */}
-                    <div className="grid grid-cols-3 xl:grid-cols-9 gap-3">
-                        <KpiCard icon={<FaUsers />}             label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
-                        <KpiCard icon={<FaUserDoctor />}        label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
-                        <KpiCard icon={<FaUserClock />}         label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard icon={<FaFileInvoiceDollar />} label="Transacciones"   value={fmt(stats?.total_transacciones)} accent="#8b5cf6" href="/Gtransacciones" />
-                        <KpiCard icon={<FaCalendarCheck />}     label="Méd. con Tx"     value={fmt(stats?.medicos_con_tx)}      accent="#06b6d4" />
+                    <div className="grid grid-cols-2 xl:grid-cols-8 gap-3">
+                        <KpiCard label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard label="Transacciones"   value={fmt(stats?.total_transacciones)} accent="#8b5cf6" href="/Gtransacciones" />
+                        <KpiCard label="Méd. con Tx"     value={fmt(stats?.medicos_con_tx)}      accent="#06b6d4" />
                         <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
                         <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
                         <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />
-                        <KpiCard label="Efectividad"     value={`${efectividadPct}%`}          sub="formuladas / compradas"        accent={efectividadPct >= 70 ? '#10b981' : efectividadPct >= 40 ? '#f59e0b' : '#ef4444'} />
                     </div>
 
                     {/* ── FILA 1: Tendencia + Visitas ──────────────── */}
@@ -391,60 +385,41 @@ export default function Ginicio({
                     {visitadoresAnalisis.length > 0 && (() => {
                         const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
                         return (
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                <div className="px-6 py-4 border-b border-slate-50">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Equipo</p>
-                                    <p className="text-[13px] font-black text-slate-800">Análisis de visitadores</p>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-indigo-600">
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Visitador</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Méd. activos</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Visitas</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectivas</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500 text-center">Efectividad</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider border-r border-indigo-500">Valor comprado</th>
-                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase tracking-wider">Valor formulado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {visitadoresAnalisis.map((v, i) => {
-                                                const pct = Math.round((v.valor_comprado / maxVal) * 100);
-                                                const ef  = v.efectividad;
-                                                const efColor = ef >= 70 ? '#10b981' : ef >= 40 ? '#f59e0b' : '#ef4444';
-                                                return (
-                                                    <tr key={i} className="hover:bg-indigo-50/20 transition-colors">
-                                                        <td className="px-5 py-3 border-r border-slate-50">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 shrink-0">{i + 1}</div>
-                                                                <p className="text-[10px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.medicos_activos}</td>
-                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.total_visitas}</td>
-                                                        <td className="px-5 py-3 border-r border-slate-50 text-center text-[10px] font-black text-emerald-600">{v.visitas_efectivas}</td>
-                                                        <td className="px-5 py-3 border-r border-slate-50 text-center">
-                                                            <span className="inline-block text-[9px] font-black px-2 py-0.5 rounded-full border"
-                                                                  style={{ color: efColor, background: `${efColor}18`, borderColor: `${efColor}40` }}>
-                                                                {ef}%
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-5 py-3 border-r border-slate-50">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
-                                                                </div>
-                                                                <span className="text-[10px] font-black text-indigo-600 whitespace-nowrap">{fmtM(v.valor_comprado)}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-5 py-3 text-[10px] font-black text-purple-600">{fmtM(v.valor_formulado)}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                                <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                <div className="space-y-5">
+                                    {visitadoresAnalisis.map((v, i) => {
+                                        const pctC = Math.round((v.valor_comprado  / maxVal) * 100);
+                                        const pctF = Math.round((v.valor_formulado / maxVal) * 100);
+                                        return (
+                                            <div key={i} className="flex items-start gap-3">
+                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
+                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                    {i + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-3 mb-1.5">
+                                                        <p className="text-[11px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
+                                                        <span className="text-[9px] text-slate-400 font-bold">{v.medicos_activos} méd. · {v.total_visitas} visitas</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pctC}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-indigo-600 w-16 text-right shrink-0">{fmtM(v.valor_comprado)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full bg-purple-400" style={{ width: `${pctF}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-purple-600 w-16 text-right shrink-0">{fmtM(v.valor_formulado)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );

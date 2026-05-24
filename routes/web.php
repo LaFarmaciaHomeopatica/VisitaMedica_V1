@@ -112,6 +112,7 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
 
 
     Route::get('/GmedicosTemporales', [MedicoTemporalController::class, 'index'])->name('GmedicosTemporales.index');
+    Route::get('/GmedicosTemporales/{id}/estadisticas', [MedicoTemporalController::class, 'estadisticas'])->name('GmedicosTemporales.estadisticas');
     Route::post('/GmedicosTemporales/{id}/promover', [MedicoTemporalController::class, 'promover'])->name('GmedicosTemporales.promover');
     Route::delete('/GmedicosTemporales/{id}', [MedicoTemporalController::class, 'destroy'])->name('GmedicosTemporales.destroy');
     Route::delete('/GmedicosTemporales', [MedicoTemporalController::class, 'destroyMultiple'])->name('GmedicosTemporales.destroyMultiple');

@@ -59,6 +59,58 @@ class MedicoTemporalController extends Controller
         return redirect()->back()->with('success', 'Registro eliminado.');
     }
 
+    public function estadisticas($id)
+    {
+        $medico = MedicoTemporal::findOrFail($id);
+        $doc    = $medico->documento;
+
+        $kpis = DB::table('transacciones')
+            ->where('medico_documento', $doc)
+            ->select(
+                DB::raw('COUNT(*)                               as total_transacciones'),
+                DB::raw('COALESCE(SUM(valor_comprado),  0)     as valor_comprado'),
+                DB::raw('COALESCE(SUM(valor_formulado), 0)     as valor_formulado'),
+                DB::raw('COALESCE(SUM(unidades_compradas),  0) as unidades_compradas'),
+                DB::raw('COALESCE(SUM(unidades_formuladas), 0) as unidades_formuladas')
+            )->first();
+
+        $tendencia = DB::table('transacciones')
+            ->where('medico_documento', $doc)
+            ->select(
+                DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
+                DB::raw('SUM(valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(unidades_compradas)  as unidades_compradas'),
+                DB::raw('COUNT(*)                 as transacciones')
+            )
+            ->groupBy('mes')->orderBy('mes')->get();
+
+        $topProductos = DB::table('transacciones')
+            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+            ->where('transacciones.medico_documento', $doc)
+            ->select(
+                'productos.nombre',
+                DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(transacciones.valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(transacciones.unidades_compradas)  as unidades')
+            )
+            ->groupBy('productos.nombre')
+            ->orderByDesc('valor_comprado')
+            ->take(5)->get();
+
+        return response()->json([
+            'medico'      => [
+                'id'           => $medico->id,
+                'documento'    => $medico->documento,
+                'nombre'       => $medico->nombre_referencia,
+                'origen_datos' => $medico->origen_datos,
+            ],
+            'kpis'        => $kpis,
+            'tendencia'   => $tendencia,
+            'topProductos'=> $topProductos,
+        ]);
+    }
+
     public function destroyMultiple(Request $request)
     {
         $request->validate([
