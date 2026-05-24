@@ -75,8 +75,8 @@ export default function MedicoDetalle({
     visitasStats, visitas, visitadoresAsignados,
 }) {
     const [tabActiva, setTabActiva] = useState('visitadores');
-    const [limLab, setLimLab]   = useState(10);
-    const [limProd, setLimProd] = useState(10);
+    const [limLab, setLimLab]   = useState(50);
+    const [limProd, setLimProd] = useState(50);
 
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },

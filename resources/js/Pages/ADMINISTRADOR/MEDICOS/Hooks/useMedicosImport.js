@@ -101,6 +101,54 @@ export const useMedicosImport = (medicos) => {
         else executeServerImport();
     };
 
+    const handleDownloadTemplate = ({ visitadores = [], tiposDocumento = [], categorias = [] } = {}) => {
+        const wb = XLSX.utils.book_new();
+
+        // ── Hoja 1: Plantilla ─────────────────────────────────────────────────
+        const headers = [
+            'documento', 'nombre', 'apellido', 'tipo_documento', 'especialidad',
+            'categoria', 'telefono_contacto', 'direccion_detalles', 'geolocalizacion',
+            'horario_atencion', 'visitador_asignado', 'fecha_inicio_relacion',
+        ];
+        const sample = [
+            '12345678', 'María', 'García', tiposDocumento[0]?.codigo ?? 'CC',
+            'Cardiología', categorias[0]?.nombre ?? '', '3001234567',
+            'Calle 10 # 5-20', '', 'Lunes-Viernes 8am-12pm',
+            visitadores[0] ? `${visitadores[0].nombre} ${visitadores[0].apellido}` : '',
+            '2024-01-15',
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+
+        // Ancho de columnas
+        ws['!cols'] = [
+            { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 26 }, { wch: 20 },
+            { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 20 },
+            { wch: 28 }, { wch: 26 }, { wch: 22 },
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Médicos');
+
+        // ── Hoja 2: Valores válidos ───────────────────────────────────────────
+        const refData = [['CÓDIGO (usar en archivo)', 'TIPO DE DOCUMENTO', 'CATEGORÍAS', 'VISITADORES (nombre completo)']];
+        const maxLen  = Math.max(tiposDocumento.length, categorias.length, visitadores.length, 1);
+
+        for (let i = 0; i < maxLen; i++) {
+            refData.push([
+                tiposDocumento[i]?.codigo ?? '',
+                tiposDocumento[i]?.nombre ?? '',
+                categorias[i]?.nombre    ?? '',
+                visitadores[i] ? `${visitadores[i].nombre} ${visitadores[i].apellido}` : '',
+            ]);
+        }
+
+        const wsRef = XLSX.utils.aoa_to_sheet(refData);
+        wsRef['!cols'] = [{ wch: 24 }, { wch: 30 }, { wch: 22 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, wsRef, 'Valores válidos');
+
+        XLSX.writeFile(wb, 'Plantilla_Medicos_LFH.xlsx');
+    };
+
     return {
         fileInputRef,
         previewData,
@@ -113,5 +161,6 @@ export const useMedicosImport = (medicos) => {
         handleFileChange,
         handleProcessImport,
         executeServerImport,
+        handleDownloadTemplate,
     };
 };

@@ -107,6 +107,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                     onDelete={handleOpenDelete}
                     onAssignVisitor={handleOpenAssign}
                     onExport={() => setIsExportModalOpen(true)}
+                    onTemplate={() => importHook.handleDownloadTemplate({ visitadores, tiposDocumento, categorias })}
                     onImport={importHook.handleImportClick}
                     onNew={form.openCreateModal}
                     fileInputRef={importHook.fileInputRef}

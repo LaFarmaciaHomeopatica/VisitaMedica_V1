@@ -19,7 +19,7 @@ const COLORS = ['#3D3FD8', '#4184F0', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'
 // ── KPI card ─────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, accent }) {
     return (
-        <div className={`bg-white rounded-2xl border-t-4 border-x border-b border-slate-100 px-5 py-4 shadow-sm`}
+        <div className="flex-1 min-w-0 bg-white rounded-2xl border-t-4 border-x border-b border-slate-100 px-5 py-4 shadow-sm"
              style={{ borderTopColor: accent }}>
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</p>
             <p className="text-[22px] font-black text-slate-800 mt-1 leading-none">{value}</p>
@@ -217,7 +217,7 @@ const Metricas = ({ auth, filtros, stats, tendencia, topProductos, topMedicos, t
                 <div className="px-8 pt-7 space-y-7">
 
                     {/* ── KPI CARDS ──────────────────────────────────── */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+                    <div className="flex gap-4">
                         <KpiCard label="Transacciones"    value={fmt(stats.total_transacciones)} accent="#4184F0" />
                         <KpiCard label="Médicos activos"  value={fmt(stats.medicos_activos)}     accent="#3D3FD8" />
                         <KpiCard label="Un. Compradas"    value={fmt(stats.compradas)}           accent="#06b6d4" />

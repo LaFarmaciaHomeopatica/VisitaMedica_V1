@@ -14,7 +14,7 @@ export const useVisitadores = (visitadores = []) => {
 
     // --- ESTADOS DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10); // Valor por defecto
+    const [itemsPerPage, setItemsPerPage] = useState(50); // Valor por defecto
 
     const form = useForm({
         id: null,
@@ -25,8 +25,6 @@ export const useVisitadores = (visitadores = []) => {
         tipo_documento_id: '',
         zona_id: '',
         estado: 'habilitado',
-        meta_visitas: '',
-        meta_dinero: '',
     });
 
     // --- EFECTO: BUSCAR USUARIO POR ID (DEBOUNCE) ---

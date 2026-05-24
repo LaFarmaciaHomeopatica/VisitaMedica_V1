@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 export const useVisitasFilter = (visitas, medicos, visitadores) => {
     const [searchTerm, setSearchTermRaw] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPageRaw] = useState(10);
+    const [itemsPerPage, setItemsPerPageRaw] = useState(50);
 
     const filteredVisitas = useMemo(() => {
         const search = searchTerm.toLowerCase();

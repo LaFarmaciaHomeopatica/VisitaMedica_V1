@@ -61,6 +61,31 @@ export const useProductosImport = (productos) => {
         });
     };
 
+    const handleDownloadTemplate = () => {
+        const wb = XLSX.utils.book_new();
+
+        const headers = ['codigo', 'nombre', 'laboratorio'];
+        const sample  = ['MED-001', 'Amoxicilina 500mg', 'Genfar'];
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+        ws['!cols'] = [{ wch: 16 }, { wch: 36 }, { wch: 26 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+
+        // Hoja de notas
+        const notas = [
+            ['CAMPO', 'DESCRIPCIÓN', 'OBLIGATORIO'],
+            ['codigo',      'Código único del producto (se usa para actualizar si ya existe)', 'SÍ'],
+            ['nombre',      'Nombre completo del producto', 'SÍ'],
+            ['laboratorio', 'Nombre del laboratorio fabricante. Si se omite se registra como S/L', 'NO'],
+        ];
+        const wsNotas = XLSX.utils.aoa_to_sheet(notas);
+        wsNotas['!cols'] = [{ wch: 16 }, { wch: 56 }, { wch: 14 }];
+        XLSX.utils.book_append_sheet(wb, wsNotas, 'Instrucciones');
+
+        XLSX.writeFile(wb, 'Plantilla_Productos_LFH.xlsx');
+    };
+
     return {
         previewData,
         duplicatesFound,
@@ -70,5 +95,6 @@ export const useProductosImport = (productos) => {
         handleFileChange,
         handleProcessImport,
         executeServerImport,
+        handleDownloadTemplate,
     };
 };

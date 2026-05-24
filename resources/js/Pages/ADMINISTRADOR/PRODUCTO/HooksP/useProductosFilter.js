@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 export const useProductosFilter = (productos) => {
     const [searchTerm, setSearchTermRaw] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPageRaw] = useState(10);
+    const [itemsPerPage, setItemsPerPageRaw] = useState(50);
 
     const filteredProductos = useMemo(() => {
         const term = searchTerm.toLowerCase();

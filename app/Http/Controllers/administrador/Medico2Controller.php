@@ -28,7 +28,7 @@ class Medico2Controller extends Controller
             // Cargamos también la relación categoria en el with si la tienes definida en el modelo Medico
             'medicos' => Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get(), 
             'visitadores' => Visitador::all(['id', 'nombre', 'apellido']),
-            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']),
+            'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
             'categorias' => Categoria::all(['id', 'nombre']) // <--- Enviado a la vista
         ]);
     }

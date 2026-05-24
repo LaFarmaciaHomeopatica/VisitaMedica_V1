@@ -61,6 +61,7 @@ Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.in
         Route::post('/Gvisitadores', [DvisitadoresController::class, 'store'])->name('Gvisitadores.store');
         Route::put('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'update'])->name('Gvisitadores.update');
         Route::delete('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'destroy'])->name('Gvisitadores.destroy');
+        Route::delete('/Gvisitadores', [DvisitadoresController::class, 'destroyBulk'])->name('Gvisitadores.destroyBulk');
 
         // CRUD de Médicos (Aquí se ejecutan los datos del Medico2Controller)
         Route::get('/Gmedicos', [Medico2Controller::class, 'index'])->name('Gmedicos.index');
@@ -75,6 +76,7 @@ Route::get('/Metricas', [MetricasController::class, 'index'])->name('Metricas.in
         // Cambiamos {visita} por {id}
         Route::put('/Gvisitas/{id}', [VisitasController::class, 'update'])->name('Gvisitas.update');
         Route::delete('/Gvisitas/{id}', [VisitasController::class, 'destroy'])->name('Gvisitas.destroy');
+        Route::delete('/Gvisitas', [VisitasController::class, 'destroyBulk'])->name('Gvisitas.destroyBulk');
         // Buscador de ID
         Route::get('/usuarios/buscar/{id}', [DvisitadoresController::class, 'buscarUsuario'])->name('usuarios.buscar');
 

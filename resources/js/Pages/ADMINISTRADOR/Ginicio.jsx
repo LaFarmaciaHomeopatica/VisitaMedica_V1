@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head, Link } from '@inertiajs/react';
+import React, { useRef } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from './PanelAdmin';
 import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -8,7 +8,15 @@ import {
 import {
     FaUsers, FaUserDoctor, FaUserClock, FaFileInvoiceDollar,
     FaArrowRight, FaChartLine, FaCalendarCheck,
+    FaChevronLeft, FaChevronRight, FaCalendar,
 } from 'react-icons/fa6';
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const labelMes = ym => {
+    if (!ym) return '';
+    const [y, m] = ym.split('-');
+    return `${MESES[parseInt(m, 10) - 1]} ${y}`;
+};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
@@ -80,7 +88,16 @@ function SectionHeader({ label, title }) {
 export default function Ginicio({
     auth, stats, tendencia, topProductos,
     visitadoresResumen, visitasPorEstado, ultimasTransacciones,
+    mesActual,
 }) {
+    const inputRef = useRef(null);
+
+    const navMes = delta => {
+        const [y, m] = (mesActual ?? '').split('-').map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        const nuevo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        router.get(route('Ginicio'), { mes: nuevo }, { preserveScroll: false });
+    };
     // Tendencia: label corto por mes
     const tendenciaData = (tendencia ?? []).map(d => ({
         label: d.mes?.slice(0, 7),
@@ -110,12 +127,40 @@ export default function Ginicio({
             <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
 
                 {/* ── ENCABEZADO ─────────────────────────────────── */}
-                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex items-end justify-between gap-4 shadow-sm">
+                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex items-center justify-between gap-4 shadow-sm">
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
                         <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
                     </div>
-                    <p className="text-[10px] font-bold text-slate-400 capitalize">{stats?.mes_label}</p>
+
+                    {/* Navegador de mes */}
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
+                        <button onClick={() => navMes(-1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors text-slate-500 hover:text-blue-600 shadow-sm">
+                            <FaChevronLeft className="text-[10px]" />
+                        </button>
+
+                        <div className="relative cursor-pointer" onClick={() => inputRef.current?.showPicker?.()}>
+                            <div className="flex items-center gap-2 px-3">
+                                <FaCalendar className="text-[#4184F0] text-[12px]" />
+                                <span className="text-[12px] font-black text-slate-700 capitalize whitespace-nowrap">
+                                    {labelMes(mesActual)}
+                                </span>
+                            </div>
+                            <input
+                                ref={inputRef}
+                                type="month"
+                                value={mesActual ?? ''}
+                                onChange={e => router.get(route('Ginicio'), { mes: e.target.value }, { preserveScroll: false })}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                            />
+                        </div>
+
+                        <button onClick={() => navMes(1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors text-slate-500 hover:text-blue-600 shadow-sm">
+                            <FaChevronRight className="text-[10px]" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="px-8 pt-7 space-y-7">
@@ -128,8 +173,8 @@ export default function Ginicio({
                         <KpiCard icon={<FaCalendarCheck />}  label="Médicos con Tx"     value={fmt(stats?.medicos_con_tx)}    accent="#06b6d4" />
                         <KpiCard icon={<FaFileInvoiceDollar />} label="Tx del mes"      value={fmt(stats?.transacciones_mes)} accent="#8b5cf6" href="/Gtransacciones" />
                         <KpiCard icon={<FaChartLine />}      label="Un. Compradas"      value={fmt(stats?.unidades_compradas)} accent="#10b981" />
-                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado_mes)}  sub="mes actual" accent="#10b981" />
-                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado_mes)} sub="mes actual" accent="#8b5cf6" />
+                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado_mes)}  sub={labelMes(mesActual)} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado_mes)} sub={labelMes(mesActual)} accent="#8b5cf6" />
                     </div>
 
                     {/* ── FILA 1: Tendencia + Visitas ─────────────── */}
@@ -200,7 +245,7 @@ export default function Ginicio({
 
                         {/* Top productos del mes */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Productos · mes actual" title="Top productos por valor comprado" />
+                            <SectionHeader label={`Productos · ${labelMes(mesActual)}`} title="Top productos por valor comprado" />
                             {topProductos?.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos este mes</div>
                             ) : (

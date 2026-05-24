@@ -22,7 +22,7 @@ class DvisitadoresController extends Controller
 
         return Inertia::render('ADMINISTRADOR/VISITADORES/Gvisitadores', [
             'visitadores' => $visitadores,
-            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']),
+            'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
         ]);
     }
 
@@ -53,20 +53,9 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento',
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
-            'meta_dinero' => 'nullable|numeric|min:0',
-            'meta_visitas' => 'nullable|integer|min:0',
         ]);
 
-        $visitador = Visitador::create($request->except(['meta_dinero', 'meta_visitas']));
-
-        if ($request->filled('meta_dinero') || $request->filled('meta_visitas')) {
-            $visitador->metas()->create([
-                'meta_dinero'   => $request->input('meta_dinero', 0),
-                'meta_visitas'  => $request->input('meta_visitas', 0),
-                'fecha_meta'    => Carbon::now()->startOfMonth()->format('Y-m-d'),
-                'fecha_fin_meta'=> Carbon::now()->endOfMonth()->format('Y-m-d'),
-            ]);
-        }
+        Visitador::create($request->all());
 
         return Redirect::route('Gvisitadores.index')->with('message', 'Registrado con éxito');
     }
@@ -83,23 +72,9 @@ class DvisitadoresController extends Controller
             'documento' => 'required|string|unique:visitadores,documento,' . $visitador->id,
             'zona_id' => 'required',
             'estado' => 'required|in:Habilitado,Inhabilitado',
-            'meta_dinero' => 'nullable|numeric|min:0',
-            'meta_visitas' => 'nullable|integer|min:0',
         ]);
 
-        $visitador->update($request->except(['meta_dinero', 'meta_visitas']));
-
-        if ($request->filled('meta_dinero') || $request->filled('meta_visitas')) {
-            $visitador->metas()->updateOrCreate(
-                ['visitador_id' => $visitador->id],
-                [
-                    'meta_dinero'    => $request->input('meta_dinero', 0),
-                    'meta_visitas'   => $request->input('meta_visitas', 0),
-                    'fecha_meta'     => Carbon::now()->startOfMonth()->format('Y-m-d'),
-                    'fecha_fin_meta' => Carbon::now()->endOfMonth()->format('Y-m-d'),
-                ]
-            );
-        }
+        $visitador->update($request->all());
 
         return Redirect::back()->with('message', 'Registro actualizado');
     }
@@ -110,6 +85,14 @@ class DvisitadoresController extends Controller
         $visitador->delete();
 
         return Redirect::back()->with('message', 'Visitador eliminado');
+    }
+
+    public function destroyBulk(Request $request)
+    {
+        $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:visitadores,id']);
+        Visitador::whereIn('id', $request->ids)->delete();
+
+        return Redirect::route('Gvisitadores.index')->with('message', 'Visitadores eliminados');
     }
 
     public function show($id, \Illuminate\Http\Request $request)

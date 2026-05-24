@@ -1,6 +1,6 @@
 // resources/js/Pages/ADMINISTRADOR/VISITADORES/Gvisitadores.jsx
 import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import { useVisitadores } from './HooksVD/useVisitadores';
 import VisitadorTable from './ComponentsVD/VisitadorTable';
@@ -74,11 +74,25 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
         });
     };
 
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+
     const handleDeleteSelected = () => {
-        if (confirm(`¿Estás seguro de eliminar ${selectedIds.length} registros?`)) {
-            // Aquí iría tu lógica de borrado masivo si tienes la ruta lista
-            console.log("Eliminando IDs:", selectedIds);
-        }
+        if (selectedIds.length === 0) return;
+        setIsBulkDeleteOpen(true);
+    };
+
+    const confirmBulkDelete = () => {
+        setBulkProcessing(true);
+        router.delete(route('Gvisitadores.destroyBulk'), {
+            data: { ids: selectedIds },
+            onSuccess: () => {
+                setSelectedIds([]);
+                setIsBulkDeleteOpen(false);
+                setBulkProcessing(false);
+            },
+            onError: () => setBulkProcessing(false),
+        });
     };
 
     return (
@@ -129,6 +143,32 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
                 ui={ui}
                 tiposDocumento={tiposDocumento}
             />
+
+            {/* Modal eliminación masiva */}
+            {isBulkDeleteOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                    <div className="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl border border-slate-100">
+                        <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-black italic">!</div>
+                        <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">¿Eliminar {selectedIds.length} visitador{selectedIds.length !== 1 ? 'es' : ''}?</h3>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase mb-6 px-4">Esta acción no se puede deshacer.</p>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                onClick={confirmBulkDelete}
+                                disabled={bulkProcessing}
+                                className="bg-rose-600 text-white py-4 rounded-2xl font-black text-[11px] uppercase hover:bg-rose-700 transition-all disabled:bg-slate-200"
+                            >
+                                {bulkProcessing ? 'Eliminando...' : 'Eliminar Ahora'}
+                            </button>
+                            <button
+                                onClick={() => setIsBulkDeleteOpen(false)}
+                                className="text-slate-400 py-2 text-[10px] font-black uppercase hover:text-slate-600"
+                            >
+                                Regresar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Confirmación de Eliminación Individual */}
             {ui.isDeleteModalOpen && (

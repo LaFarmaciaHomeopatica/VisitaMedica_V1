@@ -153,4 +153,12 @@ if ($hora < 8 || $hora >= 18) {
 
         return Redirect::route('Gvisitas.index')->with('success', 'Visita eliminada correctamente.');
     }
+
+    public function destroyBulk(Request $request)
+    {
+        $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:visitas,id']);
+        Visita::whereIn('id', $request->ids)->delete();
+
+        return Redirect::route('Gvisitas.index')->with('success', 'Visitas eliminadas correctamente.');
+    }
 }
