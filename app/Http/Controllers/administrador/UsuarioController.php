@@ -7,7 +7,7 @@ use App\Models\User;
 use App\Models\Rol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class UsuarioController extends Controller
@@ -76,11 +76,11 @@ class UsuarioController extends Controller
             return redirect()->back()->with('error', 'No puedes eliminar tu propia cuenta.');
         }
 
-        try {
-            $usuario->delete();
-        } catch (QueryException $e) {
-            return redirect()->back()->with('error', 'No se puede eliminar: el usuario tiene visitadores o médicos asignados.');
+        if (DB::table('visitadores')->where('usuario_id', $id)->exists()) {
+            return redirect()->back()->with('error', 'No se puede eliminar: el usuario tiene un visitador asignado. Reasigna el visitador primero.');
         }
+
+        $usuario->delete();
 
         return redirect()->back()->with('success', 'Usuario eliminado.');
     }

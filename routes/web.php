@@ -60,8 +60,7 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
         Route::get('/Gvisitadores/{id}/detalle', [DvisitadoresController::class, 'show'])->name('Gvisitadores.show');
         Route::post('/Gvisitadores', [DvisitadoresController::class, 'store'])->name('Gvisitadores.store');
         Route::put('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'update'])->name('Gvisitadores.update');
-        Route::delete('/Gvisitadores/{visitador}', [DvisitadoresController::class, 'destroy'])->name('Gvisitadores.destroy');
-        Route::delete('/Gvisitadores', [DvisitadoresController::class, 'destroyBulk'])->name('Gvisitadores.destroyBulk');
+        Route::patch('/Gvisitadores/{id}/toggle-estado', [DvisitadoresController::class, 'toggleEstado'])->name('Gvisitadores.toggleEstado');
 
         // CRUD de Médicos (Aquí se ejecutan los datos del Medico2Controller)
         Route::get('/Gmedicos', [Medico2Controller::class, 'index'])->name('Gmedicos.index');

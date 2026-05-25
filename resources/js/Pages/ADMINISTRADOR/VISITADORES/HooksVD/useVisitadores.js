@@ -6,7 +6,6 @@ import axios from 'axios';
 export const useVisitadores = (visitadores = []) => {
     // --- ESTADOS DE INTERFAZ ---
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [userName, setUserName] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -69,7 +68,6 @@ export const useVisitadores = (visitadores = []) => {
         form,
         ui: {
             isFormModalOpen, setIsFormModalOpen,
-            isDeleteModalOpen, setIsDeleteModalOpen,
             isEditing, setIsEditing,
             userName, setUserName,
             isSearching,

@@ -20,9 +20,16 @@ class DvisitadoresController extends Controller
             $query->latest('fecha_meta')->limit(1);
         }])->get();
 
+        $usuariosOcupados = Visitador::pluck('usuario_id')->filter()->values();
+        $usuariosLibres = User::whereNotIn('id', $usuariosOcupados)
+            ->select('id', 'username')
+            ->orderBy('username')
+            ->get();
+
         return Inertia::render('ADMINISTRADOR/VISITADORES/Gvisitadores', [
-            'visitadores' => $visitadores,
+            'visitadores'    => $visitadores,
             'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
+            'usuariosLibres' => $usuariosLibres,
         ]);
     }
 
@@ -79,20 +86,13 @@ class DvisitadoresController extends Controller
         return Redirect::back()->with('message', 'Registro actualizado');
     }
 
-    public function destroy($id)
+    public function toggleEstado($id)
     {
         $visitador = Visitador::findOrFail($id);
-        $visitador->delete();
+        $visitador->estado = $visitador->estado === 'Habilitado' ? 'Inhabilitado' : 'Habilitado';
+        $visitador->save();
 
-        return Redirect::back()->with('message', 'Visitador eliminado');
-    }
-
-    public function destroyBulk(Request $request)
-    {
-        $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:visitadores,id']);
-        Visitador::whereIn('id', $request->ids)->delete();
-
-        return Redirect::route('Gvisitadores.index')->with('message', 'Visitadores eliminados');
+        return Redirect::back()->with('success', 'Estado actualizado.');
     }
 
     public function show($id, \Illuminate\Http\Request $request)
