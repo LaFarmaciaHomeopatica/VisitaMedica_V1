@@ -116,21 +116,7 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
                     onToggleCalendar={() => setShowCalendar(v => !v)}
                 />
 
-                {/* Badge filtro por día activo */}
-                {filter.searchTerm.match(/^\d{4}-\d{2}-\d{2}$/) && (
-                    <div ref={tableRef} className="px-6 py-2 flex items-center gap-2">
-                        <span className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase">
-                            Registros del {filter.searchTerm}
-                            <button onClick={() => filter.setSearchTerm('')}
-                                    className="ml-1 hover:text-blue-900 transition">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold">{filter.filteredItems.length} registros</span>
-                    </div>
-                )}
+                <div ref={tableRef} />
 
                 <TransaccionesTable
                     currentItems={filter.currentItems}

@@ -14,6 +14,16 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+// --- METHOD SPOOFING para GoDaddy (bloquea DELETE/PUT/PATCH nativos) ---
+router.on('before', (event) => {
+    const method = event.detail.visit.method?.toLowerCase();
+    if (['delete', 'put', 'patch'].includes(method)) {
+        const data = event.detail.visit.data ?? {};
+        event.detail.visit.data   = { ...data, _method: method.toUpperCase() };
+        event.detail.visit.method = 'post';
+    }
+});
+
 // --- INTERCEPTOR DE SEGURIDAD CORREGIDO ---
 router.on('success', (event) => {
     const user = event.detail.page.props.auth?.user;

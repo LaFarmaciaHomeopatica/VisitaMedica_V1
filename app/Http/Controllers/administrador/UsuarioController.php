@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Rol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 
 class UsuarioController extends Controller
@@ -70,12 +71,16 @@ class UsuarioController extends Controller
     public function destroy($id)
     {
         $usuario = User::findOrFail($id);
-        
+
         if (auth()->id() == $usuario->id) {
             return redirect()->back()->with('error', 'No puedes eliminar tu propia cuenta.');
         }
 
-        $usuario->delete();
+        try {
+            $usuario->delete();
+        } catch (QueryException $e) {
+            return redirect()->back()->with('error', 'No se puede eliminar: el usuario tiene visitadores o médicos asignados.');
+        }
 
         return redirect()->back()->with('success', 'Usuario eliminado.');
     }
