@@ -3,7 +3,7 @@ import React from 'react';
 export default function ProductosToolbar({
     searchTerm, onSearchChange,
     selectedIds,
-    onImport, onFileChange,
+    onImport, onFileChange, onTemplate,
     onExport, onDelete, onNew,
     fileInputRef, // Se asume que viene por props para seguir el estilo del primero
     currentItems = [], onSelectAll,
@@ -104,6 +104,10 @@ export default function ProductosToolbar({
 
                     <button onClick={onExport} className="text-emerald-600 hover:bg-emerald-50 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all">
                         EXPORTAR
+                    </button>
+
+                    <button onClick={onTemplate} className="text-violet-600 hover:bg-violet-50 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all">
+                        PLANTILLA
                     </button>
 
                     <button onClick={onImport} className="text-amber-600 hover:bg-amber-50 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all">

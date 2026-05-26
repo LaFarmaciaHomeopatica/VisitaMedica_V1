@@ -6,7 +6,6 @@ import axios from 'axios';
 export const useVisitadores = (visitadores = []) => {
     // --- ESTADOS DE INTERFAZ ---
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [userName, setUserName] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -14,7 +13,7 @@ export const useVisitadores = (visitadores = []) => {
 
     // --- ESTADOS DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10); // Valor por defecto
+    const [itemsPerPage, setItemsPerPage] = useState(50); // Valor por defecto
 
     const form = useForm({
         id: null,
@@ -25,11 +24,6 @@ export const useVisitadores = (visitadores = []) => {
         tipo_documento_id: '',
         zona_id: '',
         estado: 'habilitado',
-        meta_visitas: '', 
-        meta_dinero: '',
-        fecha_meta: '',
-        fecha_fin_meta: '',
-        mes_visual: '',
     });
 
     // --- EFECTO: BUSCAR USUARIO POR ID (DEBOUNCE) ---
@@ -74,7 +68,6 @@ export const useVisitadores = (visitadores = []) => {
         form,
         ui: {
             isFormModalOpen, setIsFormModalOpen,
-            isDeleteModalOpen, setIsDeleteModalOpen,
             isEditing, setIsEditing,
             userName, setUserName,
             isSearching,

@@ -20,7 +20,12 @@ class MedicosImport implements ToCollection, WithHeadingRow
 
     public function __construct()
     {
-        $this->tiposDoc = TipoDocumento::pluck('id', 'nombre')->toArray();
+        // Indexado por código (CC, CE…) y por nombre completo como fallback
+        $this->tiposDoc = TipoDocumento::all()
+            ->flatMap(fn($t) => [
+                strtoupper(trim($t->codigo ?? '')) => $t->id,
+                strtolower(trim($t->nombre))       => $t->id,
+            ])->toArray();
         
         $this->visitadores = Visitador::all()->mapWithKeys(function ($v) {
             return [strtolower(trim($v->nombre . ' ' . $v->apellido)) => $v->id];
@@ -57,8 +62,10 @@ class MedicosImport implements ToCollection, WithHeadingRow
             $categoriaNombre = trim($row['categoria'] ?? '');
             $categoriaId = $this->categorias[$categoriaNombre] ?? null;
 
-            $tipoDocNombre = trim($row['tipo_documento'] ?? '');
-            $tipoDocId = $this->tiposDoc[$tipoDocNombre] ?? 2;
+            $tipoDocRaw = trim($row['tipo_documento'] ?? '');
+            $tipoDocId  = $this->tiposDoc[strtoupper($tipoDocRaw)]
+                       ?? $this->tiposDoc[strtolower($tipoDocRaw)]
+                       ?? 1;
 
             $visitadorNombreExcel = strtolower(trim($row['visitador_asignado'] ?? ''));
             $visitadorId = $this->visitadores[$visitadorNombreExcel] ?? null;

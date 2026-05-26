@@ -5,19 +5,20 @@ namespace App\Http\Controllers\visitador;
 use App\Http\Controllers\Controller;
 use App\Models\Visitador;
 use App\Models\Medico;
-use App\Models\Visita; // 👈 Importamos Visita para el conteo del panel
+use App\Models\Visita;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class VisitadorController extends Controller
 {
     /**
      * MÉTODOS DEL PANEL PRINCIPAL UNIFICADO
      */
-   public function index()
+    public function index()
     {
-        // Cargamos el visitador y le ordenamos que traiga la meta más nueva según 'created_at'
         $visitador = Visitador::with(['tipoDocumento', 'metas' => function ($query) {
             $query->latest()->limit(1);
         }])
@@ -26,23 +27,47 @@ class VisitadorController extends Controller
 
         $medicos = $visitador ? $visitador->medicos : [];
 
-        // Obtener las visitas para los cálculos métricos directamente mediante Inertia
-        $visitas = $visitador 
-            ? Visita::where('visitador_id', $visitador->id)->get() 
+        // Solo visitas del mes actual
+        $visitas = $visitador
+            ? Visita::where('visitador_id', $visitador->id)
+                ->whereMonth('fecha_programada', now()->month)
+                ->whereYear('fecha_programada', now()->year)
+                ->get()
             : [];
 
+        // Documentos de TODOS los médicos históricos del visitador
+        // (igual que el admin — un médico puede comprar aunque no haya visita ese mes)
+        $todosMedicosDoc = $visitador
+            ? DB::table('visitas')
+                ->where('visitas.visitador_id', $visitador->id)
+                ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
+                ->pluck('medicos.documento')
+                ->unique()
+                ->values()
+            : collect();
+
+        // Valor comprado real del mes actual desde transacciones
+        $ventasActuales = $todosMedicosDoc->isNotEmpty()
+            ? DB::table('transacciones')
+                ->whereIn('medico_documento', $todosMedicosDoc)
+                ->whereMonth('fecha', now()->month)
+                ->whereYear('fecha', now()->year)
+                ->sum('valor_comprado')
+            : 0;
+
         return Inertia::render('VISITADOR/panel', [
-            'visitador' => $visitador,
-            'medicos'   => $medicos,
-            'visitasData' => $visitas 
+            'visitador'      => $visitador,
+            'medicos'        => $medicos,
+            'visitasData'    => $visitas,
+            'ventasActuales' => (float) $ventasActuales,
         ]);
     }
+
     /**
-     * VISTA DEL PERFIL (Simplificada)
+     * VISTA DEL PERFIL
      */
     public function perfil()
     {
-        // 🔥 CORREGIDO: También añadimos 'metas' aquí por si tu vista de perfil las necesita mostrar
         $visitador = Visitador::with(['tipoDocumento', 'metas'])
             ->where('usuario_id', Auth::id())
             ->first();
@@ -54,7 +79,6 @@ class VisitadorController extends Controller
 
     public function show($id)
     {
-        // 🔥 CORREGIDO: Añadimos 'metas' para la consistencia al ver el detalle
         $visitador = Visitador::with(['tipoDocumento', 'metas'])->findOrFail($id);
         $medicos = Medico::where('visitador_id', $visitador->id)->get();
 
@@ -62,5 +86,5 @@ class VisitadorController extends Controller
             'visitador' => $visitador,
             'medicos'   => $medicos
         ]);
-    } 
+    }
 }

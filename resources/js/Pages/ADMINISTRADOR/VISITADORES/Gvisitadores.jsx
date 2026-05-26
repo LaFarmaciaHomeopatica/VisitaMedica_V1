@@ -1,35 +1,34 @@
 // resources/js/Pages/ADMINISTRADOR/VISITADORES/Gvisitadores.jsx
-import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import { useVisitadores } from './HooksVD/useVisitadores';
 import VisitadorTable from './ComponentsVD/VisitadorTable';
 import VisitadorFormModal from './ComponentsVD/VisitadorFormModal';
 import VisitadorToolbar from './ComponentsVD/VisitadorToolbar';
 
-const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
+const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = [] }) => {
     const { form, ui, filteredVisitadores } = useVisitadores(visitadores);
+    const { flash } = usePage().props;
+    const [toast, setToast] = useState(null);
 
-    // --- ESTADO LOCAL PARA SELECCIÓN MÚLTIPLE ---
-    const [selectedIds, setSelectedIds] = useState([]);
+    useEffect(() => {
+        if (flash?.success) setToast({ type: 'success', msg: flash.success });
+        else if (flash?.error) setToast({ type: 'error', msg: flash.error });
+    }, [flash?.success, flash?.error]);
 
-    // --- MANEJADORES DE SELECCIÓN ---
-    const handleSelectOne = (id) => {
-        setSelectedIds(prev =>
-            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-        );
+    useEffect(() => {
+        if (!toast) return;
+        const t = setTimeout(() => setToast(null), 4000);
+        return () => clearTimeout(t);
+    }, [toast]);
+
+    // --- TOGGLE ESTADO (inline desde la tabla) ---
+    const handleToggleEstado = (id) => {
+        router.patch(route('Gvisitadores.toggleEstado', id), {}, { preserveScroll: true });
     };
 
-    const handleSelectAll = (e, items) => {
-        if (e.target.checked) {
-            const allIds = items.map(v => v.id);
-            setSelectedIds(allIds);
-        } else {
-            setSelectedIds([]);
-        }
-    };
-
-    // --- MANEJADORES DE MODALES ---
+    // --- ABRIR MODAL CREAR ---
     const openCreateModal = () => {
         form.clearErrors();
         form.reset();
@@ -38,6 +37,7 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
         ui.setIsFormModalOpen(true);
     };
 
+    // --- ABRIR MODAL EDITAR ---
     const openEditModal = (v) => {
         form.clearErrors();
         ui.setIsEditing(true);
@@ -49,45 +49,31 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
             documento: v.documento || '',
             tipo_documento_id: v.tipo_documento_id || '',
             zona_id: v.zona_id || '',
-            estado: v.estado || 'habilitado',
-            meta_visitas: v.metas ? v.metas.meta_visitas : '',
-            meta_dinero: v.metas ? v.metas.meta_dinero : '',
-            fecha_meta: v.metas ? v.metas.fecha_meta : '',
-            mes_visual: v.metas ? v.metas.mes_visual : '',
+            estado: v.estado || 'Habilitado',
         });
-        ui.setUserName(v.user ? `Vinculado a: ${v.user.username || v.user.nombre}` : 'Usuario vinculado');
+        ui.setUserName(v.user ? `@${v.user.username || v.user.nombre} (actual)` : '');
         ui.setIsFormModalOpen(true);
     };
 
-    const openDeleteModal = (v) => {
-        form.setData('id', v.id);
-        ui.setIsDeleteModalOpen(true);
-    };
-
-    const confirmDelete = () => {
-        form.delete(route('Gvisitadores.destroy', form.data.id), {
-            onSuccess: () => {
-                ui.setIsDeleteModalOpen(false);
-                setSelectedIds([]); // Limpiar selección tras borrar
-                form.reset();
-            }
-        });
-    };
-
-    const handleDeleteSelected = () => {
-        if (confirm(`¿Estás seguro de eliminar ${selectedIds.length} registros?`)) {
-            // Aquí iría tu lógica de borrado masivo si tienes la ruta lista
-            console.log("Eliminando IDs:", selectedIds);
-        }
+    // Usuarios libres para el select del modal + el usuario actual del visitador que se edita
+    const usuariosParaSelect = () => {
+        if (!ui.isEditing) return usuariosLibres;
+        // Al editar, excluimos el usuario ya mostrado en la opción "actual"
+        return usuariosLibres.filter(u => u.id !== Number(form.data.usuario_id));
     };
 
     return (
         <PanelAdmin>
             <Head title="Gestión de Visitadores" />
 
+            {toast && (
+                <div className={`fixed top-5 right-5 z-[100] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-bold transition-all ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                    {toast.msg}
+                </div>
+            )}
+
             <div className="w-full min-h-screen flex flex-col bg-white">
 
-                {/* 1. TOOLBAR INTEGRADO */}
                 <VisitadorToolbar
                     searchTerm={ui.searchTerm}
                     onSearchChange={(val) => {
@@ -95,32 +81,22 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
                         ui.setCurrentPage(1);
                     }}
                     onAddClick={openCreateModal}
-                    // Paginación
                     currentPage={ui.currentPage}
                     totalPages={ui.totalPages}
                     onPageChange={ui.setCurrentPage}
                     itemsPerPage={ui.itemsPerPage}
                     onItemsPerPageChange={ui.setItemsPerPage}
-                    // Selección
-                    selectedIds={selectedIds}
-                    onSelectAll={handleSelectAll}
-                    currentItems={filteredVisitadores}
-                    onDeleteSelected={handleDeleteSelected}
                 />
 
-                {/* 2. TABLA DE RESULTADOS */}
                 <div className="flex-grow p-4 overflow-hidden">
                     <VisitadorTable
-                        currentItems={filteredVisitadores} // CORREGIDO: Se cambió 'items' por 'currentItems'
-                        selectedIds={selectedIds}
-                        onSelectOne={handleSelectOne}
+                        currentItems={filteredVisitadores}
                         onEdit={openEditModal}
-                        onDelete={openDeleteModal}
+                        onToggleEstado={handleToggleEstado}
                     />
                 </div>
             </div>
 
-            {/* Modal de Formulario */}
             <VisitadorFormModal
                 isOpen={ui.isFormModalOpen}
                 onClose={() => ui.setIsFormModalOpen(false)}
@@ -128,33 +104,8 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [] }) => {
                 form={form}
                 ui={ui}
                 tiposDocumento={tiposDocumento}
+                usuariosLibres={usuariosParaSelect()}
             />
-
-            {/* Modal de Confirmación de Eliminación Individual */}
-            {ui.isDeleteModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-                    <div className="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl border border-slate-100">
-                        <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-black italic">!</div>
-                        <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">¿Eliminar Registro?</h3>
-                        <p className="text-slate-400 text-[10px] font-bold uppercase mb-6 px-4">Esta acción no se puede deshacer.</p>
-                        <div className="flex flex-col gap-2">
-                            <button
-                                onClick={confirmDelete}
-                                disabled={form.processing}
-                                className="bg-rose-600 text-white py-4 rounded-2xl font-black text-[11px] uppercase hover:bg-rose-700 transition-all disabled:bg-slate-200"
-                            >
-                                {form.processing ? 'Eliminando...' : 'Eliminar Ahora'}
-                            </button>
-                            <button
-                                onClick={() => ui.setIsDeleteModalOpen(false)}
-                                className="text-slate-400 py-2 text-[10px] font-black uppercase hover:text-slate-600"
-                            >
-                                Regresar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </PanelAdmin>
     );
 };

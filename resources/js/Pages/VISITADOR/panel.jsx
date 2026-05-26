@@ -12,7 +12,7 @@ import {
     FaCalendarCheck
 } from 'react-icons/fa6';
 
-const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
+const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasActuales = 0 }) => {
     console.log("Datos del visitador:", visitador);
     const { auth } = usePage().props;
     const [search, setSearch] = useState('');
@@ -22,7 +22,6 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
 
     // 📊 Cálculos métricos usando los datos inyectados por Inertia
     const { visitadosHoy, pendientesHoy, porcentaje, idsVisitadosHoy, meta } = useMemo(() => {
-        // Formato YYYY-MM-DD local
         const hoy = new Date();
         const de = hoy.getDate().toString().padStart(2, '0');
         const ma = (hoy.getMonth() + 1).toString().padStart(2, '0');
@@ -31,7 +30,6 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
 
         const visitasEfectivasMes = visitasData.filter(v => v.estado === 'efectiva');
 
-        // Filtrar las visitas efectivas de hoy
         const idsHoy = visitasData
             .filter(v => v.fecha_programada && v.fecha_programada.startsWith(hoyStr) && v.estado === 'efectiva')
             .map(v => v.medico_id);
@@ -39,9 +37,10 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [] }) => {
         const visitadosHoyCount = medicos.filter(m => idsHoy.includes(m.id)).length;
         const pendientesCount = medicos.length - visitadosHoyCount;
 
-        // 🎯 LECTURA DE RELACIÓN: Extrae el valor numérico del primer índice del array devuelto por Laravel
         const metaValor = visitadorInfo?.metas?.meta_visitas || 0;
-const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length / metaValor) * 100) : 0;
+        const calculoPorcentaje = metaValor > 0
+            ? Math.round((visitasEfectivasMes.length / metaValor) * 100)
+            : 0;
 
         return {
             visitadosHoy: visitadosHoyCount,
@@ -55,20 +54,24 @@ const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length
     // Validación reactiva de visitas completadas hoy
     const fueVisitado = (medicoId) => idsVisitadosHoy.includes(medicoId);
 
-    // 🔍 Filtrado reactivo controlando posibles valores nulos en la DB
+    // 🔍 Filtrado reactivo
     const medicosFiltrados = medicos.filter(m => {
         const nombre = m.nombre ? m.nombre.toLowerCase() : '';
         const apellido = m.apellido ? m.apellido.toLowerCase() : '';
         const especialidad = m.especialidad ? m.especialidad.toLowerCase() : '';
         const termino = search.toLowerCase();
-
         return nombre.includes(termino) || apellido.includes(termino) || especialidad.includes(termino);
     });
 
-    // Redirección inteligente al módulo de gestión de visitas
     const irAAgendarVisita = (medicoId) => {
         router.get('/MisVisitas', { medico_id: medicoId });
     };
+
+    // 💰 Ventas: meta_dinero viene de metas, ventasActuales viene como prop de Inertia
+    const metaDinero = visitadorInfo?.metas?.meta_dinero || 0;
+    const porcentajeVentas = metaDinero > 0
+        ? Math.round((ventasActuales / metaDinero) * 100)
+        : 0;
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen pb-24 font-sans text-gray-800">
@@ -103,21 +106,8 @@ const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length
 
             {/* Hero Section */}
             <section className="bg-[#EBF2FF] p-8 rounded-b-[40px] max-w-5xl mx-auto shadow-inner border-x border-b border-blue-100 relative">
-                {pendientesHoy > 0 && (
-                    <div className="absolute top-0 right-0 bg-orange-500 text-white px-4 py-1 rounded-bl-2xl text-xs font-bold shadow-md">
-                        Pendientes: {pendientesHoy}
-                    </div>
-                )}
-
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="relative">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md border-2 border-blue-100">
-                            <FaUserTie className="text-[#5D8BF4] text-2xl" />
-                        </div>
-                        <span className="absolute -bottom-1 -right-1 bg-[#5D8BF4] text-white text-[8px] font-bold px-2 py-1 rounded-full border border-white uppercase">
-                            {rolActual}
-                        </span>
-                    </div>
+                    
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800 leading-tight">
                             Bienvenido, <br />
@@ -130,9 +120,11 @@ const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length
 
                 {/* Cumplimiento Mensual */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-50 mt-4">
+
+                    {/* — Barra de visitas — */}
                     <div className="flex justify-between items-end mb-1.5">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">
-                            Cumplimiento Mensual
+                            Cumplimiento de visitas
                         </p>
                         <span className="text-blue-600 font-bold text-sm">{porcentaje}%</span>
                     </div>
@@ -142,10 +134,31 @@ const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length
                             style={{ width: `${Math.min(porcentaje, 100)}%` }}
                         ></div>
                     </div>
-                    <div className="flex justify-between text-[11px] mt-2 text-gray-500 font-medium">
+                    <div className="flex justify-between text-[11px] mt-1.5 text-gray-500 font-medium mb-4">
                         <span>{visitasData.filter(v => v.estado === 'efectiva').length} de {meta} visitas</span>
-                        {/* 💰 LECTURA DE RELACIÓN: Formatea la cifra de dinero desde la tabla metas */}
-                        <span>Meta Ventas: ${new Intl.NumberFormat().format(visitadorInfo?.metas?.meta_dinero || 0)}</span>                    </div>
+                        <span>Meta mes</span>
+                    </div>
+
+                    {/* — Barra de ventas — */}
+                    <div className="border-t border-gray-100 pt-3">
+                        <div className="flex justify-between items-end mb-1.5">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">
+                                Cumplimiento de ventas
+                            </p>
+                            <span className="text-green-600 font-bold text-sm">{porcentajeVentas}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                            <div
+                                className="bg-green-500 h-3 rounded-full transition-all duration-700 ease-out"
+                                style={{ width: `${Math.min(porcentajeVentas, 100)}%` }}
+                            ></div>
+                        </div>
+                        <div className="flex justify-between text-[11px] mt-1.5 text-gray-500 font-medium">
+                            <span>${new Intl.NumberFormat().format(ventasActuales)} vendidos</span>
+                            <span>Meta: ${new Intl.NumberFormat().format(metaDinero)}</span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div className="flex gap-3 overflow-x-auto pb-2 mt-6">
@@ -171,7 +184,7 @@ const calculoPorcentaje = metaValor > 0 ? Math.round((visitasEfectivasMes.length
                 <h3 className="text-sm font-bold text-gray-500 px-1 uppercase tracking-wider">
                     Médicos en mi Agenda ({medicosFiltrados.length})
                 </h3>
-                
+
                 {medicosFiltrados.map((medico) => {
                     const visitado = fueVisitado(medico.id);
                     return (

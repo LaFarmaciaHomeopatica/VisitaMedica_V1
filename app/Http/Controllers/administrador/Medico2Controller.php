@@ -4,17 +4,19 @@ namespace App\Http\Controllers\Administrador;
 
 use App\Http\Controllers\Controller;
 use App\Models\Medico;
-use App\Models\Visitador; 
+use App\Models\Visitador;
 use App\Models\TipoDocumento;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Facades\Log; // Añadido para registrar errores
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Exports\MedicosExport;
 use App\Imports\MedicosImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Excel as ExcelFormat;
-use App\Models\Categoria; // <--- Importamos el modelo
+use App\Models\Categoria;
+use Carbon\Carbon;
 
 class Medico2Controller extends Controller
 {
@@ -27,7 +29,7 @@ class Medico2Controller extends Controller
             // Cargamos también la relación categoria en el with si la tienes definida en el modelo Medico
             'medicos' => Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get(), 
             'visitadores' => Visitador::all(['id', 'nombre', 'apellido']),
-            'tiposDocumento' => TipoDocumento::all(['id', 'nombre']),
+            'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
             'categorias' => Categoria::all(['id', 'nombre']) // <--- Enviado a la vista
         ]);
     }
@@ -191,10 +193,144 @@ public function eliminarMasivo(Request $request)
         'ids.*' => 'exists:medicos,id'
     ]);
 
-    // Usamos delete() masivo. 
-    // Nota: Si usas SoftDeletes en tu modelo, esto los mandará a la papelera.
     Medico::whereIn('id', $request->ids)->delete();
 
     return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
+}
+
+public function show(Request $request, $id)
+{
+    $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
+    $doc    = $medico->documento;
+
+    // ── Período de tiempo ────────────────────────────────────────────────
+    $periodo    = $request->input('periodo', 'all');
+    $fechaDesde = match($periodo) {
+        '3m' => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
+        '6m' => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
+        '1y' => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
+        '2y' => Carbon::now()->subMonths(24)->startOfMonth()->format('Y-m-d'),
+        default => null,
+    };
+
+    $txBase = fn() => DB::table('transacciones')
+        ->where('medico_documento', $doc)
+        ->when($fechaDesde, fn($q) => $q->where('fecha', '>=', $fechaDesde));
+
+    $visitaBase = fn() => DB::table('visitas')
+        ->where('medico_id', $id)
+        ->when($fechaDesde, fn($q) => $q->where('fecha_programada', '>=', $fechaDesde));
+
+    // ── KPIs transacciones ────────────────────────────────────────────────
+    $txStats = $txBase()->select(
+        DB::raw('COUNT(*) as total_transacciones'),
+        DB::raw('COALESCE(SUM(valor_comprado), 0) as total_valor_comprado'),
+        DB::raw('COALESCE(SUM(valor_formulado), 0) as total_valor_formulado'),
+        DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades'),
+        DB::raw('COUNT(DISTINCT producto_codigo) as total_productos'),
+        DB::raw("COUNT(DISTINCT DATE_FORMAT(fecha, '%Y-%m')) as meses_activo")
+    )->first();
+
+    // ── Tendencia mensual ─────────────────────────────────────────────────
+    $tendencia = $txBase()
+        ->select(
+            DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
+            DB::raw('SUM(valor_comprado) as valor_comprado'),
+            DB::raw('SUM(valor_formulado) as valor_formulado'),
+            DB::raw('SUM(unidades_compradas) as unidades')
+        )
+        ->groupBy('mes')->orderBy('mes')->get();
+
+    // ── Top productos (top 6) ─────────────────────────────────────────────
+    $topProductos = $txBase()
+        ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+        ->select(
+            'productos.nombre',
+            'productos.codigo',
+            DB::raw('SUM(transacciones.valor_comprado) as valor_comprado'),
+            DB::raw('SUM(transacciones.valor_formulado) as valor_formulado'),
+            DB::raw('SUM(transacciones.unidades_compradas) as unidades')
+        )
+        ->groupBy('productos.nombre', 'productos.codigo')
+        ->orderByDesc('valor_comprado')
+        ->take(6)->get();
+
+    // ── Por laboratorio ───────────────────────────────────────────────────
+    $porLaboratorio = $txBase()
+        ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+        ->select(
+            'productos.laboratorio',
+            DB::raw('SUM(transacciones.valor_comprado) as valor_comprado'),
+            DB::raw('SUM(transacciones.valor_formulado) as valor_formulado'),
+            DB::raw('SUM(transacciones.unidades_compradas) as unidades'),
+            DB::raw('COUNT(DISTINCT productos.codigo) as total_productos')
+        )
+        ->groupBy('productos.laboratorio')
+        ->orderByDesc('valor_comprado')->get();
+
+    // ── Todos los productos (tabla completa) ──────────────────────────────
+    $todosProductos = $txBase()
+        ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+        ->select(
+            'productos.nombre',
+            'productos.codigo',
+            'productos.laboratorio',
+            DB::raw('SUM(transacciones.valor_comprado) as valor_comprado'),
+            DB::raw('SUM(transacciones.valor_formulado) as valor_formulado'),
+            DB::raw('SUM(transacciones.unidades_compradas) as unidades')
+        )
+        ->groupBy('productos.nombre', 'productos.codigo', 'productos.laboratorio')
+        ->orderByDesc('valor_comprado')->get();
+
+    // ── KPIs visitas ──────────────────────────────────────────────────────
+    $visitasStats = $visitaBase()->select(
+        DB::raw('COUNT(*) as total'),
+        DB::raw("SUM(CASE WHEN estado = 'efectiva'      THEN 1 ELSE 0 END) as efectivas"),
+        DB::raw("SUM(CASE WHEN estado = 'programada'    THEN 1 ELSE 0 END) as programadas"),
+        DB::raw("SUM(CASE WHEN estado = 'cancelada'     THEN 1 ELSE 0 END) as canceladas"),
+        DB::raw("SUM(CASE WHEN estado = 'reprogramada'  THEN 1 ELSE 0 END) as reprogramadas"),
+        DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
+    )->first();
+
+    // ── Historial de visitas ──────────────────────────────────────────────
+    $visitas = $visitaBase()
+        ->leftJoin('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
+        ->select(
+            'visitas.id',
+            'visitas.estado',
+            'visitas.fecha_programada',
+            'visitas.fecha_realizada',
+            'visitas.comentarios',
+            DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre_visitador")
+        )
+        ->orderByDesc('visitas.fecha_programada')
+        ->take(50)->get();
+
+    // ── Visitadores asignados (sin filtrar por período) ───────────────────
+    $visitadoresAsignados = DB::table('visitas')
+        ->where('visitas.medico_id', $id)
+        ->join('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
+        ->select(
+            'visitadores.id',
+            DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre"),
+            DB::raw('COUNT(visitas.id) as total_visitas'),
+            DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
+            DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
+        )
+        ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
+        ->orderByDesc('total_visitas')->get();
+
+    return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
+        'medico'               => $medico,
+        'periodoActivo'        => $periodo,
+        'txStats'              => $txStats,
+        'tendencia'            => $tendencia,
+        'topProductos'         => $topProductos,
+        'porLaboratorio'       => $porLaboratorio,
+        'todosProductos'       => $todosProductos,
+        'visitasStats'         => $visitasStats,
+        'visitas'              => $visitas,
+        'visitadoresAsignados' => $visitadoresAsignados,
+    ]);
 }
 }

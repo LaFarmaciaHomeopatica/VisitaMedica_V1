@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 export const useMedicosFilter = (medicos) => {
     const [searchTerm, setSearchTermRaw] = useState('');
     const [currentPage, setCurrentPageRaw] = useState(1);
-    const [itemsPerPage, setItemsPerPageRaw] = useState(10);
+    const [itemsPerPage, setItemsPerPageRaw] = useState(50);
 
     const filteredMedicos = useMemo(() => {
         const term = searchTerm.toLowerCase();

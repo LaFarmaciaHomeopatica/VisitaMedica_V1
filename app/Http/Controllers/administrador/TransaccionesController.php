@@ -5,8 +5,10 @@ namespace App\Http\Controllers\administrador;
 use App\Http\Controllers\Controller;
 use App\Models\Transaccion;
 use App\Models\Medico;
-use App\Models\Productos; 
+use App\Models\MedicoTemporal;
+use App\Models\Productos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Exports\TransaccionesExport;
 use App\Imports\TransaccionesImport;
@@ -17,15 +19,88 @@ class TransaccionesController extends Controller
 {
     public function index()
     {
+        $tempNombres = MedicoTemporal::pluck('nombre_referencia', 'documento');
+
         $transacciones = Transaccion::with([
-            'medico:documento,nombre,apellido', 
+            'medico:documento,nombre,apellido',
             'producto:codigo,nombre'
-        ])->latest()->get();
-        
+        ])->latest('updated_at')->get()->map(function ($t) use ($tempNombres) {
+            if (!$t->medico) {
+                $t->medico_temporal_nombre = $tempNombres[$t->medico_documento] ?? null;
+            }
+            return $t;
+        });
+
+        $calendarData = DB::table('transacciones')
+            ->select(
+                DB::raw('DATE(fecha) as dia'),
+                DB::raw('COUNT(*) as total_tx'),
+                DB::raw('COUNT(DISTINCT medico_documento) as total_medicos')
+            )
+            ->groupBy('dia')
+            ->orderBy('dia')
+            ->get()
+            ->mapWithKeys(fn($d) => [$d->dia => [
+                'total_tx' => (int) $d->total_tx,
+                'medicos'  => (int) $d->total_medicos,
+            ]]);
+
         return Inertia::render('ADMINISTRADOR/TRANSACCIONES/Gtransacciones', [
             'transacciones' => $transacciones,
-            'medicos' => Medico::select('nombre', 'apellido', 'documento')->get(),
-            'productos' => Productos::select('nombre', 'codigo')->get()
+            'medicos'       => Medico::select('nombre', 'apellido', 'documento')->get(),
+            'productos'     => Productos::select('nombre', 'codigo')->get(),
+            'calendarData'  => $calendarData,
+        ]);
+    }
+
+    /**
+     * Descargar plantilla vacía para importación
+     */
+    public function plantilla()
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Transacciones');
+
+        $headers = [
+            'fecha', 'documento_medico', 'nombre_medico', 'codigo_producto',
+            'unidades_formuladas', 'unidades_compradas', 'valor_formulado', 'valor_comprado',
+        ];
+
+        $sheet->fromArray($headers, null, 'A1');
+
+        // Estilo encabezado
+        $sheet->getStyle('A1:H1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF'], 'size' => 11],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                       'startColor' => ['argb' => 'FF3D3FD8']],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        // Fila de ejemplo
+        $sheet->fromArray([
+            '2026-05-23', '12345678', 'Dr. Juan García', 'PROD-001', 10, 5, 500000, 250000,
+        ], null, 'A2');
+
+        $sheet->getStyle('A2:H2')->getFont()->setItalic(true);
+        $sheet->getStyle('A2:H2')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFFFF8E1');
+
+        // Anchos
+        foreach (['A' => 14, 'B' => 18, 'C' => 28, 'D' => 16, 'E' => 22, 'F' => 22, 'G' => 18, 'H' => 18] as $col => $w) {
+            $sheet->getColumnDimension($col)->setWidth($w);
+        }
+
+        $sheet->freezePane('A2');
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filename = 'plantilla_transacciones.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
@@ -47,16 +122,24 @@ class TransaccionesController extends Controller
         ]);
 
         try {
-            // Ya no es estrictamente necesario el mes para validar, 
-            // pero lo pasamos por si en el futuro quieres registrar qué importación fue.
-            $mes = $request->input('mes_referencia', now()->format('Y-m'));
-            
-            Excel::import(new TransaccionesImport($mes), $request->file('archivo'));
-            
-            return redirect()->back()->with('message', 'Importación completada con éxito');
+            $mes    = $request->input('mes_referencia', now()->format('Y-m'));
+            $import = new TransaccionesImport($mes);
+
+            Excel::import($import, $request->file('archivo'));
+
+            return redirect()->back()->with('import_result', [
+                'ok'               => true,
+                'importadas'       => $import->importadas,
+                'actualizadas'     => $import->actualizadas,
+                'pendientes'       => $import->pendientes,
+                'invalidas'        => $import->invalidas,
+                'codigosNoExisten' => $import->codigosNoExisten,
+            ]);
         } catch (\Exception $e) {
-            // En lugar de dd, devolvemos el error a la vista para que el sistema no se rompa
-            return redirect()->back()->withErrors(['archivo' => 'Error al procesar el archivo: ' . $e->getMessage()]);
+            return redirect()->back()->with('import_result', [
+                'ok'    => false,
+                'error' => 'Error al procesar el archivo: ' . $e->getMessage(),
+            ]);
         }
     }
 

@@ -1,27 +1,82 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import BarraNave from './barranave';
-// Importamos los iconos específicos
 import {
     FaArrowLeft,
     FaMagnifyingGlass,
     FaLocationDot,
     FaChevronRight,
+    FaChevronLeft,
     FaUserDoctor
 } from 'react-icons/fa6';
 
-const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) => {
-    const [search, setSearch] = useState('');
+const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
+    const [search, setSearch] = useState(filters.search || '');
+    const [perPage, setPerPage] = useState(filters.per_page || '10');
+    const [perPageInput, setPerPageInput] = useState(filters.per_page || '10');
+
+    const medicos = medicosDb.data || [];
+
+    // Soporta ambas estructuras que puede enviar Inertia+Laravel
+    const meta = medicosDb.meta ?? {
+        total:        medicosDb.total        ?? 0,
+        from:         medicosDb.from         ?? 0,
+        to:           medicosDb.to           ?? 0,
+        current_page: medicosDb.current_page ?? 1,
+        last_page:    medicosDb.last_page    ?? 1,
+    };
+
+    const links = {
+        prev: medicosDb.meta ? (medicosDb.links?.prev ?? null) : (medicosDb.prev_page_url ?? null),
+        next: medicosDb.meta ? (medicosDb.links?.next ?? null) : (medicosDb.next_page_url ?? null),
+    };
+
+    const currentPage = meta.current_page ?? 1;
+    const lastPage    = meta.last_page    ?? 1;
+
+    // Estado local para el input de página
+    const [pageInput, setPageInput] = useState(String(currentPage));
+
+    const applyFilters = (newFilters) => {
+        router.get('/ListadoMedicos', newFilters, {
+            preserveState: true,
+            replace: true,
+            preserveScroll: false
+        });
+    };
 
     const handleSearch = (e) => {
         const value = e.target.value;
         setSearch(value);
+        applyFilters({ search: value, per_page: perPage });
+    };
 
-        router.get('/ListadoMedicos', { search: value }, {
-            preserveState: true,
-            replace: true,
-            preserveScroll: true
-        });
+    // Registros por página
+    const commitPerPage = () => {
+        const value = Math.max(1, parseInt(perPageInput) || 10);
+        setPerPage(String(value));
+        setPerPageInput(String(value));
+        applyFilters({ search, per_page: value });
+    };
+
+    const handlePerPageKeyDown = (e) => {
+        if (e.key === 'Enter') commitPerPage();
+    };
+
+    // Ir a página específica
+    const commitPage = () => {
+        const value = Math.min(Math.max(1, parseInt(pageInput) || 1), lastPage);
+        setPageInput(String(value));
+        applyFilters({ search, per_page: perPage, page: value });
+    };
+
+    const handlePageKeyDown = (e) => {
+        if (e.key === 'Enter') commitPage();
+    };
+
+    const goToPage = (url) => {
+        if (!url) return;
+        router.get(url, {}, { preserveState: true, preserveScroll: false });
     };
 
     const getAvatarConfig = (id) => {
@@ -38,131 +93,158 @@ const ListadoMedicos = ({ medicosDb = [], stats = { visitados: 0, total: 0 } }) 
         <div className="bg-[#F4F7FF] min-h-screen font-sans text-gray-800 pb-28">
             <Head title="Directorio Médico - LFH" />
 
-            {/* Header Optimizado y Ajustado */}
-            <header className="bg-white shadow-sm sticky top-0 z-20 rounded-b-[25px] md:rounded-b-[35px]">
-                <div className="max-w-[1440px] mx-auto p-3 md:p-4">
-                    <div className="flex items-center gap-3 md:gap-6">
+            {/* Bloque sticky: header + barra de paginación */}
+            <div className="sticky top-0 z-20">
 
-                        {/* Botón Regresar */}
-                        <Link
-                            href="/panel"
-                            className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500 hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
-                        >
-                            <FaArrowLeft className="text-xs" />
-                        </Link>
+                {/* Header */}
+                <header className="bg-white">
+                    <div className="max-w-[1440px] mx-auto p-3 md:p-4">
+                        <div className="flex items-center gap-3 md:gap-6">
+                            <Link
+                                href="/panel"
+                                className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500 hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
+                            >
+                                <FaArrowLeft className="text-xs" />
+                            </Link>
 
-                        <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
-                            <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
-                                Listado de Médicos
-                            </h1>
+                            <div className="hidden md:flex flex-col min-w-0 flex-grow md:flex-grow-0">
+                                <h1 className="text-xs md:text-sm font-black text-[#5D8BF4] uppercase tracking-wider whitespace-nowrap">
+                                    Listado de Médicos
+                                </h1>
+                            </div>
+
+                            <div className="relative flex-grow max-w-4xl">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
+                                    <FaMagnifyingGlass className="text-[10px] md:text-xs" />
+                                </span>
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={handleSearch}
+                                    placeholder="Buscar médico, especialidad..."
+                                    className="w-full bg-blue-50 border-none rounded-full py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-xs md:text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner font-medium text-gray-700 placeholder:text-gray-300"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Barra de paginación */}
+                <div className="bg-white border-t border-gray-100 shadow-md rounded-b-[20px]">
+                    <div className="max-w-[1440px] mx-auto px-4 py-2 flex items-center justify-between gap-3">
+
+                        {/* Contador total */}
+                        <p className="text-[11px] text-gray-400 font-medium whitespace-nowrap">
+                            <span className="text-blue-500 font-bold">{meta.total ?? 0}</span> médicos
+                        </p>
+
+                        {/* Navegación: < PÁG. [n] DE n > */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => { goToPage(links.prev); setPageInput(String(currentPage - 1)); }}
+                                disabled={!links.prev}
+                                className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-50 text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-100 transition-colors"
+                            >
+                                <FaChevronLeft className="text-[9px]" />
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Pág.</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={lastPage}
+                                    value={pageInput}
+                                    onChange={(e) => setPageInput(e.target.value)}
+                                    onBlur={commitPage}
+                                    onKeyDown={handlePageKeyDown}
+                                    className="w-10 bg-blue-50 border-none rounded-lg py-1 px-1.5 text-xs font-bold text-blue-600 text-center focus:ring-2 focus:ring-blue-300 outline-none"
+                                />
+                                <span className="text-[10px] font-bold text-gray-400">DE {lastPage}</span>
+                            </div>
+
+                            <button
+                                onClick={() => { goToPage(links.next); setPageInput(String(currentPage + 1)); }}
+                                disabled={!links.next}
+                                className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-50 text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-100 transition-colors"
+                            >
+                                <FaChevronRight className="text-[9px]" />
+                            </button>
                         </div>
 
-                        {/* Barra de Búsqueda */}
-                        <div className="relative flex-grow max-w-4xl">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
-                                <FaMagnifyingGlass className="text--[10px] md:text-xs" />
-                            </span>
+                        {/* Registros por página: VER [n] */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase whitespace-nowrap">Ver</span>
                             <input
-                                type="text"
-                                value={search}
-                                onChange={handleSearch}
-                                placeholder="Buscar medicina, médicos..."
-                                className="w-full bg-blue-50 border-none rounded-full py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-xs md:text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner font-medium text-gray-700 placeholder:text-gray-300"
+                                type="number"
+                                min="1"
+                                value={perPageInput}
+                                onChange={(e) => setPerPageInput(e.target.value)}
+                                onBlur={commitPerPage}
+                                onKeyDown={handlePerPageKeyDown}
+                                className="w-12 bg-blue-50 border-none rounded-lg py-1 px-1.5 text-xs font-bold text-blue-600 text-center focus:ring-2 focus:ring-blue-300 outline-none"
                             />
                         </div>
 
                     </div>
                 </div>
-            </header>
 
+            </div>
+
+            {/* Listado */}
             <main className="max-w-5xl mx-auto p-4 md:p-6 mt-2">
-                {/* Cabecera para Desktop */}
-                <div className="hidden md:grid grid-cols-12 gap-4 px-8 py-2 text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                    <div className="col-span-4">Médico / Especialidad</div>
-                    <div className="col-span-4 text-center">Dirección</div>
-                    <div className="col-span-1 text-center">Documento</div>
-                    <div className="col-span-1 text-center">Teléfono</div>
-                    <div className="col-span-2 text-right">Acción</div>
-                </div>
-
-                <div className="space-y-3">
-                    {medicosDb.length > 0 ? (
-
-                        medicosDb.map((medico) => {
+                {medicos.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {medicos.map((medico) => {
                             const config = getAvatarConfig(medico.id);
-
-                            // Mejoramos la lógica de la inicial para evitar errores si faltan datos
                             const nombreCompleto = `${medico.nombre || ''} ${medico.apellido || ''}`.trim();
                             const inicial = nombreCompleto ? nombreCompleto.charAt(0).toUpperCase() : '?';
 
                             return (
                                 <div
                                     key={medico.id}
-                                    className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm md:grid md:grid-cols-12 md:gap-4 md:items-center hover:shadow-md transition-shadow"
+                                    className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow"
                                 >
-                                    <div className="col-span-4 flex items-center gap-3 mb-3 md:mb-0">
-                                        <div className={`w-10 h-10 ${config.bg} rounded-full flex items-center justify-center ${config.text} font-bold text-sm shadow-inner shrink-0`}>
-                                            {inicial}
-                                        </div>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="text-[13px] font-bold text-gray-800 truncate">
-                                                {nombreCompleto || 'Médico sin nombre'}
-                                            </span>
-                                            <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-tight">
-                                                {medico.especialidad || 'General'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="col-span-4 mb-3 md:mb-0 flex items-center gap-2 md:justify-center text-gray-500">
-                                        <FaLocationDot className="text-blue-300 text-[10px]" />
-                                        <span className="text-[11px] italic truncate">
+                                  
+                                    {/* Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] font-bold text-gray-800 truncate">
+                                            {nombreCompleto || 'Médico sin nombre'}
+                                        </p>
+                                        <p className="text-[10px] text-blue-500 font-semibold uppercase tracking-tight">
+                                            {medico.especialidad || 'General'}
+                                        </p>
+                                        <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
+                                            <FaLocationDot className="text-blue-300 shrink-0" />
                                             {medico.direccion_detalles || 'Sin dirección registrada'}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-center justify-between gap-2 mb-4 md:mb-0 md:contents">
-                                        <div className="md:col-span-1 md:text-center">
-                                            <div className="flex flex-col md:items-center">
-                                                <span className="md:hidden text-[8px] font-bold text-gray-400 uppercase mb-0.5">Documento</span>
-                                                <div className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                                    {/* AQUÍ LA CORRECCIÓN: tipo_documento.nombre */}
-                                                    {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="md:col-span-1 md:text-center">
-                                            <div className="flex flex-col md:items-center items-end">
-                                                <span className="md:hidden text-[8px] font-bold text-gray-400 uppercase mb-0.5">Teléfono</span>
-                                                <span className="text-[11px] font-bold text-gray-700">
-                                                    {/* Verifica si es telefono_contacto o telefono_contactos */}
-                                                    {medico.telefono_contacto || medico.telefono_contactos || '---'}
-                                                </span>
-                                            </div>
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                            <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
+                                            </span>
+                                            <span className="text-[11px] font-bold text-gray-500">
+                                                {medico.telefono_contacto || medico.telefono_contactos || '---'}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="col-span-2 text-right">
-                                        <Link
-                                            href={`/MedicoDetalle/${medico.id}`}
-                                            className="inline-flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-xl shadow-md shadow-blue-100 hover:bg-blue-600 active:scale-95 transition-all w-full md:w-auto text-[10px] font-bold uppercase"
-                                        >
-                                            <span>Ver Ficha</span>
-                                            <FaChevronRight className="text-[8px]" />
-                                        </Link>
-                                    </div>
+                                    {/* Botón */}
+                                    <Link
+                                        href={`/MedicoDetalle/${medico.id}`}
+                                        className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all active:scale-95 shrink-0"
+                                    >
+                                        <FaChevronRight className="text-[10px]" />
+                                    </Link>
                                 </div>
                             );
-                        })
-
-                    ) : (
-                        <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-gray-200">
-                            <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
-                            <p className="text-gray-400 text-sm">No se encontraron médicos registrados.</p>
-                        </div>
-                    )}
-                </div>
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-gray-200">
+                        <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
+                        <p className="text-gray-400 text-sm">No se encontraron médicos registrados.</p>
+                    </div>
+                )}
             </main>
 
             <BarraNave />

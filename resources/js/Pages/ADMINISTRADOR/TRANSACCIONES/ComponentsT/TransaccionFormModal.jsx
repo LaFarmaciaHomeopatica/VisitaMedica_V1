@@ -103,7 +103,7 @@ export default function TransaccionFormModal({
                     </div>
 
 
-                    {/* Semana */}
+                    {/* Fecha */}
                     <div className="col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fecha</label>
                         <input

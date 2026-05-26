@@ -1,12 +1,14 @@
 import React from 'react';
-import { FaUserPlus } from 'react-icons/fa6';
+import { FaUserPlus, FaTrash, FaChartLine } from 'react-icons/fa6';
 
 // Agregamos default values para evitar el error de undefined
 export default function MedicosTempTable({
     currentItems = [],
-    selectedIds = [], // <--- Protección: si no llega, será un array vacío
+    selectedIds = [],
     onSelectOne,
-    onPromote
+    onPromote,
+    onDelete,
+    onStats,
 }) {
     return (
         <div className="flex-grow w-full mt-[30px]">
@@ -67,10 +69,25 @@ export default function MedicosTempTable({
 
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
                                     <button
+                                        onClick={() => onStats(m)}
+                                        title="Ver estadísticas"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                                    >
+                                        <FaChartLine className="h-4 w-4" />
+                                    </button>
+                                    <button
                                         onClick={() => onPromote(m)}
-                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm group/btn"
+                                        title="Promover a médico"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
                                     >
                                         <FaUserPlus className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => onDelete(m.id)}
+                                        title="Eliminar"
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                    >
+                                        <FaTrash className="h-4 w-4" />
                                     </button>
                                 </td>
                             </tr>

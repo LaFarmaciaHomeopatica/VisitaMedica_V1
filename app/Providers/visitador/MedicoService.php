@@ -11,16 +11,17 @@ class MedicoService
     {
         return Medico::query()
             ->when($search, function ($query, $search) {
-                $query->where('nombre_completo', 'like', "%{$search}%")
+                $query->where('nombre', 'like', "%{$search}%")
+                      ->orWhere('apellido', 'like', "%{$search}%")
                       ->orWhere('especialidad', 'like', "%{$search}%");
             })
             ->select([
                 'id',
-                'nombre_completo',
+                'nombre',
+                'apellido',
                 'especialidad',
-                'direccion_details as direccion',
-                // Aquí podrías agregar lógica para calcular visitas o formulados si existen esas tablas
-                DB::raw("UPPER(LEFT(nombre_completo, 1)) as inicial")
+                'direccion_detalles as direccion',
+                DB::raw("UPPER(LEFT(nombre, 1)) as inicial")
             ])
             ->get();
     }

@@ -21,7 +21,7 @@ class CheckRole
         if ((string)$user->id_rol !== (string)$role) {
             
             // Determinamos a dónde debería ir según su rol real
-            $destiny = ($user->id_rol == 1) ? route('PanelAdmin') : route('panel');
+            $destiny = ($user->id_rol == 1) ? route('Ginicio') : route('panel');
 
             // IMPORTANTE: Inertia::location obliga al navegador a hacer 
             // un refresco total de la ventana, eliminando el rastro del otro usuario.

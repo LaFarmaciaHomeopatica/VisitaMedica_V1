@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 
 const DEFAULT_COLUMNS = {
-    semana: true,
+    fecha: true,
     documento: false,
     medico: true,
     codigoProducto: false,

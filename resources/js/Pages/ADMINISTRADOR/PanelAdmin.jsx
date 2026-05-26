@@ -3,7 +3,7 @@ import { Link, Head, usePage } from '@inertiajs/react';
 import {
     FaHouse, FaUsers, FaBoxesStacked, FaCalendarCheck,
     FaUserDoctor, FaPowerOff, FaHouseMedical, FaUserClock,
-    FaUserGear, FaFileInvoiceDollar, FaBars, FaXmark, FaChartLine
+    FaUserGear, FaFileInvoiceDollar, FaBars, FaXmark, FaBullseye
 } from 'react-icons/fa6';
 
 const PanelAdmin = ({ children }) => {
@@ -12,14 +12,14 @@ const PanelAdmin = ({ children }) => {
 
     const menuItems = [
         { name: 'inicio', icon: <FaHouse />, route: '/Ginicio' },
-        { name: 'Usuarios', icon: <FaUserGear />, route: '/Gusuarios' },
         { name: 'Visitadores', icon: <FaUsers />, route: '/Gvisitadores' },
         { name: 'Medicos', icon: <FaUserDoctor />, route: '/Gmedicos' },
         { name: 'Visitas', icon: <FaCalendarCheck />, route: '/Gvisitas' },
         { name: 'Productos', icon: <FaBoxesStacked />, route: '/Gproductos' },
         { name: 'Transacciones', icon: <FaFileInvoiceDollar />, route: '/Gtransacciones' },
         { name: 'Médicos Temp.', icon: <FaUserClock />, route: '/GmedicosTemporales' },
-        { name: 'Métricas', icon: <FaChartLine />, route: '/Metricas' },
+        { name: 'Metas', icon: <FaBullseye />, route: '/Gmetas' },
+        { name: 'Usuarios', icon: <FaUserGear />, route: '/Gusuarios' },
     ];
 
     return (

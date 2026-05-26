@@ -39,17 +39,86 @@ class MedicoTemporalController extends Controller
             'horario_atencion'      => 'nullable|string|max:255',
             'direccion_detalles'    => 'nullable|string|max:500',
             'geolocalizacion'       => 'nullable|string|max:255',
-            'categoria_id'          => 'nullable|exists:categorias,id',
+            'categoria_id'          => 'nullable|exists:categoria,id',
             // Corregido: Ahora valida que el ID exista en la tabla 'visitadores'
             'visitador_id'          => 'nullable|exists:visitadores,id', 
             'fecha_inicio_relacion' => 'nullable|date',
         ]);
 
         DB::transaction(function () use ($validated, $temporal) {
-            Medico::create($validated);  // 1. Crea en tabla medicos
-            $temporal->delete();         // 2. Elimina de medicos_temporales
+            Medico::create($validated);
+            $temporal->delete();
         });
 
         return redirect()->back()->with('success', 'Médico oficializado correctamente.');
+    }
+
+    public function destroy($id)
+    {
+        MedicoTemporal::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Registro eliminado.');
+    }
+
+    public function estadisticas($id)
+    {
+        $medico = MedicoTemporal::findOrFail($id);
+        $doc    = $medico->documento;
+
+        $kpis = DB::table('transacciones')
+            ->where('medico_documento', $doc)
+            ->select(
+                DB::raw('COUNT(*)                               as total_transacciones'),
+                DB::raw('COALESCE(SUM(valor_comprado),  0)     as valor_comprado'),
+                DB::raw('COALESCE(SUM(valor_formulado), 0)     as valor_formulado'),
+                DB::raw('COALESCE(SUM(unidades_compradas),  0) as unidades_compradas'),
+                DB::raw('COALESCE(SUM(unidades_formuladas), 0) as unidades_formuladas')
+            )->first();
+
+        $tendencia = DB::table('transacciones')
+            ->where('medico_documento', $doc)
+            ->select(
+                DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
+                DB::raw('SUM(valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(unidades_compradas)  as unidades_compradas'),
+                DB::raw('COUNT(*)                 as transacciones')
+            )
+            ->groupBy('mes')->orderBy('mes')->get();
+
+        $topProductos = DB::table('transacciones')
+            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+            ->where('transacciones.medico_documento', $doc)
+            ->select(
+                'productos.nombre',
+                DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado'),
+                DB::raw('SUM(transacciones.valor_formulado)     as valor_formulado'),
+                DB::raw('SUM(transacciones.unidades_compradas)  as unidades')
+            )
+            ->groupBy('productos.nombre')
+            ->orderByDesc('valor_comprado')
+            ->take(5)->get();
+
+        return response()->json([
+            'medico'      => [
+                'id'           => $medico->id,
+                'documento'    => $medico->documento,
+                'nombre'       => $medico->nombre_referencia,
+                'origen_datos' => $medico->origen_datos,
+            ],
+            'kpis'        => $kpis,
+            'tendencia'   => $tendencia,
+            'topProductos'=> $topProductos,
+        ]);
+    }
+
+    public function destroyMultiple(Request $request)
+    {
+        $request->validate([
+            'ids'   => 'required|array',
+            'ids.*' => 'exists:medicos_temporales,id',
+        ]);
+
+        MedicoTemporal::whereIn('id', $request->ids)->delete();
+        return redirect()->back()->with('success', 'Registros eliminados.');
     }
 }

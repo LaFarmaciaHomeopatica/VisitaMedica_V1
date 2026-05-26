@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
+import { Head, usePage } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
 // Hooks
@@ -16,10 +16,29 @@ import UsuarioDeleteModal from './ComponentsU/UsuarioDeleteModal';
 const Gusuarios = ({ usuarios = [], roles = [] }) => {
     const filter = useUsuariosFilter(usuarios);
     const form = useUsuarioForm();
+    const { flash } = usePage().props;
+    const [toast, setToast] = useState(null);
+
+    useEffect(() => {
+        if (flash?.success) setToast({ type: 'success', msg: flash.success });
+        else if (flash?.error) setToast({ type: 'error', msg: flash.error });
+    }, [flash?.success, flash?.error]);
+
+    useEffect(() => {
+        if (!toast) return;
+        const t = setTimeout(() => setToast(null), 4000);
+        return () => clearTimeout(t);
+    }, [toast]);
 
     return (
         <PanelAdmin>
             <Head title="Gestión de Usuarios" />
+
+            {toast && (
+                <div className={`fixed top-5 right-5 z-[100] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-bold transition-all ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                    {toast.msg}
+                </div>
+            )}
 
             <div className="w-full min-h-screen flex flex-col bg-white">
                 <UsuariosToolbar

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useState } from 'react';
+import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
 import { useMedicosTempFilter }    from './HooksM/useMedicosTempFilter';
@@ -9,6 +9,7 @@ import { useMedicosTempSelection } from './HooksM/useMedicosTempSelection';
 import MedicosTempToolbar    from './ComponentsM/MedicosTempToolbar';
 import MedicosTempTable      from './ComponentsM/MedicosTempTable';
 import MedicoTempPromoteModal from './ComponentsM/MedicoTempPromoteModal';
+import MedicoTempStatsPanel  from './ComponentsM/MedicoTempStatsPanel';
 
 const GmedicosTemporales = ({
     auth,
@@ -20,11 +21,20 @@ const GmedicosTemporales = ({
     const filter    = useMedicosTempFilter(medicosTemporales);
     const form      = useMedicoTempForm();
     const selection = useMedicosTempSelection();
+    const [statsmedico, setStatsmedico] = useState(null);
+
+    const handleDeleteOne = (id) => {
+        if (!confirm('¿Eliminar este médico temporal?')) return;
+        router.delete(route('GmedicosTemporales.destroy', id));
+    };
 
     const handleDeleteSelected = () => {
-        if (confirm(`¿Estás seguro de eliminar ${selection.selectedIds.length} registros?`)) {
-            console.log('Eliminando IDs:', selection.selectedIds);
-        }
+        if (selection.selectedIds.length === 0) return;
+        if (!confirm(`¿Eliminar ${selection.selectedIds.length} registros seleccionados?`)) return;
+        router.delete(route('GmedicosTemporales.destroyMultiple'), {
+            data: { ids: selection.selectedIds },
+            onSuccess: () => selection.clearSelection(),
+        });
     };
 
     const handleExport = () => {
@@ -59,9 +69,16 @@ const GmedicosTemporales = ({
                     currentItems={filter.currentItems}
                     selectedIds={selection.selectedIds}
                     onSelectOne={selection.toggleSelectOne}
-                    onPromote={form.openPromoteModal}  // ← dispara el modal
+                    onPromote={form.openPromoteModal}
+                    onDelete={handleDeleteOne}
+                    onStats={setStatsmedico}
                 />
             </div>
+
+            <MedicoTempStatsPanel
+                medico={statsmedico}
+                onClose={() => setStatsmedico(null)}
+            />
 
             <MedicoTempPromoteModal
                 isOpen={form.isModalOpen}

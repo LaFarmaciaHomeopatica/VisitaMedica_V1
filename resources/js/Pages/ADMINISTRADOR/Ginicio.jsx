@@ -1,266 +1,432 @@
-import React, { useState, useMemo } from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from './PanelAdmin';
 import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-    CartesianGrid
+    AreaChart, Area, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { FaArrowRight } from 'react-icons/fa6';
 
-const GInicio = () => {
-    const [periodo, setPeriodo] = useState('mes');
-    const [busqueda, setBusqueda] = useState('');
-    const [sujetoSeleccionado, setSujetoSeleccionado] = useState(null);
-    const [topLimit, setTopLimit] = useState(5);
+// ── helpers ───────────────────────────────────────────────────────────────────
+const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
+const fmtM = n => {
+    n = n ?? 0;
+    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${fmt(n)}`;
+};
 
-    const datos = {
-        dia: {
-            medicos: [
-                { nombre: 'Dr. Perez', ventas: 5, compras: 2, productoEstrella: 'Arnica Comp.', especialidad: 'General', tipo: 'Formulador', activo: true, ultimaVisita: '10:00 AM', zona: 'Norte' },
-                { nombre: 'Dra. Gomez', ventas: 8, compras: 3, productoEstrella: 'Passiflora Gotas', especialidad: 'Pediatría', tipo: 'Comprador', activo: true, ultimaVisita: '09:30 AM', zona: 'Sur' },
-                { nombre: 'Dr. Casa', ventas: 0, compras: 0, productoEstrella: 'Ninguno', especialidad: 'Urología', tipo: 'Formulador', activo: false, ultimaVisita: 'Hace 3 días', zona: 'Este' },
-            ],
-            visitadores: [
-                { nombre: 'Martinez', asignadas: 8, cumplidas: 6, faltantes: 2, zona: 'Norte', ultimaVisita: 'Dr. Perez', eficiencia: 75 },
-                { nombre: 'Lopez', asignadas: 6, cumplidas: 6, faltantes: 0, zona: 'Sur', ultimaVisita: 'Dra. Gomez', eficiencia: 100 }
-            ],
-            alertas: [{ id: 1, msg: 'Reporte matutino pendiente: Lopez', tipo: 'advertencia' }]
-        }
-        // Nota: En un entorno real, 'semana' y 'mes' vendrían del backend
-    };
+const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16'];
+const COLORS_ESTADO = {
+    efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
+    cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
+};
 
-    const dataActual = datos[periodo] || datos['dia'];
-
-    // --- LÓGICA DE BÚSQUEDA ---
-    const resultadosBusqueda = useMemo(() => {
-        if (!busqueda) return { medicos: [], visitadores: [] };
-        return {
-            medicos: dataActual.medicos.filter(m => m.nombre.toLowerCase().includes(busqueda.toLowerCase())),
-            visitadores: dataActual.visitadores.filter(v => v.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-        };
-    }, [busqueda, dataActual]);
-
-    // --- DATOS PARA GRÁFICAS (CORREGIDO) ---
-    const compradores = useMemo(() =>
-        [...dataActual.medicos].sort((a, b) => b.compras - a.compras).slice(0, topLimit),
-        [dataActual, topLimit]);
-
-    const formuladores = useMemo(() =>
-        [...dataActual.medicos].sort((a, b) => b.ventas - a.ventas).slice(0, topLimit),
-        [dataActual, topLimit]);
-
-    // --- VISTA: DASHBOARD GENERAL ---
-    const renderDashboardGeneral = () => (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <CardKPI
-                    title="Médicos Activos / Inactivos"
-                    value={`${dataActual.medicos.filter(m => m.activo).length} | ${dataActual.medicos.filter(m => !m.activo).length}`}
-                    color="text-blue-600"
-                    trend="Estado de red"
-                />
-                <CardKPI
-                    title="Visitas Totales"
-                    value={dataActual.visitadores.reduce((acc, v) => acc + v.cumplidas, 0)}
-                    color="text-indigo-600"
-                    trend="Realizadas"
-                />
-                <CardKPI
-                    title="Alertas"
-                    value={dataActual.alertas.length}
-                    color="text-rose-600"
-                    trend="Pendientes"
-                />
-            </div>
-
-            <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 w-fit">
-                <span className="text-sm font-bold text-slate-500">Ajustar Top:</span>
-                <input
-                    type="number" min="1" max="50"
-                    value={topLimit}
-                    onChange={(e) => setTopLimit(Number(e.target.value))}
-                    className="w-20 p-2 border-2 border-slate-100 rounded-lg font-black text-indigo-600 outline-none focus:border-indigo-300"
-                />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <ChartContainer title={`Top ${topLimit} Compradores`} color="bg-orange-500">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={compradores}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                            <YAxis axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="compras" fill="#f97316" radius={[10, 10, 0, 0]} barSize={40} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-
-                <ChartContainer title={`Top ${topLimit} Formuladores`} color="bg-violet-500">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={formuladores}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                            <YAxis axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="ventas" fill="#8b5cf6" radius={[10, 10, 0, 0]} barSize={40} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                    <h3 className="font-black text-slate-700 uppercase tracking-tighter">Ranking Médico: Producto más formulado</h3>
+// ── components ────────────────────────────────────────────────────────────────
+function KpiCard({ icon, label, value, sub, accent, href }) {
+    const inner = (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4
+                        hover:shadow-md transition-shadow flex items-start gap-3 h-full"
+             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
+            {icon && (
+                <div className="mt-0.5 shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
+                     style={{ background: `${accent}18` }}>
+                    <span style={{ color: accent }} className="text-[14px]">{icon}</span>
                 </div>
-                <div className="divide-y divide-slate-100">
-                    {formuladores.map((med, idx) => (
-                        <div key={idx} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                            <div>
-                                <p className="font-bold text-slate-800">{med.nombre}</p>
-                                <p className="text-xs text-slate-500 font-medium">{med.especialidad}</p>
-                            </div>
-                            <div className="text-right">
-                                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black">
-                                    {med.productoEstrella}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+            )}
+            <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
+                <p className="text-[20px] font-black text-slate-800 leading-none">{value}</p>
+                {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
             </div>
+            {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[10px] shrink-0" />}
         </div>
     );
+    return href ? <Link href={href} className="block h-full">{inner}</Link> : inner;
+}
 
-    // --- VISTA: DETALLE (MÉDICO O VISITADOR) ---
-    const renderVistaSujeto = () => (
-        <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-6">
-            <button
-                onClick={() => setSujetoSeleccionado(null)}
-                className="px-4 py-2 bg-slate-800 text-white rounded-xl font-black text-xs hover:bg-indigo-600 transition-colors"
-            >
-                ← VOLVER AL DASHBOARD
-            </button>
-
-            <div className="bg-white p-8 rounded-[2.5rem] border-4 border-indigo-500 shadow-2xl relative overflow-hidden">
-                <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-8">
-                    <div>
-                        <span className="text-[10px] font-black bg-indigo-100 text-indigo-600 px-3 py-1 rounded-md uppercase mb-2 inline-block">
-                            {sujetoSeleccionado.tipo ? 'Perfil Profesional' : 'Métricas del Visitador'}
-                        </span>
-                        <h1 className="text-4xl md:text-6xl font-black text-slate-800 tracking-tighter leading-none">{sujetoSeleccionado.nombre}</h1>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase">Estado</p>
-                        <p className={`text-lg font-black ${sujetoSeleccionado.activo !== false ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {sujetoSeleccionado.activo !== false ? '● ACTIVO' : '○ INACTIVO'}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {sujetoSeleccionado.asignadas !== undefined ? (
-                        <>
-                            <MetricBlock label="Visitas Completadas" value={sujetoSeleccionado.cumplidas} color="text-emerald-600" />
-                            <MetricBlock label="Visitas Faltantes" value={sujetoSeleccionado.faltantes} color="text-rose-600" />
-                            <MetricBlock label="Zona de Trabajo" value={sujetoSeleccionado.zona} color="text-slate-700" />
-                            <MetricBlock label="Efectividad" value={`${sujetoSeleccionado.eficiencia}%`} color="text-indigo-600" />
-                            <div className="col-span-full mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 font-bold text-indigo-800 text-center">
-                                Última visita realizada: <span className="underline">{sujetoSeleccionado.ultimaVisita}</span>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <MetricBlock label="Fórmulas Totales" value={sujetoSeleccionado.ventas} color="text-indigo-600" />
-                            <MetricBlock label="Compras Totales" value={sujetoSeleccionado.compras} color="text-orange-600" />
-                            <MetricBlock label="Especialidad" value={sujetoSeleccionado.especialidad} color="text-slate-700" />
-                            <MetricBlock label="Producto Estrella" value={sujetoSeleccionado.productoEstrella} color="text-violet-600" />
-                        </>
-                    )}
-                </div>
-            </div>
+function ChartTooltip({ active, payload, label }) {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-[10px]">
+            <p className="font-black text-slate-500 mb-1 uppercase">{label}</p>
+            {payload.map((p, i) => (
+                <p key={i} style={{ color: p.color }} className="font-bold">
+                    {p.name}: {p.value >= 1000 ? fmtM(p.value) : fmt(p.value)}
+                </p>
+            ))}
         </div>
     );
+}
+
+function SectionHeader({ label, title }) {
+    return (
+        <div className="mb-4">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+            <p className="text-[13px] font-black text-slate-800">{title}</p>
+        </div>
+    );
+}
+
+function MedicoSearch({ medicos, value, onChange }) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen]   = useState(false);
+    const ref = useRef();
+
+    const selected = medicos.find(m => String(m.documento) === String(value));
+    const filtered = useMemo(() => {
+        const term = query.toLowerCase();
+        return medicos.filter(m =>
+            (m.nombre    ?? '').toLowerCase().includes(term) ||
+            String(m.documento ?? '').toLowerCase().includes(term)
+        );
+    }, [medicos, query]);
+
+    useEffect(() => {
+        const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const select = doc => { onChange(String(doc)); setOpen(false); setQuery(''); };
+    const clear  = ()   => { onChange('');  setOpen(false); setQuery(''); };
 
     return (
-        <PanelAdmin>
-            <Head title={`Admin - ${periodo.toUpperCase()}`} />
-            <div className="w-full min-h-screen bg-slate-50/50 p-4 md:p-8 space-y-8">
-
-                {/* BUSCADOR INTELIGENTE */}
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                    <div className="flex-1 max-w-2xl relative group">
-                        <input
-                            type="text"
-                            placeholder="Buscar médico o visitador..."
-                            className="w-full bg-white border-2 border-slate-200 py-4 pl-12 pr-6 rounded-2xl shadow-sm focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all"
-                            value={busqueda}
-                            onChange={(e) => setBusqueda(e.target.value)}
-                        />
-                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        </div>
-                        {busqueda && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
-                                {resultadosBusqueda.medicos.map((m, i) => (
-                                    <button key={`m-${i}`} onClick={() => { setSujetoSeleccionado(m); setBusqueda('') }} className="w-full p-4 text-left hover:bg-indigo-50 flex justify-between border-b border-slate-50 last:border-0">
-                                        <span className="font-bold text-slate-700">{m.nombre} (Médico)</span>
-                                        <span className="text-[10px] font-black text-indigo-500 uppercase self-center">Ver Perfil</span>
-                                    </button>
-                                ))}
-                                {resultadosBusqueda.visitadores.map((v, i) => (
-                                    <button key={`v-${i}`} onClick={() => { setSujetoSeleccionado(v); setBusqueda('') }} className="w-full p-4 text-left hover:bg-emerald-50 flex justify-between border-b border-slate-50 last:border-0">
-                                        <span className="font-bold text-slate-700">{v.nombre} (Visitador)</span>
-                                        <span className="text-[10px] font-black text-emerald-500 uppercase self-center">Ver Métricas</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+        <div ref={ref} className="relative">
+            <div onClick={() => setOpen(o => !o)}
+                 className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition min-w-[220px]">
+                <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className={`text-[11px] font-bold flex-1 truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
+                    {selected ? selected.nombre : 'Todos los médicos'}
+                </span>
+                {selected && (
+                    <button onClick={e => { e.stopPropagation(); clear(); }} className="text-slate-300 hover:text-rose-400 transition">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
+            </div>
+            {open && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="p-2 border-b border-slate-50">
+                        <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)}
+                               placeholder="Nombre o documento..."
+                               className="w-full text-[11px] px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-400" />
                     </div>
-
-                    <div className="inline-flex bg-slate-200/50 p-1.5 rounded-2xl self-start">
-                        {['dia', 'semana', 'mes'].map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => setPeriodo(p)}
-                                className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${periodo === p ? 'bg-white text-indigo-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                {p === 'dia' ? 'Hoy' : p}
-                            </button>
+                    <ul className="max-h-52 overflow-y-auto">
+                        <li onClick={clear} className="px-4 py-2 text-[11px] font-bold text-slate-400 hover:bg-slate-50 cursor-pointer">
+                            Todos los médicos
+                        </li>
+                        {filtered.length === 0 && (
+                            <li className="px-4 py-3 text-[11px] text-slate-400 text-center">Sin resultados</li>
+                        )}
+                        {filtered.map(m => (
+                            <li key={m.documento} onClick={() => select(m.documento)}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 transition ${String(value) === String(m.documento) ? 'bg-blue-50' : ''}`}>
+                                <p className="text-[11px] font-black text-slate-700 uppercase">{m.nombre}</p>
+                                <p className="text-[9px] text-slate-400">{m.documento}</p>
+                            </li>
                         ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+export default function Ginicio({
+    auth, stats, tendencia, topProductos, topMedicos = [],
+    visitadoresResumen, visitadoresAnalisis = [], visitasPorEstado,
+    filtros, medicos = [],
+}) {
+    const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
+    const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
+    const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
+
+    const isFirstRender = useRef(true);
+    const timerRef      = useRef(null);
+
+    useEffect(() => {
+        if (isFirstRender.current) { isFirstRender.current = false; return; }
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+            router.get(route('Ginicio'), {
+                fecha_inicio:     fechaInicio,
+                fecha_fin:        fechaFin,
+                medico_documento: medicoDoc || undefined,
+            }, { preserveState: true });
+        }, 500);
+    }, [fechaInicio, fechaFin, medicoDoc]);
+
+    const limpiar = () => {
+        clearTimeout(timerRef.current);
+        router.get(route('Ginicio'));
+    };
+
+    const ticketPromedio = (stats?.total_transacciones ?? 0) > 0
+        ? (stats.valor_comprado / stats.total_transacciones) : 0;
+    const tendenciaData = (tendencia ?? []).map(d => ({
+        label:    d.mes?.slice(0, 7),
+        comprado: Number(d.valor_comprado),
+        formulado:Number(d.valor_formulado),
+    }));
+
+    const pieVisitas = (visitasPorEstado ?? []).map(v => ({
+        name:  v.estado,
+        value: Number(v.total),
+        color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
+    }));
+
+    const medicosData = topMedicos ?? [];
+
+
+    return (
+        <PanelAdmin user={auth?.user}>
+            <Head title="Panel de Control" />
+
+            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+
+                {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
+                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-[80px] z-40 shadow-sm">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
+                        <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Desde</p>
+                            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                                   className="text-[11px] font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Hasta</p>
+                            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                                   className="text-[11px] font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Médico</p>
+                            <MedicoSearch medicos={medicos} value={medicoDoc} onChange={setMedicoDoc} />
+                        </div>
+                        <button onClick={limpiar}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition">
+                            Limpiar
+                        </button>
                     </div>
                 </div>
 
-                {sujetoSeleccionado ? renderVistaSujeto() : renderDashboardGeneral()}
+                <div className="px-8 pt-7 space-y-7">
 
+                    {/* ── KPI CARDS ────────────────────────────────── */}
+                    <div className="grid grid-cols-2 xl:grid-cols-8 gap-3">
+                        <KpiCard label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard label="Transacciones"   value={fmt(stats?.total_transacciones)} accent="#8b5cf6" href="/Gtransacciones" />
+                        <KpiCard label="Méd. con Tx"     value={fmt(stats?.medicos_con_tx)}      accent="#06b6d4" />
+                        <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
+                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />
+                    </div>
+
+                    {/* ── FILA 1: Tendencia + Visitas ──────────────── */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+                        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Histórico" title="Tendencia de valor en el período" />
+                            {tendenciaData.length === 0 ? (
+                                <div className="flex items-center justify-center h-56 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={240}>
+                                    <AreaChart data={tendenciaData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#4184F0" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="gf" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                        <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
+                                        <YAxis tickFormatter={v => fmtM(v)} tick={{ fontSize: 8, fill: '#94a3b8' }} width={55} />
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
+                                        <Area type="monotone" dataKey="comprado"  name="Comprado"  stroke="#4184F0" fill="url(#gc)" strokeWidth={2} dot={false} />
+                                        <Area type="monotone" dataKey="formulado" name="Formulado" stroke="#8b5cf6" fill="url(#gf)" strokeWidth={2} dot={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Visitas" title="Estado de visitas en el período" />
+                            {pieVisitas.length === 0 ? (
+                                <div className="flex items-center justify-center h-40 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (
+                                <>
+                                    <ResponsiveContainer width="100%" height={160}>
+                                        <PieChart>
+                                            <Pie data={pieVisitas} cx="50%" cy="50%" innerRadius={44} outerRadius={68}
+                                                 dataKey="value" paddingAngle={3}>
+                                                {pieVisitas.map((e, i) => <Cell key={i} fill={e.color} />)}
+                                            </Pie>
+                                            <Tooltip formatter={v => fmt(v)} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <ul className="mt-3 space-y-2">
+                                        {pieVisitas.map((e, i) => (
+                                            <li key={i} className="flex items-center gap-2 text-[10px]">
+                                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: e.color }} />
+                                                <span className="font-bold text-slate-600 capitalize flex-1">{e.name}</span>
+                                                <span className="font-black text-slate-800">{fmt(e.value)}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── FILA 2: Top productos + Top médicos ──────── */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+                        {/* Top productos */}
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Productos · período" title="Top productos por valor" />
+                            {(topProductos?.length === 0) ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (() => {
+                                const maxC = topProductos[0]?.valor_comprado ?? 1;
+                                const maxF = Math.max(...(topProductos.map(x => x.valor_formulado ?? 0)), 1);
+                                return (
+                                    <div className="space-y-4">
+                                        {(topProductos ?? []).map((p, i) => {
+                                            const pctC = Math.round((p.valor_comprado / maxC) * 100);
+                                            const pctF = Math.round(((p.valor_formulado ?? 0) / maxF) * 100);
+                                            return (
+                                                <div key={i}>
+                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                                                              style={{ background: PROD_COLORS[i] }}>{i + 1}</span>
+                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{p.nombre}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full" style={{ width: `${pctC}%`, background: PROD_COLORS[i] }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-slate-700 w-14 text-right shrink-0">{fmtM(p.valor_comprado)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full" style={{ width: `${pctF}%`, background: '#8b5cf6' }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-purple-600 w-14 text-right shrink-0">{fmtM(p.valor_formulado ?? 0)}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Top médicos */}
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Ranking" title="Top médicos por unidades" />
+                            {medicosData.length === 0 ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
+                            ) : (() => {
+                                const maxC = Math.max(...medicosData.map(m => m.compradas), 1);
+                                const maxF = Math.max(...medicosData.map(m => m.formuladas), 1);
+                                return (
+                                    <div className="space-y-4">
+                                        {medicosData.map((m, i) => (
+                                            <div key={i} className="flex items-start gap-3">
+                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                    {i + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] font-black text-slate-700 uppercase leading-tight mb-1.5">{m.nombre}</p>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Compradas</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-[#4184F0] rounded-full" style={{ width: `${(m.compradas / maxC) * 100}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-[#4184F0] w-10 text-right shrink-0">{fmt(m.compradas)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Formuladas</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-[#8b5cf6] rounded-full" style={{ width: `${(m.formuladas / maxF) * 100}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-[#8b5cf6] w-10 text-right shrink-0">{fmt(m.formuladas)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* ── ANÁLISIS VISITADORES ──────────────────────── */}
+                    {visitadoresAnalisis.length > 0 && (() => {
+                        const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                                <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                <div className="space-y-5">
+                                    {visitadoresAnalisis.map((v, i) => {
+                                        const pctC = Math.round((v.valor_comprado  / maxVal) * 100);
+                                        const pctF = Math.round((v.valor_formulado / maxVal) * 100);
+                                        return (
+                                            <div key={i} className="flex items-start gap-3">
+                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
+                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                    {i + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-3 mb-1.5">
+                                                        <p className="text-[11px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
+                                                        <span className="text-[9px] text-slate-400 font-bold">{v.medicos_activos} méd. · {v.total_visitas} visitas</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pctC}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-indigo-600 w-16 text-right shrink-0">{fmtM(v.valor_comprado)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full bg-purple-400" style={{ width: `${pctF}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-purple-600 w-16 text-right shrink-0">{fmtM(v.valor_formulado)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                </div>
             </div>
         </PanelAdmin>
     );
-};
-
-// --- COMPONENTES AUXILIARES ---
-const MetricBlock = ({ label, value, color }) => (
-    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col justify-center text-center">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{label}</p>
-        <p className={`text-2xl font-black ${color} break-words`}>{value}</p>
-    </div>
-);
-
-const CardKPI = ({ title, value, color, trend }) => (
-    <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-shadow">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-        <h2 className={`text-4xl font-black ${color} tracking-tighter`}>{value}</h2>
-        <div className="mt-4 pt-4 border-t border-slate-50 text-[10px] font-bold text-slate-500 bg-slate-50 inline-block px-2 py-1 rounded-md">{trend}</div>
-    </div>
-);
-
-const ChartContainer = ({ title, children, color }) => (
-    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
-        <h3 className="text-xl font-black text-slate-800 mb-8 flex items-center gap-3">
-            <span className={`w-2 h-8 ${color} rounded-full`}></span>
-            {title}
-        </h3>
-        {children}
-    </div>
-);
-
-export default GInicio;
+}

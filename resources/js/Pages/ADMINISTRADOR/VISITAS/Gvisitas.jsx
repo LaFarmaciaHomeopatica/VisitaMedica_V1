@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useState } from 'react';
+import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
 // Hooks
@@ -18,23 +18,30 @@ const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [], prod
     // 1. Inicialización de Hooks
     const filter = useVisitasFilter(visitas, medicos, visitadores);
     const form = useVisitaForm(visitas, medicos);
-    const selection = useVisitasSelection(); // Hook de gestión de checkboxes
+    const selection = useVisitasSelection();
 
-    // Acción para borrar los elementos seleccionados en el Toolbar
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+
     const handleBulkDelete = () => {
         if (selection.selectedIds.length === 0) return;
-
-        // Aquí podrías abrir un modal específico o usar el form.openDeleteModal
-        // Por ahora, lo vinculamos a una confirmación simple o lógica de tu form hook
-        if (confirm(`¿Estás seguro de eliminar ${selection.selectedIds.length} visitas seleccionadas?`)) {
-            console.log("Eliminando visitas:", selection.selectedIds);
-            // Lógica de eliminación masiva...
-        }
+        setIsBulkDeleteOpen(true);
     };
 
-    const handleBulkExport = () => {
-        console.log("Exportando visitas seleccionadas:", selection.selectedIds);
+    const confirmBulkDelete = () => {
+        setBulkProcessing(true);
+        router.delete(route('Gvisitas.destroyBulk'), {
+            data: { ids: selection.selectedIds },
+            onSuccess: () => {
+                selection.clearSelection();
+                setIsBulkDeleteOpen(false);
+                setBulkProcessing(false);
+            },
+            onError: () => setBulkProcessing(false),
+        });
     };
+
+    const handleBulkExport = () => {};
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -113,6 +120,14 @@ const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [], prod
                 onClose={() => form.setIsDeleteModalOpen(false)}
                 onConfirm={form.handleConfirmDelete}
                 processing={form.processing}
+            />
+
+            {/* Modal eliminación masiva */}
+            <VisitaDeleteModal
+                isOpen={isBulkDeleteOpen}
+                onClose={() => setIsBulkDeleteOpen(false)}
+                onConfirm={confirmBulkDelete}
+                processing={bulkProcessing}
             />
         </PanelAdmin>
     );
