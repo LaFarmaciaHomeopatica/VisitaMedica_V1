@@ -16,10 +16,12 @@ class GinicioController extends Controller
 {
     public function index(Request $request)
     {
+        // 1. Fechas y filtros básicos
         $fechaInicio = $request->input('fecha_inicio', Carbon::now()->subMonths(11)->startOfMonth()->format('Y-m-d'));
         $fechaFin    = $request->input('fecha_fin',    Carbon::now()->endOfMonth()->format('Y-m-d'));
         $medicoDoc   = $request->input('medico_documento');
 
+        // Instancia base reusable para consultas del período
         $base = Transaccion::whereBetween('fecha', [$fechaInicio, $fechaFin]);
         if ($medicoDoc) {
             $base->where('medico_documento', $medicoDoc);
@@ -28,27 +30,24 @@ class GinicioController extends Controller
         // --- KPIs del período ---
         $statsPeriodo = (clone $base)->select(
             DB::raw('COUNT(*)                               as total_transacciones'),
-            DB::raw('COALESCE(SUM(valor_comprado),  0)     as valor_comprado'),
-            DB::raw('COALESCE(SUM(valor_formulado), 0)     as valor_formulado'),
+            DB::raw('COALESCE(SUM(valor_comprado),   0)     as valor_comprado'),
+            DB::raw('COALESCE(SUM(valor_formulado),  0)     as valor_formulado'),
             DB::raw('COALESCE(SUM(unidades_compradas),  0) as unidades_compradas'),
             DB::raw('COALESCE(SUM(unidades_formuladas), 0) as unidades_formuladas'),
             DB::raw('COUNT(DISTINCT medico_documento)       as medicos_con_tx')
         )->first();
 
-        // --- Tendencia del período seleccionado (filtrada por fecha y médico) ---
-        $tendencia = Transaccion::select(
+        // --- Tendencia del período seleccionado ---
+        $tendencia = (clone $base)->select(
             DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
             DB::raw('SUM(valor_comprado)      as valor_comprado'),
             DB::raw('SUM(valor_formulado)     as valor_formulado'),
             DB::raw('SUM(unidades_compradas)  as compradas'),
             DB::raw('SUM(unidades_formuladas) as formuladas'),
             DB::raw('COUNT(*)                 as transacciones')
-        )
-        ->whereBetween('fecha', [$fechaInicio, $fechaFin])
-        ->when($medicoDoc, fn($q) => $q->where('medico_documento', $medicoDoc))
-        ->groupBy('mes')->orderBy('mes')->get();
+        )->groupBy('mes')->orderBy('mes')->get();
 
-        // --- Top 5 productos del período ---
+        // --- Top 5 (10) productos del período ---
         $topProductos = (clone $base)
             ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
             ->select(
@@ -61,33 +60,30 @@ class GinicioController extends Controller
             ->orderByDesc('valor_comprado')
             ->take(10)->get();
 
-        // --- Top 10 médicos del período ---
-        $medicoNombres = Medico::all(['documento', 'nombre', 'apellido'])
-            ->mapWithKeys(fn($m) => [$m->documento => trim(($m->nombre ?? '') . ' ' . ($m->apellido ?? ''))]);
-        $tempNombres = MedicoTemporal::pluck('nombre_referencia', 'documento');
-
-        $topMedicos = (clone $base)->select(
-            'medico_documento',
-            DB::raw('SUM(unidades_compradas)  as compradas'),
-            DB::raw('SUM(unidades_formuladas) as formuladas'),
-            DB::raw('SUM(valor_comprado)      as valor_comprado')
-        )->groupBy('medico_documento')->orderByDesc('compradas')->take(10)->get()
-        ->map(function ($m) use ($medicoNombres, $tempNombres) {
-            $nombre = $medicoNombres[$m->medico_documento]
-                ?? $tempNombres[$m->medico_documento]
-                ?? $m->medico_documento;
-            return [
-                'documento'      => $m->medico_documento,
-                'nombre'         => $nombre,
+        // --- Top 10 médicos del período (Optimizado con Joins directos) ---
+        $topMedicos = (clone $base)
+            ->leftJoin('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
+            ->leftJoin('medicos_temporales as mt', 'transacciones.medico_documento', '=', 'mt.documento')
+            ->select(
+                'transacciones.medico_documento as documento',
+                DB::raw("TRIM(COALESCE(CONCAT(m.nombre, ' ', m.apellido), mt.nombre_referencia, transacciones.medico_documento)) as nombre"),
+                DB::raw('SUM(transacciones.unidades_compradas)  as compradas'),
+                DB::raw('SUM(transacciones.unidades_formuladas) as formuladas'),
+                DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado')
+            )
+            ->groupBy('transacciones.medico_documento', 'm.nombre', 'm.apellido', 'mt.nombre_referencia')
+            ->orderByDesc('compradas')
+            ->take(10)->get()
+            ->map(fn($m) => [
+                'documento'      => $m->documento,
+                'nombre'         => $m->nombre,
                 'compradas'      => (int)   $m->compradas,
                 'formuladas'     => (int)   $m->formuladas,
                 'valor_comprado' => (float) $m->valor_comprado,
-                'efectividad'    => $m->compradas > 0
-                    ? round(($m->formuladas / $m->compradas) * 100, 1) : 0,
-            ];
-        });
+                'efectividad'    => $m->compradas > 0 ? round(($m->formuladas / $m->compradas) * 100, 1) : 0,
+            ]);
 
-        // --- Resumen de visitadores (visitas del período) ---
+        // --- Resumen de visitadores ---
         $visitadoresResumen = DB::table('visitadores')
             ->leftJoin('visitas', function ($j) use ($fechaInicio, $fechaFin) {
                 $j->on('visitadores.id', '=', 'visitas.visitador_id')
@@ -97,7 +93,7 @@ class GinicioController extends Controller
                 'visitadores.id',
                 'visitadores.nombre',
                 'visitadores.apellido',
-                DB::raw('COUNT(visitas.id)                                               as total_visitas'),
+                DB::raw('COUNT(visitas.id)                                                 as total_visitas'),
                 DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva'   THEN 1 ELSE 0 END) as efectivas"),
                 DB::raw("SUM(CASE WHEN visitas.estado = 'programada' THEN 1 ELSE 0 END) as programadas"),
                 DB::raw("SUM(CASE WHEN visitas.estado = 'cancelada'  THEN 1 ELSE 0 END) as canceladas")
@@ -105,57 +101,68 @@ class GinicioController extends Controller
             ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
             ->get();
 
-        // --- Análisis de visitadores (transacciones + visitas) ---
-        $visitadoresAnalisis = DB::table('visitadores as v')
-            ->leftJoin('medicos as m', 'm.visitador_id', '=', 'v.id')
-            ->leftJoin('transacciones as t', function ($j) use ($fechaInicio, $fechaFin, $medicoDoc) {
-                $j->on('t.medico_documento', '=', 'm.documento')
-                  ->whereBetween('t.fecha', [$fechaInicio, $fechaFin]);
-                if ($medicoDoc) {
-                    $j->where('t.medico_documento', '=', $medicoDoc);
-                }
-            })
-            ->leftJoin('visitas as vis', function ($j) use ($fechaInicio, $fechaFin) {
-                $j->on('vis.visitador_id', '=', 'v.id')
-                  ->whereBetween('vis.fecha_programada', [$fechaInicio, $fechaFin]);
-            })
+        // --- Análisis de visitadores (Separado para evitar producto cartesiano destructivo) ---
+        $txVisitadores = DB::table('visitadores as v')
+            ->join('medicos as m', 'm.visitador_id', '=', 'v.id')
+            ->join('transacciones as t', 't.medico_documento', '=', 'm.documento')
+            ->whereBetween('t.fecha', [$fechaInicio, $fechaFin])
+            ->when($medicoDoc, fn($q) => $q->where('t.medico_documento', $medicoDoc))
             ->select(
                 'v.id',
-                DB::raw("CONCAT(v.nombre, ' ', v.apellido) as nombre"),
-                DB::raw('COALESCE(SUM(t.valor_comprado),  0) as valor_comprado'),
-                DB::raw('COALESCE(SUM(t.valor_formulado), 0) as valor_formulado'),
-                DB::raw('COUNT(DISTINCT t.medico_documento)  as medicos_activos'),
-                DB::raw('COUNT(DISTINCT vis.id)              as total_visitas'),
-                DB::raw("COUNT(DISTINCT CASE WHEN vis.estado = 'efectiva' THEN vis.id END) as visitas_efectivas")
+                DB::raw('SUM(t.valor_comprado) as valor_comprado'),
+                DB::raw('SUM(t.valor_formulado) as valor_formulado'),
+                DB::raw('COUNT(DISTINCT t.medico_documento) as medicos_activos')
             )
-            ->groupBy('v.id', 'v.nombre', 'v.apellido')
-            ->orderByDesc('valor_comprado')
+            ->groupBy('v.id')
             ->get()
-            ->map(fn($v) => [
-                'id'                => $v->id,
-                'nombre'            => $v->nombre,
-                'valor_comprado'    => (float) $v->valor_comprado,
-                'valor_formulado'   => (float) $v->valor_formulado,
-                'medicos_activos'   => (int)   $v->medicos_activos,
-                'total_visitas'     => (int)   $v->total_visitas,
-                'visitas_efectivas' => (int)   $v->visitas_efectivas,
-                'efectividad'       => $v->total_visitas > 0
-                    ? round(($v->visitas_efectivas / $v->total_visitas) * 100, 1) : 0,
-            ]);
+            ->keyBy('id');
 
-        // --- Visitas por estado del período ---
+        $visitasVisitadores = DB::table('visitadores as v')
+            ->join('visitas as vis', 'vis.visitador_id', '=', 'v.id')
+            ->whereBetween('vis.fecha_programada', [$fechaInicio, $fechaFin])
+            ->select(
+                'v.id',
+                DB::raw('COUNT(vis.id) as total_visitas'),
+                DB::raw("COUNT(CASE WHEN vis.estado = 'efectiva' THEN vis.id END) as visitas_efectivas")
+            )
+            ->groupBy('v.id')
+            ->get()
+            ->keyBy('id');
+
+        $visitadoresAnalisis = Visitador::all(['id', 'nombre', 'apellido'])->map(function($v) use ($txVisitadores, $visitasVisitadores) {
+            $tx  = $txVisitadores->get($v->id);
+            $vis = $visitasVisitadores->get($v->id);
+
+            $totalVisitas = $vis?->total_visitas ?? 0;
+            $visEfectivas = $vis?->visitas_efectivas ?? 0;
+
+            return [
+                'id'                => $v->id,
+                'nombre'            => trim("$v->nombre $v->apellido"),
+                'valor_comprado'    => (float) ($tx?->valor_comprado ?? 0),
+                'valor_formulado'   => (float) ($tx?->valor_formulado ?? 0),
+                'medicos_activos'   => (int)   ($tx?->medicos_activos ?? 0),
+                'total_visitas'     => (int)   $totalVisitas,
+                'visitas_efectivas' => (int)   $visEfectivas,
+                'efectividad'       => $totalVisitas > 0 ? round(($visEfectivas / $totalVisitas) * 100, 1) : 0,
+            ];
+        })->sortByDesc('valor_comprado')->values();
+
+
+        // --- Visitas por estado ---
         $visitasPorEstado = DB::table('visitas')
             ->whereBetween('fecha_programada', [$fechaInicio, $fechaFin])
             ->select('estado', DB::raw('COUNT(*) as total'))
             ->groupBy('estado')
             ->get();
 
-        // --- Lista de médicos para el filtro ---
-        $medicosLista = Medico::select('documento', 'nombre', 'apellido')
-            ->get()->map(fn($m) => [
-                'documento' => (string) ($m->documento ?? ''),
-                'nombre'    => trim(($m->nombre ?? '') . ' ' . ($m->apellido ?? '')),
-            ])->values();
+        // --- Lista de médicos para el filtro (Solo los que tienen transacciones en el periodo para no saturar el DOM) ---
+        $medicosLista = (clone $base)
+            ->join('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
+            ->select('m.documento', DB::raw("TRIM(CONCAT(m.nombre, ' ', m.apellido)) as nombre"))
+            ->distinct()
+            ->orderBy('nombre')
+            ->get();
 
         return Inertia::render('ADMINISTRADOR/Ginicio', [
             'filtros' => [

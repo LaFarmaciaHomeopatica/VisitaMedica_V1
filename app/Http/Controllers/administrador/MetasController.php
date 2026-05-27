@@ -14,11 +14,11 @@ class MetasController extends Controller
 {
     public function index(Request $request)
     {
-        $mes = $request->input('mes', Carbon::now()->format('Y-m'));
+        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
         $inicio = Carbon::parse($mes . '-01')->startOfMonth();
         $fin    = $inicio->copy()->endOfMonth();
 
-        // Visitadores con su meta del mes seleccionado (si existe)
+        // Visitadores con su meta del mes seleccionado
         $visitadores = Visitador::with(['user'])
             ->get()
             ->map(function ($v) use ($inicio) {
@@ -41,28 +41,41 @@ class MetasController extends Controller
                 ];
             });
 
-        // Progreso real del mes: visitas efectivas y valor comprado por visitador
-        $progreso = DB::table('visitadores')
-            ->leftJoin('visitas', function ($j) use ($inicio, $fin) {
-                $j->on('visitas.visitador_id', '=', 'visitadores.id')
-                  ->where('visitas.estado', 'efectiva')
-                  ->whereBetween('visitas.fecha_realizada', [$inicio, $fin]);
-            })
-            ->leftJoin('medicos', 'visitas.medico_id', '=', 'medicos.id')
-            ->leftJoin('transacciones', function ($j) use ($inicio, $fin) {
-                $j->on('transacciones.medico_documento', '=', 'medicos.documento')
-                  ->whereBetween('transacciones.fecha', [$inicio, $fin]);
+        // 1. Visitas efectivas por visitador en el mes
+        $visitasEfectivas = DB::table('visitas')
+            ->where('estado', 'efectiva')
+            ->whereYear('fecha_realizada', $inicio->year)
+            ->whereMonth('fecha_realizada', $inicio->month)
+            ->select('visitador_id', DB::raw('COUNT(*) as visitas_efectivas'))
+            ->groupBy('visitador_id')
+            ->pluck('visitas_efectivas', 'visitador_id');
+
+        // 2. Valor comprado por visitador: médicos asignados directamente
+        $ventasPorVisitador = DB::table('medicos')
+            ->join('transacciones', function ($j) use ($inicio) {
+                $j->on('transacciones.medico_documento', '=', DB::raw('CAST(medicos.documento AS CHAR)'))
+                  ->whereYear('transacciones.fecha', $inicio->year)
+                  ->whereMonth('transacciones.fecha', $inicio->month);
             })
             ->select(
-                'visitadores.id',
-                DB::raw('COUNT(DISTINCT visitas.id) as visitas_efectivas'),
-                DB::raw('COALESCE(SUM(transacciones.valor_comprado), 0) as valor_comprado')
+                'medicos.visitador_id',
+                DB::raw('SUM(transacciones.valor_comprado) as valor_comprado')
             )
-            ->groupBy('visitadores.id')
-            ->get()
-            ->keyBy('id');
+            ->groupBy('medicos.visitador_id')
+            ->pluck('valor_comprado', 'visitador_id');
 
-        // Meses que ya tienen metas registradas (para el navegador)
+        // 3. Combina en la estructura que espera el frontend
+        $progreso = Visitador::all('id')->mapWithKeys(function ($v) use ($visitasEfectivas, $ventasPorVisitador) {
+            return [
+                $v->id => (object)[
+                    'id'                => $v->id,
+                    'visitas_efectivas' => $visitasEfectivas[$v->id] ?? 0,
+                    'valor_comprado'    => (float) ($ventasPorVisitador[$v->id] ?? 0),
+                ]
+            ];
+        });
+
+        // Meses que ya tienen metas registradas
         $mesesConMetas = DB::table('metas')
             ->select(DB::raw("DATE_FORMAT(fecha_meta, '%Y-%m') as mes"))
             ->groupBy('mes')
@@ -115,9 +128,7 @@ class MetasController extends Controller
         $inicio = Carbon::parse($request->mes . '-01')->startOfMonth();
         $fin    = $inicio->copy()->endOfMonth();
 
-        $visitadores = Visitador::all('id');
-
-        foreach ($visitadores as $v) {
+        foreach (Visitador::all('id') as $v) {
             Meta::updateOrCreate(
                 [
                     'visitador_id' => $v->id,

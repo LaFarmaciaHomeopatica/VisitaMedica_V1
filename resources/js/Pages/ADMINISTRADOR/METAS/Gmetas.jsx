@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect  } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
@@ -24,44 +24,69 @@ function labelMes(ym) {
     return `${MESES[Number(m) - 1]} ${y}`;
 }
 
+// ── permite superar el 100% ───────────────────────────────────────────────────
 function pct(actual, meta) {
     if (!meta || meta <= 0) return 0;
-    return Math.min(Math.round((actual / meta) * 100), 100);
+    return Math.round((actual / meta) * 100); // ✅ sin Math.min
 }
 
 // ── barra de progreso ─────────────────────────────────────────────────────────
 function Bar({ actual, meta, color }) {
-    const p = pct(actual, meta);
+    const p    = pct(actual, meta);
     const over = meta > 0 && actual >= meta;
+
     return (
-        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all"
-                 style={{ width: `${p}%`, background: over ? '#10b981' : color }} />
+        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+            {/* Barra principal — máximo 100% visualmente */}
+            <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${Math.min(p, 100)}%`, background: over ? '#10b981' : color }}
+            />
+            {/* Brillo animado cuando supera la meta */}
+            {over && (
+                <div
+                    className="absolute inset-0 rounded-full animate-pulse"
+                    style={{ background: 'linear-gradient(90deg, #10b981, #34d399)', opacity: 0.85 }}
+                />
+            )}
         </div>
     );
 }
 
-// ── fila editale ──────────────────────────────────────────────────────────────
 function FilaMeta({ visitador, progreso, mes, onSaved }) {
     const prog = progreso[visitador.id] ?? { visitas_efectivas: 0, valor_comprado: 0 };
-    const [metaV, setMetaV]       = useState(visitador.meta?.meta_visitas ? Math.round(visitador.meta.meta_visitas) : '');
-    const [metaD, setMetaD]       = useState(visitador.meta?.meta_dinero  ? Math.round(visitador.meta.meta_dinero)  : '');
+
+    // ── estado numérico puro (nunca strings con $ ni comas) ──────────────
+    const [metaV, setMetaV] = useState(visitador.meta?.meta_visitas ?? '');
+    const [metaD, setMetaD] = useState(visitador.meta?.meta_dinero  ?? '');
     const [metaDFocus, setMetaDFocus] = useState(false);
-    const [saving, setSaving]     = useState(false);
-    const [saved,  setSaved]      = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saved,  setSaved]  = useState(false);
+
+    // ── sincroniza cuando cambia el mes o se refresca la meta ────────────
+    useEffect(() => {
+        setMetaV(visitador.meta?.meta_visitas ?? '');
+        setMetaD(visitador.meta?.meta_dinero  ?? '');
+    }, [visitador.meta?.id, visitador.meta?.meta_visitas, visitador.meta?.meta_dinero, mes]);
+
     const tieneMeta = !!visitador.meta;
 
     const guardar = () => {
         setSaving(true);
         router.post(route('Gmetas.upsert'), {
-            visitador_id:  visitador.id,
+            visitador_id: visitador.id,
             mes,
-            meta_visitas:  metaV || 0,
-            meta_dinero:   metaD || 0,
+            meta_visitas: metaV !== '' ? Number(metaV) : 0,
+            meta_dinero:  metaD !== '' ? Number(metaD) : 0,
         }, {
             preserveScroll: true,
-            onSuccess: () => { setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000); onSaved(); },
-            onError:   () => setSaving(false),
+            onSuccess: () => {
+                setSaving(false);
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2000);
+                onSaved();
+            },
+            onError: () => setSaving(false),
         });
     };
 
@@ -72,6 +97,11 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
             onSuccess: onSaved,
         });
     };
+
+    // ── valor formateado para mostrar cuando no tiene foco ───────────────
+    const metaDDisplay = metaDFocus || metaD === ''
+        ? metaD
+        : `$${new Intl.NumberFormat('es-CO').format(Math.round(Number(metaD)))}`;
 
     const pctV = pct(prog.visitas_efectivas, metaV);
     const pctD = pct(prog.valor_comprado,    metaD);
@@ -114,10 +144,10 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
             <td className="px-4 py-3 border-r border-slate-50">
                 <input
                     type={metaDFocus ? 'number' : 'text'}
-                    value={metaDFocus ? metaD : (metaD !== '' ? `$${new Intl.NumberFormat('es-CO').format(Math.round(metaD))}` : '')}
+                    value={metaDDisplay}
                     onChange={e => setMetaD(e.target.value)}
                     onFocus={() => setMetaDFocus(true)}
-                    onBlur={() => { setMetaDFocus(false); setMetaD(metaD !== '' ? Math.round(metaD) : ''); }}
+                    onBlur={() => setMetaDFocus(false)}
                     placeholder="$0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center"
                 />

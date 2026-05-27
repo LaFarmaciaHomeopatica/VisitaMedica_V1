@@ -3,7 +3,6 @@ import { Link, usePage, Head, router } from '@inertiajs/react';
 import BarraNave from './barranave';
 import {
     FaMagnifyingGlass,
-    FaUserTie,
     FaPowerOff,
     FaCheckDouble,
     FaStethoscope,
@@ -13,14 +12,17 @@ import {
 } from 'react-icons/fa6';
 
 const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasActuales = 0 }) => {
-    console.log("Datos del visitador:", visitador);
     const { auth } = usePage().props;
     const [search, setSearch] = useState('');
 
     const visitadorInfo = visitador || {};
-    const rolActual = auth?.user?.rol_nombre || 'Visitador';
 
-    // 📊 Cálculos métricos usando los datos inyectados por Inertia
+    // ✅ metas llega como objeto directo desde el backend
+    const metaActual      = visitadorInfo?.metas || null;
+    const metaValorGlobal = metaActual?.meta_visitas || 0;
+    const metaDinero      = Number(metaActual?.meta_dinero) || 0;
+
+    // 📊 Cálculos métricos
     const { visitadosHoy, pendientesHoy, porcentaje, idsVisitadosHoy, meta } = useMemo(() => {
         const hoy = new Date();
         const de = hoy.getDate().toString().padStart(2, '0');
@@ -35,43 +37,40 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
             .map(v => v.medico_id);
 
         const visitadosHoyCount = medicos.filter(m => idsHoy.includes(m.id)).length;
-        const pendientesCount = medicos.length - visitadosHoyCount;
+        const pendientesCount   = medicos.length - visitadosHoyCount;
 
-        const metaValor = visitadorInfo?.metas?.meta_visitas || 0;
-        const calculoPorcentaje = metaValor > 0
-            ? Math.round((visitasEfectivasMes.length / metaValor) * 100)
+        const calculoPorcentaje = metaValorGlobal > 0
+            ? Math.round((visitasEfectivasMes.length / metaValorGlobal) * 100)
             : 0;
 
         return {
-            visitadosHoy: visitadosHoyCount,
-            pendientesHoy: pendientesCount,
-            porcentaje: calculoPorcentaje,
+            visitadosHoy:    visitadosHoyCount,
+            pendientesHoy:   pendientesCount,
+            porcentaje:      calculoPorcentaje,
             idsVisitadosHoy: idsHoy,
-            meta: metaValor
+            meta:            metaValorGlobal,
         };
-    }, [visitasData, medicos, visitadorInfo]);
+    }, [visitasData, medicos, metaValorGlobal]);
 
-    // Validación reactiva de visitas completadas hoy
+    // ✅ Porcentaje de ventas
+    const porcentajeVentas = metaDinero > 0
+        ? Math.round((ventasActuales / metaDinero) * 100)
+        : 0;
+
     const fueVisitado = (medicoId) => idsVisitadosHoy.includes(medicoId);
 
     // 🔍 Filtrado reactivo
     const medicosFiltrados = medicos.filter(m => {
-        const nombre = m.nombre ? m.nombre.toLowerCase() : '';
-        const apellido = m.apellido ? m.apellido.toLowerCase() : '';
+        const nombre      = m.nombre      ? m.nombre.toLowerCase()      : '';
+        const apellido    = m.apellido    ? m.apellido.toLowerCase()    : '';
         const especialidad = m.especialidad ? m.especialidad.toLowerCase() : '';
-        const termino = search.toLowerCase();
+        const termino     = search.toLowerCase();
         return nombre.includes(termino) || apellido.includes(termino) || especialidad.includes(termino);
     });
 
     const irAAgendarVisita = (medicoId) => {
         router.get('/MisVisitas', { medico_id: medicoId });
     };
-
-    // 💰 Ventas: meta_dinero viene de metas, ventasActuales viene como prop de Inertia
-    const metaDinero = visitadorInfo?.metas?.meta_dinero || 0;
-    const porcentajeVentas = metaDinero > 0
-        ? Math.round((ventasActuales / metaDinero) * 100)
-        : 0;
 
     return (
         <div className="bg-[#F4F7FF] min-h-screen pb-24 font-sans text-gray-800">
@@ -107,7 +106,6 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
             {/* Hero Section */}
             <section className="bg-[#EBF2FF] p-8 rounded-b-[40px] max-w-5xl mx-auto shadow-inner border-x border-b border-blue-100 relative">
                 <div className="flex items-center gap-4 mb-6">
-                    
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800 leading-tight">
                             Bienvenido, <br />
@@ -132,7 +130,7 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
                         <div
                             className="bg-blue-600 h-3 rounded-full transition-all duration-700 ease-out"
                             style={{ width: `${Math.min(porcentaje, 100)}%` }}
-                        ></div>
+                        />
                     </div>
                     <div className="flex justify-between text-[11px] mt-1.5 text-gray-500 font-medium mb-4">
                         <span>{visitasData.filter(v => v.estado === 'efectiva').length} de {meta} visitas</span>
@@ -151,11 +149,11 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
                             <div
                                 className="bg-green-500 h-3 rounded-full transition-all duration-700 ease-out"
                                 style={{ width: `${Math.min(porcentajeVentas, 100)}%` }}
-                            ></div>
+                            />
                         </div>
                         <div className="flex justify-between text-[11px] mt-1.5 text-gray-500 font-medium">
-                            <span>${new Intl.NumberFormat().format(ventasActuales)} vendidos</span>
-                            <span>Meta: ${new Intl.NumberFormat().format(metaDinero)}</span>
+                            <span>${new Intl.NumberFormat('es-CO').format(ventasActuales)} vendidos</span>
+                            <span>Meta: ${new Intl.NumberFormat('es-CO').format(metaDinero)}</span>
                         </div>
                     </div>
 
@@ -195,8 +193,12 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
                             </div>
 
                             <div className="flex-1">
-                                <h4 className="font-bold text-gray-800 text-sm leading-tight">{medico.nombre} {medico.apellido}</h4>
-                                <p className="text-xs text-blue-500 font-medium mb-1">{medico.especialidad || 'General'}</p>
+                                <h4 className="font-bold text-gray-800 text-sm leading-tight">
+                                    {medico.nombre} {medico.apellido}
+                                </h4>
+                                <p className="text-xs text-blue-500 font-medium mb-1">
+                                    {medico.especialidad || 'General'}
+                                </p>
                                 <p className="text-[11px] text-gray-400 flex items-center gap-1">
                                     <FaLocationDot />
                                     {medico.direccion || 'Dirección no especificada'}
@@ -212,7 +214,9 @@ const DashboardLFH = ({ visitador = {}, medicos = [], visitasData = [], ventasAc
                                         Gestionar
                                     </button>
                                 ) : (
-                                    <span className="text-[10px] font-bold text-green-500 uppercase bg-green-50 px-2 py-1 rounded-md">Visitado</span>
+                                    <span className="text-[10px] font-bold text-green-500 uppercase bg-green-50 px-2 py-1 rounded-md">
+                                        Visitado
+                                    </span>
                                 )}
 
                                 <Link

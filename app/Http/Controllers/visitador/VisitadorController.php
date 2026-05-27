@@ -17,51 +17,65 @@ class VisitadorController extends Controller
     /**
      * MÉTODOS DEL PANEL PRINCIPAL UNIFICADO
      */
-    public function index()
-    {
-        $visitador = Visitador::with(['tipoDocumento', 'metas' => function ($query) {
-            $query->latest()->limit(1);
-        }])
+public function index(Request $request)
+{
+    $visitador = Visitador::with(['tipoDocumento'])
         ->where('usuario_id', Auth::id())
         ->first();
 
-        $medicos = $visitador ? $visitador->medicos : [];
+    // ✅ Busca la meta más reciente/activa del visitador
+    $metaActiva = $visitador
+        ? \App\Models\Meta::where('visitador_id', $visitador->id)
+            ->orderByDesc('fecha_meta')
+            ->first()
+        : null;
 
-        // Solo visitas del mes actual
-        $visitas = $visitador
-            ? Visita::where('visitador_id', $visitador->id)
-                ->whereMonth('fecha_programada', now()->month)
-                ->whereYear('fecha_programada', now()->year)
-                ->get()
-            : [];
+    // ✅ Si tiene meta activa usa ese mes, si no usa el mes actual
+    $mes    = $metaActiva
+        ? Carbon::parse($metaActiva->fecha_meta)->format('Y-m')
+        : Carbon::now()->format('Y-m');
 
-        // Documentos de TODOS los médicos históricos del visitador
-        // (igual que el admin — un médico puede comprar aunque no haya visita ese mes)
-        $todosMedicosDoc = $visitador
-            ? DB::table('visitas')
-                ->where('visitas.visitador_id', $visitador->id)
-                ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
-                ->pluck('medicos.documento')
-                ->unique()
-                ->values()
-            : collect();
+    $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+    $fin    = $inicio->copy()->endOfMonth();
 
-        // Valor comprado real del mes actual desde transacciones
-        $ventasActuales = $todosMedicosDoc->isNotEmpty()
-            ? DB::table('transacciones')
-                ->whereIn('medico_documento', $todosMedicosDoc)
-                ->whereMonth('fecha', now()->month)
-                ->whereYear('fecha', now()->year)
-                ->sum('valor_comprado')
-            : 0;
+    // Recarga el visitador con la meta del mes correcto
+    $visitador->load(['metas' => function ($query) use ($inicio) {
+        $query->whereYear('fecha_meta', $inicio->year)
+              ->whereMonth('fecha_meta', $inicio->month)
+              ->limit(1);
+    }]);
 
-        return Inertia::render('VISITADOR/panel', [
-            'visitador'      => $visitador,
-            'medicos'        => $medicos,
-            'visitasData'    => $visitas,
-            'ventasActuales' => (float) $ventasActuales,
-        ]);
-    }
+    $medicos = $visitador ? $visitador->medicos()->get() : collect();
+
+    $visitas = $visitador
+        ? Visita::where('visitador_id', $visitador->id)
+            ->whereYear('fecha_programada', $inicio->year)
+            ->whereMonth('fecha_programada', $inicio->month)
+            ->get()
+        : collect();
+
+    $todosMedicosDoc = $medicos->pluck('documento')
+        ->filter()
+        ->unique()
+        ->map(fn($d) => (string) $d)
+        ->values();
+
+    $ventasActuales = $todosMedicosDoc->isNotEmpty()
+        ? DB::table('transacciones')
+            ->whereIn('medico_documento', $todosMedicosDoc)
+            ->whereYear('fecha', $inicio->year)
+            ->whereMonth('fecha', $inicio->month)
+            ->sum('valor_comprado')
+        : 0;
+
+    return Inertia::render('VISITADOR/panel', [
+        'visitador'      => $visitador,
+        'medicos'        => $medicos,
+        'visitasData'    => $visitas,
+        'ventasActuales' => (float) $ventasActuales,
+        'mesActual'      => $mes,
+    ]);
+}
 
     /**
      * VISTA DEL PERFIL
