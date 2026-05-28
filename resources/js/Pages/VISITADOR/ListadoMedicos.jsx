@@ -7,7 +7,8 @@ import {
     FaLocationDot,
     FaChevronRight,
     FaChevronLeft,
-    FaUserDoctor
+    FaUserDoctor,
+    FaCalendarDays
 } from 'react-icons/fa6';
 
 const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
@@ -34,7 +35,6 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
     const currentPage = meta.current_page ?? 1;
     const lastPage    = meta.last_page    ?? 1;
 
-    // Estado local para el input de página
     const [pageInput, setPageInput] = useState(String(currentPage));
 
     const applyFilters = (newFilters) => {
@@ -51,7 +51,6 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
         applyFilters({ search: value, per_page: perPage });
     };
 
-    // Registros por página
     const commitPerPage = () => {
         const value = Math.max(1, parseInt(perPageInput) || 10);
         setPerPage(String(value));
@@ -63,7 +62,6 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
         if (e.key === 'Enter') commitPerPage();
     };
 
-    // Ir a página específica
     const commitPage = () => {
         const value = Math.min(Math.max(1, parseInt(pageInput) || 1), lastPage);
         setPageInput(String(value));
@@ -201,13 +199,16 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                             const inicial = nombreCompleto ? nombreCompleto.charAt(0).toUpperCase() : '?';
 
                             return (
+                                // ✅ Card entera va a detalle del médico, calendario va a MisVisitas
                                 <div
                                     key={medico.id}
                                     className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow"
                                 >
-                                  
-                                    {/* Info */}
-                                    <div className="flex-1 min-w-0">
+                                    {/* Info — clickeable a detalle */}
+                                    <Link
+                                        href={`/MedicoDetalle/${medico.id}`}
+                                        className="flex-1 min-w-0 active:scale-[0.98] transition-transform"
+                                    >
                                         <p className="text-[13px] font-bold text-gray-800 truncate">
                                             {nombreCompleto || 'Médico sin nombre'}
                                         </p>
@@ -226,14 +227,14 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                                                 {medico.telefono_contacto || medico.telefono_contactos || '---'}
                                             </span>
                                         </div>
-                                    </div>
+                                    </Link>
 
-                                    {/* Botón */}
+                                    {/* ✅ Calendario → MisVisitas */}
                                     <Link
-                                        href={`/MedicoDetalle/${medico.id}`}
-                                        className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all active:scale-95 shrink-0"
+                                        href="/MisVisitas"
+                                        className="w-9 h-9 flex items-center justify-center bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors active:scale-95 shrink-0"
                                     >
-                                        <FaChevronRight className="text-[10px]" />
+                                        <FaCalendarDays className="text-blue-500 text-base" />
                                     </Link>
                                 </div>
                             );
