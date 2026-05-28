@@ -6,10 +6,41 @@ import {
     FaArrowLeft,
     FaMagnifyingGlass,
     FaPhoneFlip,
-    FaLocationDot
+    FaLocationDot,
+    FaCalendarCheck,
+    FaBoxOpen,
+    FaFileInvoiceDollar,
+    FaFlask,
 } from 'react-icons/fa6';
 
-const MedicoDetalle = ({ medico }) => {
+// Helpers de formateo
+const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
+const fmtM = n => {
+    n = n ?? 0;
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${fmt(n)}`;
+};
+
+// Subcomponente de KPI Card
+function KpiCard({ label, value, icon, accent }) {
+    return (
+        <div 
+            className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-4 flex items-center gap-3.5 hover:shadow-md transition-shadow"
+            style={{ borderTop: `4px solid ${accent}` }}
+        >
+            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
+                {icon}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 truncate">{label}</p>
+                <p className="text-base font-black text-gray-800 leading-tight mt-0.5">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+const MedicoDetalle = ({ medico, periodoActivo = 'all', txStats, topProductos = [] }) => {
     const [mostrarDetalles, setMostrarDetalles] = useState(false);
     const [search, setSearch] = useState('');
 
@@ -145,8 +176,128 @@ const MedicoDetalle = ({ medico }) => {
                         </div>
                     </section>
 
-                    <div className="mt-3 px-4 opacity-20">
-                        <span className="text-[8px] font-bold uppercase tracking-widest">por realizar (°_°)7</span>
+                    {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
+                    <div className="flex flex-wrap items-center gap-2 mt-6 mb-4 px-1">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mr-2">Período:</p>
+                        {[
+                            { key: 'all', label: 'Todo' },
+                            { key: '2y',  label: '2 años' },
+                            { key: '1y',  label: '1 año' },
+                            { key: '6m',  label: '6 meses' },
+                            { key: '3m',  label: '3 meses' },
+                        ].map(p => (
+                            <button
+                                key={p.key}
+                                onClick={() => router.get(
+                                    `/MedicoDetalle/${medico.id}`,
+                                    p.key !== 'all' ? { periodo: p.key } : {},
+                                    { preserveScroll: true }
+                                )}
+                                className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                                    periodoActivo === p.key
+                                        ? 'bg-[#5D8BF4] text-white border-[#5D8BF4] shadow-sm shadow-blue-100'
+                                        : 'bg-white text-gray-400 border-gray-100 hover:text-gray-600 hover:border-gray-200'
+                                }`}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* ── KPIs FINANCIEROS Y TRANSACCIONALES ────────────── */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                        <KpiCard 
+                            label="Val. Comprado" 
+                            value={fmtM(txStats?.total_valor_comprado)} 
+                            icon={<FaFileInvoiceDollar className="text-[#5D8BF4] text-lg" />}
+                            accent="#5D8BF4" 
+                        />
+                        <KpiCard 
+                            label="Val. Formulado" 
+                            value={fmtM(txStats?.total_valor_formulado)} 
+                            icon={<FaFileInvoiceDollar className="text-purple-500 text-lg" />}
+                            accent="#8b5cf6" 
+                        />
+                        <KpiCard 
+                            label="Unidades" 
+                            value={fmt(txStats?.total_unidades)} 
+                            icon={<FaBoxOpen className="text-amber-500 text-lg" />}
+                            accent="#f59e0b" 
+                        />
+                        <KpiCard 
+                            label="Transacciones" 
+                            value={fmt(txStats?.total_transacciones)} 
+                            icon={<FaCalendarCheck className="text-emerald-500 text-lg" />}
+                            accent="#10b981" 
+                        />
+                    </div>
+
+                    {/* ── TOP PRODUCTOS DE INTERÉS ─────────────────────── */}
+                    <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-6 mt-6">
+                        <div className="flex items-center gap-2 mb-2">
+                            <FaFlask className="text-[#5D8BF4] text-base" />
+                            <h3 className="text-xs md:text-sm font-black uppercase text-gray-800 tracking-wider">Top Productos</h3>
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-4">
+                            Productos con mayor volumen de compra y formulación por el médico
+                        </p>
+                        
+                        <div className="flex gap-4 mb-4 border-b border-gray-50 pb-2">
+                            <span className="flex items-center gap-1.5 text-[9px] font-black text-blue-500 uppercase">
+                                <span className="w-2 h-2 rounded bg-blue-500 inline-block" /> Comprado
+                            </span>
+                            <span className="flex items-center gap-1.5 text-[9px] font-black text-purple-500 uppercase">
+                                <span className="w-2 h-2 rounded bg-purple-500 inline-block" /> Formulado
+                            </span>
+                        </div>
+
+                        {topProductos.length === 0 ? (
+                            <div className="text-center py-12 text-gray-300 font-bold text-xs uppercase tracking-widest border border-dashed border-gray-100 rounded-[20px]">
+                                Sin transacciones registradas en este período
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {topProductos.map((p, i) => {
+                                    const maxC = Math.max(...topProductos.map(x => Number(x.valor_comprado)), 1);
+                                    const maxF = Math.max(...topProductos.map(x => Number(x.valor_formulado)), 1);
+                                    const valorComprado = Number(p.valor_comprado ?? 0);
+                                    const valorFormulado = Number(p.valor_formulado ?? 0);
+                                    const unidades = Number(p.unidades ?? 0);
+                                    
+                                    return (
+                                        <div key={i} className="bg-gray-50/20 border border-gray-50 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-shadow duration-300">
+                                            <div className="flex justify-between items-start mb-2 gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-bold text-gray-700 truncate">{p.nombre}</p>
+                                                    <p className="text-[9px] text-gray-400 font-semibold uppercase">{p.codigo} · {unidades} uds.</p>
+                                                </div>
+                                                <div className="flex gap-2 shrink-0 text-[10px] font-black">
+                                                    <span className="text-blue-500">{fmtM(valorComprado)}</span>
+                                                    <span className="text-purple-500">{fmtM(valorFormulado)}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-1 mt-2">
+                                                {/* Barra comprado */}
+                                                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full rounded-full bg-blue-500 shadow-inner transition-all duration-500"
+                                                        style={{ width: `${(valorComprado / maxC) * 100}%` }} 
+                                                    />
+                                                </div>
+                                                {/* Barra formulado */}
+                                                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full rounded-full bg-purple-500 shadow-inner transition-all duration-500"
+                                                        style={{ width: `${(valorFormulado / maxF) * 100}%` }} 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
