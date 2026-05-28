@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import {
     format, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -40,6 +40,27 @@ export const useMisVisitas = (visitasDB, doctores) => {
         estado: '',
         comentarios: '',
     });
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const medicoId = params.get('medico_id');
+        if (medicoId) {
+            const hoy = new Date();
+            const fechaFormato = format(hoy, "yyyy-MM-dd") + 'T08:00';
+            formNueva.setData({
+                ...formNueva.data,
+                medico_id: medicoId,
+                fecha_programada: fechaFormato,
+                fecha_realizada: fechaFormato,
+            });
+            setModalNuevoAbierto(true);
+
+            // Limpiar la URL para evitar re-aperturas no deseadas
+            const url = new URL(window.location.href);
+            url.searchParams.delete('medico_id');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }, []);
 
     const visitas = useMemo(() => {
         return (visitasDB || []).map(v => ({

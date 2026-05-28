@@ -231,7 +231,7 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
 
                                     {/* ✅ Calendario → MisVisitas */}
                                     <Link
-                                        href="/MisVisitas"
+                                        href={`/MisVisitas?medico_id=${medico.id}`}
                                         className="w-9 h-9 flex items-center justify-center bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors active:scale-95 shrink-0"
                                     >
                                         <FaCalendarDays className="text-blue-500 text-base" />
