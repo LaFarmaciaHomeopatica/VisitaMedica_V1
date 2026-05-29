@@ -3,71 +3,101 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     FaHouse,
     FaUserDoctor,
-    FaChartLine,
     FaCalendarCheck,
-    FaPills,
     FaBars,
-    FaXmark
+    FaXmark,
+    FaPowerOff, // Icono de apagado / cerrar sesión
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
     const { url } = usePage();
     const [isOpen, setIsOpen] = useState(false);
 
+    // Rutas de navegación estándar
     const navIcons = [
-            { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
-            { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
-            { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
+        { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
+        { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
+        { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
     ];
+
+    // Configuración del botón de salida (Inertia por defecto usa POST para logout)
+    const logoutAction = {
+        icon: <FaPowerOff />,
+        label: 'Salir',
+        route: '/logout', // Cambia esto por tu ruta real de logout (ej: route('logout'))
+    };
 
     const toggleMenu = () => setIsOpen(!isOpen);
 
     return (
-        <>
-            {/* --- MÓVIL: MENÚ FLOTANTE IZQUIERDA --- */}
-            <div className="fixed bottom-6 left-6 z-50 sm:hidden pointer-events-none">
-                {/* Lista de enlaces vertical */}
-                <div className={`flex flex-col-reverse gap-3 mb-16 transition-all duration-300 origin-bottom-left ${isOpen
-                    ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                    : 'opacity-0 scale-75 translate-y-10 pointer-events-none'
-                    }`}>
-                    {navIcons.map((nav, index) => {
-                        const isActive = url === nav.route || url.startsWith(`${nav.route}/`);
-                        return (
-                            <Link
-                                key={index}
-                                href={nav.route}
-                                onClick={() => setIsOpen(false)}
-                                className={`flex items-center gap-3 p-3 rounded-2xl shadow-xl transition-all border
-                                    ${isActive
-                                        ? 'bg-[#5D8BF4] text-white border-white/20'
-                                        : 'bg-white/90 backdrop-blur-md text-slate-700 border-gray-100'}`}
-                            >
-                                <div className="text-xl">{nav.icon}</div>
-                                <span className="text-xs font-bold pr-2">{nav.label}</span>
-                            </Link>
-                        );
-                    })}
-                </div>
+        
+ <> {/* --- MÓVIL: MENÚ FLOTANTE IZQUIERDA --- */}
+          
+<div className="fixed bottom-6 left-6 z-50 sm:hidden pointer-events-none">
+    {/* Lista de enlaces vertical */}
+    <div className={`flex flex-col-reverse gap-3 mb-16 transition-all duration-300 origin-bottom-left ${isOpen
+        ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+        : 'opacity-0 scale-75 translate-y-10 pointer-events-none'
+        }`}>        
+        
+        {/* Botón de Salir (Mantiene estética de advertencia pero limpia) */}
+        <Link
+            href={logoutAction.route}
+            method="post"
+            as="button"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-2xl shadow-xl bg-white/90 backdrop-blur-md border border-red-100 text-red-500 active:bg-red-50"
+        >
+            <div className="text-xl">{logoutAction.icon}</div>
+            <span className="text-xs font-bold pr-2">{logoutAction.label}</span>
+        </Link>
 
-                <button
-                    onClick={toggleMenu}
-                    className={`fixed bottom-5 left-5 z-50 w-14 h-14 flex items-center justify-center rounded-2xl shadow-2xl transition-all duration-300 text-white pointer-events-auto
-                     ${isOpen ? 'bg-red-500' : 'bg-[#5D8BF4] hover:bg-[#4a76d8]'}`}
-                >
-                    {isOpen ? (
-                        <FaXmark size={24} className="animate-in fade-in zoom-in duration-300" />
-                    ) : (
-                        <FaBars size={24} className="animate-in fade-in zoom-in duration-300" />
-                    )}
-                </button>
-            </div>
+        {/* Enlaces del menú */}
+        {navIcons.map((nav, index) => {
+            const isActive = url === nav.route || url.startsWith(`${nav.route}/`);
+            return (
+                <Link
+    key={index}
+    href={nav.route}
+    onClick={() => setIsOpen(false)}
+    className={`flex items-center gap-3 p-3 rounded-2xl shadow-md transition-all border
+        ${isActive
+            // SI ESTÁ ACTIVO: Fondo verde claro con texto e icono en verde oscuro
+            ? 'bg-green-100 text-green-700 border-green-200'
+            // POR DEFECTO (INACTIVO): Fondo azul claro suave con texto e icono en azul elegante
+            : 'bg-blue-50 text-blue-600 border-blue-100 active:bg-blue-100'
+        }`}
+>
+    {/* Icono: Hereda automáticamente el color del texto (text-green-700 o text-blue-600) */}
+    <div className="text-xl">
+        {nav.icon}
+    </div>
+    
+    <span className="text-xs font-bold pr-2">{nav.label}</span>
+</Link>
+            );
+        })}
+    </div>
+
+    {/* BOTÓN HAMBURGUESA CON TU DEGRADADO */}
+    <button
+        onClick={toggleMenu}
+        className={`fixed bottom-5 left-5 z-50 w-14 h-14 flex items-center justify-center rounded-2xl shadow-2xl transition-all duration-300 text-white pointer-events-auto
+         ${isOpen 
+            ? 'bg-red-500' // Se vuelve rojo al abrir para indicar cierre claro
+            : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#02CFE3] hover:scale-105'
+         }`}
+    >
+        {isOpen ? (
+            <FaXmark size={24} className="animate-in fade-in zoom-in duration-300" />
+        ) : (
+            <FaBars size={24} className="animate-in fade-in zoom-in duration-300" />
+        )}
+    </button>
+</div>
 
             {/* --- DESKTOP: BARRA HORIZONTAL --- */}
-            {/* CORRECCIÓN: Agregamos pointer-events-none al contenedor estirado de lado a lado */}
             <div className="hidden sm:flex fixed bottom-6 left-0 right-0 justify-center z-50 px-4 pointer-events-none">
-
-                {/* CORRECCIÓN: Forzamos pointer-events-auto aquí para que el menú azul sí responda a clics */}
                 <nav className="bg-[#5D8BF4]/90 backdrop-blur-lg border border-white/20 p-2 px-6 flex justify-around items-center gap-4 rounded-[35px] shadow-[0_15px_35px_rgba(0,0,0,0.2)] max-w-fit transition-all duration-300 pointer-events-auto">
                     {navIcons.map((nav, index) => {
                         const isActive = url === nav.route || url.startsWith(`${nav.route}/`);
@@ -86,13 +116,31 @@ const BottomNavigation = () => {
                                 <span className={`text-[10px] font-bold transition-all duration-300 text-center
                                     ${isActive ? 'text-white' : 'text-white/60 group-hover:text-white/90'}`}>
                                     {nav.label}
-                                </span>
+                                </span  >
                                 {isActive && (
                                     <div className="absolute -bottom-1 w-1 h-1 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)]"></div>
                                 )}
                             </Link>
                         );
                     })}
+
+                    {/* Separador visual antes del botón de salir en Desktop */}
+                    <div className="h-6 w-[1px] bg-white/20 self-center mx-1" />
+
+                    {/* Botón de Salir en Desktop */}
+                    <Link
+                        href={logoutAction.route}
+                        method="post"
+                        as="button"
+                        className="relative flex flex-col items-center gap-1 p-2 min-w-[60px] transition-all duration-300 group hover:scale-105 text-red-200 hover:text-red-400"
+                    >
+                        <div className="text-xl transition-all duration-300">
+                            {logoutAction.icon}
+                        </div>
+                        <span className="text-[10px] font-bold transition-all duration-300 text-center">
+                            {logoutAction.label}
+                        </span>
+                    </Link>
                 </nav>
             </div>
 

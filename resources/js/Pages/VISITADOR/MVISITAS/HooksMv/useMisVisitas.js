@@ -15,36 +15,54 @@ export const useMisVisitas = (visitasDB, doctores) => {
     const [busqueda, setBusqueda] = useState('');
     const [visitaSeleccionada, setVisitaSeleccionada] = useState(null);
 
+    // Formulario para Crear Nuevas Visitas
     const formNueva = useForm({
         medico_id: '',
-        fecha_programada: format(fechaSeleccionada, "yyyy-MM-dd'T'HH:mm"), // 👈 usa el día seleccionado
-        fecha_realizada: '',   // 👈 nuevo campo
+        fecha_programada: format(fechaSeleccionada, "yyyy-MM-dd'T'HH:mm"), 
+        fecha_realizada: '',   
         muestras: '',
-        estado: 'programada', // 👈 fijo, no lo toca el usuario
+        estado: 'programada', 
         comentario_muestra: '',
         comentarios: '',
-
-
     });
+
+    // Formulario para Reportar/Gestionar Visita
+    const formReporte = useForm({
+        estado: '',
+        comentarios: '',
+        muestras: '',
+        comentario_muestra: '',
+        fecha_programada: '',
+        fecha_realizada: '',
+        medico_id: '',
+    });
+
     const handleSeleccionarFecha = (dia) => {
         setFechaSeleccionada(dia);
         const fechaFormato = format(dia, "yyyy-MM-dd") + 'T08:00';
         formNueva.setData({
             ...formNueva.data,
             fecha_programada: fechaFormato,
-            fecha_realizada: fechaFormato, // 👈
+            fecha_realizada: fechaFormato, 
         });
     };
 
-    const formReporte = useForm({
-        estado: '',
-        comentarios: '',
-    });
+    // Procesar visitas provenientes de la Base de Datos
+    const visitas = useMemo(() => {
+        return (visitasDB || []).map(v => ({
+            ...v,
+            fecha: parseISO(v.fecha_programada),
+            doctor: v.medico ? `${v.medico.nombre} ${v.medico.apellido}` : 'Médico no asignado'
+        }));
+    }, [visitasDB]);
 
+    // 1️⃣ EFFECT ORIGINAL: Captura cuando vienes desde el botón de "Agendar" (pasa médico)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const medicoId = params.get('medico_id');
-        if (medicoId) {
+        const visitaId = params.get('visita_id'); 
+        
+        if (medicoId && !visitaId) {
             const hoy = new Date();
             const fechaFormato = format(hoy, "yyyy-MM-dd") + 'T08:00';
             formNueva.setData({
@@ -55,34 +73,92 @@ export const useMisVisitas = (visitasDB, doctores) => {
             });
             setModalNuevoAbierto(true);
 
-            // Limpiar la URL para evitar re-aperturas no deseadas
             const url = new URL(window.location.href);
             url.searchParams.delete('medico_id');
             window.history.replaceState({}, '', url.pathname + url.search);
         }
     }, []);
 
-    const visitas = useMemo(() => {
-        return (visitasDB || []).map(v => ({
-            ...v,
-            fecha: parseISO(v.fecha_programada),
-            doctor: v.medico?.nombre || 'Médico no asignado'
-        }));
-    }, [visitasDB]);
+    // 2️⃣ ✨ EFFECT OPTIMIZADO: Intercepta el botón "Ejecutar" y enfoca el calendario
+useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const visitaIdFromUrl = params.get('visita_id');
 
-    const visitasFiltradas = useMemo(() => {
-        const query = busqueda.toLowerCase();
-        return visitas.filter(v =>
-            v.doctor.toLowerCase().includes(query) ||
-            v.estado.toLowerCase().includes(query)
-        );
-    }, [busqueda, visitas]);
+    if (visitaIdFromUrl && visitas.length > 0) {
+        const visitaACompletar = visitas.find(v => String(v.id) === String(visitaIdFromUrl));
+        
+        if (visitaACompletar) {
+            // 📍 NUEVO: Extraemos la fecha real de la visita (objeto Date que ya generó tu useMemo)
+            const fechaVisita = visitaACompletar.fecha; 
+
+            // 📍 NUEVO: Movemos el foco visual del calendario a ese día y mes exactos
+            setFechaSeleccionada(fechaVisita);
+            setMesActual(fechaVisita);
+
+            // Seteamos los estados del modal
+            setVisitaSeleccionada(visitaACompletar);
+            setModalGestionAbierto(true);
+
+            // Sincronizamos el formReporte
+            formReporte.setData({
+                estado: visitaACompletar.estado || '',
+                comentarios: visitaACompletar.comentarios || '',
+                muestras: visitaACompletar.muestras || '',
+                comentario_muestra: visitaACompletar.comentario_muestra || '',
+                fecha_programada: visitaACompletar.fecha_programada?.slice(0, 16) || '',
+                fecha_realizada: visitaACompletar.fecha_realizada?.slice(0, 16) || '',
+                medico_id: visitaACompletar.medico_id || '',
+            });
+
+            // Limpieza estricta de la URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('medico_id');
+            url.searchParams.delete('visita_id');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+}, [visitasDB]);
+
+   const visitasFiltradas = useMemo(() => {
+    const query = busqueda.toLowerCase().trim();
+    
+    // Si no hay nada escrito, devolvemos todo de golpe
+    if (!query) return visitas;
+
+    return visitas.filter(v => {
+        // 1. Obtener el nombre del doctor que realmente se muestra
+        const nombreDoctor = v.medico 
+            ? `${v.medico.nombre} ${v.medico.apellido}`.toLowerCase()
+            : 'médico desconocido médico no asignado'; // Incluimos ambas variantes por seguridad
+
+        // 2. Obtener la especialidad (si existe en tu relación)
+        const especialidad = v.medico?.especialidad 
+            ? v.medico.especialidad.toLowerCase() 
+            : '';
+
+        // 3. Obtener el estado
+        const estado = v.estado ? v.estado.toLowerCase() : '';
+
+        // El registro pasa si coincide con el doctor, la especialidad o el estado
+        return nombreDoctor.includes(query) || 
+               especialidad.includes(query) || 
+               estado.includes(query);
+    });
+}, [busqueda, visitas]);
 
     const visitasDelDia = visitasFiltradas.filter(v => isSameDay(v.fecha, fechaSeleccionada));
 
     const abrirGestion = (visita) => {
         setVisitaSeleccionada(visita);
-        formReporte.setData('estado', visita.estado);
+        formReporte.setData({
+            estado: visita.estado || '',
+            comentarios: visita.comentarios || '',
+            muestras: visita.muestras || '',
+            comentario_muestra: visita.comentario_muestra || '',
+            fecha_programada: visita.fecha_programada?.slice(0, 16) || '',
+            fecha_realizada: visita.fecha_realizada?.slice(0, 16) || '',
+            medico_id: visita.medico_id || '',
+        });
         setModalGestionAbierto(true);
     };
 
@@ -96,7 +172,6 @@ export const useMisVisitas = (visitasDB, doctores) => {
         return eachDayOfInterval({ start: inicio, end: fin });
     }, [mesActual, vistaSemanal]);
 
-
     const abrirModalNuevo = () => {
         const fechaFormato = format(fechaSeleccionada, "yyyy-MM-dd") + 'T08:00';
         formNueva.setData({
@@ -107,18 +182,15 @@ export const useMisVisitas = (visitasDB, doctores) => {
         setModalNuevoAbierto(true);
     };
 
-
     return {
         mesActual, fechaSeleccionada, setFechaSeleccionada,
         vistaSemanal, setVistaSemanal,
         modalNuevoAbierto, setModalNuevoAbierto,
         modalGestionAbierto, setModalGestionAbierto,
         busqueda, setBusqueda,
-        visitaSeleccionada,
+        visitaSeleccionada, setVisitaSeleccionada,
         formNueva, formReporte,
         visitas, visitasDelDia, diasAMostrar,
-        abrirGestion, navegarSiguiente, navegarAnterior, handleSeleccionarFecha, abrirModalNuevo, // 👈 para abrir
-        setModalNuevoAbierto, // se mantiene para cerrar
+        abrirGestion, navegarSiguiente, navegarAnterior, handleSeleccionarFecha, abrirModalNuevo,
     };
 };
-
