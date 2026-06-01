@@ -132,6 +132,7 @@ Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'import
         Route::middleware(['role:2'])->group(function () {
        // 🚀 AHORA SÍ: El Panel pasa por el controlador y cargará los datos reales
     Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
+    Route::get('/TopMedicosDetalle/{documento}', [VisitadorController::class, 'detalleTop'])->name('visitador.top.detalle');
 
     
         // Médicos
