@@ -6,7 +6,7 @@ import BarraNave from '../barranave';
 import HeroSection    from './ComponentsPe/HeroSection';
 import AgendaTab      from './ComponentsPe/AgendaTab';
 import PendientesTab  from './ComponentsPe/PendientesTab';
-import TopMedicosTab  from './ComponentsPe/TopMedicosTab';
+
 import { useDashboardMetrics } from './HooksPe/useDashboardMetrics';
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ const DashboardLFH = ({
     medicos         = [],
     visitasData     = [],
     visitasPendientes = [],
-    topMedicos      = [],
+   
     ventasActuales  = 0,
 }) => {
     const [search,    setSearch]    = useState('');

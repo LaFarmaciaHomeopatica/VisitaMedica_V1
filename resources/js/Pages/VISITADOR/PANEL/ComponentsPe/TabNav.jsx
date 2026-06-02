@@ -18,12 +18,7 @@ const TabNav = ({ tabActiva, setTabActiva, totalMedicos, totalPendientes }) => {
             icon:  <FaCalendarDays size={14} />,
             activeColor: 'text-[#02CFE3]',
         },
-        {
-            id:    'top',
-            label: 'Top 5 Médicos',
-            icon:  <FaCrown size={14} />,
-            activeColor: 'text-[#24C765]',
-        },
+        
     ];
 
     return (

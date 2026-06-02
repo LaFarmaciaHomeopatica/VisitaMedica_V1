@@ -15,6 +15,7 @@ use App\Http\Controllers\administrador\TransaccionesController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
 use App\Http\Controllers\administrador\MetricasController;
 use App\Http\Controllers\administrador\MetasController;
+use App\Http\Controllers\visitador\TopMedicosController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -132,9 +133,12 @@ Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'import
         Route::middleware(['role:2'])->group(function () {
        // 🚀 AHORA SÍ: El Panel pasa por el controlador y cargará los datos reales
     Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
-    Route::get('/TopMedicosDetalle/{documento}', [VisitadorController::class, 'detalleTop'])->name('visitador.top.detalle');
+    // Ruta principal para ver el Ranking (la que lee tu vista TopMedicos.jsx)
+    // o si están sueltas, agrégales el prefijo manualmente:
+Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
+Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
 
-    
+Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
         // Médicos
         Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
         Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');

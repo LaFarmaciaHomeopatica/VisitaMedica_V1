@@ -7,18 +7,19 @@ import {
     FaBars,
     FaXmark,
     FaPowerOff, // Icono de apagado / cerrar sesión
+    FaRankingStar, // Icono de ranking (puedes cambiarlo por otro si prefieres)
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
     const { url } = usePage();
     const [isOpen, setIsOpen] = useState(false);
 
-    // Rutas de navegación estándar
     const navIcons = [
-        { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
-        { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
-        { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
-    ];
+    { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
+    { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
+    { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
+    { icon: <FaRankingStar />, label: 'Top 10', route: '/visitador/top-medicos' }, // ← Nueva ruta del Ranking
+];
 
     // Configuración del botón de salida (Inertia por defecto usa POST para logout)
     const logoutAction = {
