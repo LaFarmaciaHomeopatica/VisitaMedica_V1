@@ -118,9 +118,6 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                                 </div>
                             </div>
 
-                            <div className="text-[10px] font-black text-white/80 uppercase tracking-wider hidden sm:block">
-                                Filtrado Dinámico LFH
-                            </div>
                         </div>
 
                         <div className="bg-white/10 p-1 rounded-2xl flex gap-1 border border-white/10 max-w-md w-full">
@@ -171,64 +168,77 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                             {medicosProcesados.map((medico, index) => {
                                 const puesto = index + 1;
 
-                               return (
+                              return (
     <Link
-        key={medico.documento}
-        href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search}`}
-        className="bg-white/80 backdrop-blur-md rounded-[24px] flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 overflow-hidden text-left block w-full"
-    >
-        {/* TODO TU CONTENIDO INTERNO SE QUEDA IGUAL (Acento lateral, Puesto, Nombre, Totales) */}
-                                        {/* Acento lateral */}
-                                        <div className={`w-1.5 shrink-0 rounded-l-[24px] ${
-                                            vistaTipo === 'compradores' ? 'bg-[#24C765]' : vistaTipo === 'formuladores' ? 'bg-[#1C85E8]' : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]'
-                                        }`} />
+    key={medico.documento}
+    href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search}`}
+    className="bg-white/80 backdrop-blur-md rounded-xl flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden text-left block w-full"
+>
+    {/* Acento lateral (Ajustado a rounded-l-xl y fino) */}
+    <div className={`w-1 shrink-0 rounded-l-xl ${
+        vistaTipo === 'compradores' ? 'bg-[#24C765]' : vistaTipo === 'formuladores' ? 'bg-[#1C85E8]' : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]'
+    }`} />
 
-                                        {/* Puesto del Ranking */}
-                                        <div className="flex flex-col items-center justify-center px-3.5 shrink-0 bg-blue-50/40 border-r border-gray-100/50 min-w-[52px]">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase leading-none mb-0.5">TOP</span>
-                                            <span className={`text-base font-black leading-none ${
-                                                puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-500'
-                                            }`}>
-                                                #{puesto}
-                                            </span>
-                                        </div>
+    {/* Puesto del Ranking (Más esbelto) */}
+    <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
+        <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
+        <span className={`text-xs font-black leading-none ${
+            puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-400'
+        }`}>
+            #{puesto}
+        </span>
+    </div>
 
-                                        {/* Información del Médico */}
-                                        <div className="flex-1 min-w-0 py-2 px-3 flex items-center justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <h4 className="font-bold text-gray-800 text-xs leading-tight truncate">
-                                                    {medico.nombre}
-                                                </h4>
-                                                <p className="text-[10px] text-[#1C85E8] font-black uppercase tracking-tight mt-0.5 leading-none">
-                                                    {medico.especialidad}
-                                                </p>
-                                            </div>
+    {/* Contenedor Principal (py-2 para máxima finura y px-3.5 para consistencia) */}
+    <div className="flex-1 min-w-0 py-2 px-3.5 flex flex-col justify-between gap-1.5">
+        
+        {/* Fila Superior: Nombre del Médico solo (aprovecha todo el ancho horizontal) */}
+        <div className="w-full min-w-0">
+            <h4 className="font-bold text-gray-800 text-xs leading-tight truncate">
+                {medico.nombre}
+            </h4>
+        </div>
 
-                                            {/* Valores Financieros */}
-                                            <div className="flex items-center gap-3 shrink-0 bg-blue-50/20 p-2 rounded-xl border border-blue-100/30">
-                                                {(vistaTipo === 'general' || vistaTipo === 'compradores') && (
-                                                    <div className="text-right">
-                                                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Total Comprado</p>
-                                                        <p className="text-xs font-black text-gray-800 leading-none">
-                                                            ${medico.total_comprado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                
-                                                {vistaTipo === 'general' && <div className="w-px h-5 bg-gray-200" />}
-                                                
-                                                {(vistaTipo === 'general' || vistaTipo === 'formuladores') && (
-                                                    <div className="text-right">
-                                                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Total Formulado</p>
-                                                        <p className="text-xs font-black text-[#1C85E8] leading-none">
-                                                            ${medico.total_formulado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </Link>
-                                );
+        {/* Fila Inferior: Valores Financieros distribuidos y Especialidad a la derecha */}
+        <div className="flex items-center justify-between gap-3 w-full py-0.5 min-w-0">
+            
+            {/* Sección Financiera: Expandible mediante flex-1 para llenar el espacio central */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+                {(vistaTipo === 'general' || vistaTipo === 'compradores') && (
+                    <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Comprado</p>
+                        <p className="text-[10.5px] font-black text-gray-700 leading-none truncate">
+                            ${medico.total_comprado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+                        </p>
+                    </div>
+                )}
+                
+                {vistaTipo === 'general' && <div className="w-px h-4.5 bg-gray-200/80 shrink-0 mx-0.5" />}
+                
+                {(vistaTipo === 'general' || vistaTipo === 'formuladores') && (
+                    <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Formulado</p>
+                        <p className="text-[10.5px] font-black text-[#1C85E8] leading-none truncate">
+                            ${medico.total_formulado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Especialidad: Perfectamente anclada a la derecha del todo como píldora minimalista */}
+            <div className="min-w-0 shrink-0 flex justify-end">
+                {medico.especialidad && (
+                    <p className="text-[8.5px] text-[#1C85E8] font-bold truncate uppercase tracking-tight bg-blue-50/60 border border-blue-100/40 px-1.5 py-0.5 rounded-md max-w-[100px]">
+                        <span className="truncate">{medico.especialidad}</span>
+                    </p>
+                )}
+            </div>
+            
+        </div>
+        
+    </div>
+</Link>
+);
                             })}
                         </div>
                     ) : (

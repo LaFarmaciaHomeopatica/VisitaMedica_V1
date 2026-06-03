@@ -133,7 +133,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
             />
 
             <div className="relative bg-white w-full max-w-lg rounded-[35px] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-                {/* MODIFICACIÓN: Botón "X" absoluto en la esquina superior derecha para cerrar el modal */}
                 <button
                     type="button"
                     onClick={() => logic.setModalGestionAbierto(false)}
@@ -175,7 +174,44 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                                 onChange={handleFechaProgramadaChange}
                             />
                         </div>
-                        <div>
+                      
+                    </div>
+
+                    {/* ── SE MOVIÓ AQUÍ: Estado (Resultado de la visita) justo debajo de las Horas ── */}
+                    {!esEfectiva && (
+                        <div className="animate-in fade-in duration-200">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
+                                Resultado de la visita
+                            </label>
+
+                            {dateWarning && (
+                                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[10px] font-bold text-amber-700 uppercase animate-in fade-in slide-in-from-top-2">
+                                    ⚠ {dateWarning}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {opciones.map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        disabled={esEfectiva}
+                                        onClick={() => handleSelectOption(opt.id)}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${logic.formReporte.data.estado === opt.id
+                                            ? 'bg-blue-50 border-blue-500'
+                                            : 'bg-gray-50 border-transparent text-gray-400'
+                                            }`}
+                                    >
+                                        <opt.icon className={`text-lg ${logic.formReporte.data.estado === opt.id ? opt.color : 'text-gray-300'}`} />
+                                        <span className="text-xs font-bold">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+
+                      <div>
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                                 Hora Final
                             </label>
@@ -190,7 +226,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                                 }}
                             />
                         </div>
-                    </div>
 
                     {/* Buscador de Productos */}
                     <div className="relative" ref={wrapperRef}>
@@ -250,41 +285,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                         />
                     </div>
 
-
-
-                    {/* Estado */}
-                    {!esEfectiva && (
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
-                                Resultado de la visita
-                            </label>
-
-                            {/* MODIFICACIÓN: Banner de advertencia visual que se muestra si intenta reprogramar con la fecha original */}
-                            {dateWarning && (
-                                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[10px] font-bold text-amber-700 uppercase animate-in fade-in slide-in-from-top-2">
-                                    ⚠ {dateWarning}
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-2 gap-2">
-                                {opciones.map((opt) => (
-                                    <button
-                                        key={opt.id}
-                                        type="button"
-                                        disabled={esEfectiva}
-                                        onClick={() => handleSelectOption(opt.id)}
-                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${logic.formReporte.data.estado === opt.id
-                                            ? 'bg-blue-50 border-blue-500'
-                                            : 'bg-gray-50 border-transparent text-gray-400'
-                                            }`}
-                                    >
-                                        <opt.icon className={`text-lg ${logic.formReporte.data.estado === opt.id ? opt.color : 'text-gray-300'}`} />
-                                        <span className="text-xs font-bold">{opt.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                     {/* Errores */}
                     {Object.keys(logic.formReporte.errors).length > 0 && (
                         <div className="p-3 bg-red-50 rounded-xl">
@@ -295,7 +295,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                     )}
 
                     {!esEfectiva && (
-                        /* MODIFICACIÓN: Fila flexible (flex gap-3) que añade el botón CANCELAR junto al de GUARDAR CAMBIOS */
                         <div className="flex gap-3">
                             <button
                                 type="button"
@@ -325,6 +324,5 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
         </div>
     );
 };
-
 
 export default ModalGestionarVisita;

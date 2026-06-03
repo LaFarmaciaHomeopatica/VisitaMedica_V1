@@ -67,7 +67,7 @@ const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
         <div className="flex items-center justify-between gap-2">
             {/* Total + input */}
             <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] text-white text-xs font-black px-3 py-1.5 rounded-2xl shadow-sm">
+                <div className="bg-gradient-to-r from-[#1C85E8] via-[] to-[] text-white text-xs font-black px-3 py-1.5 rounded-2xl shadow-sm">
                     {total}
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -116,8 +116,8 @@ const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
         </div>
     );
 };
-
-// ─── Tarjeta de producto ──────────────────────────────────────────────────────
+// ─── Tarjeta de producto (Compacta, Fina, Laboratorio abajo al lado de las cifras) ───
+// ─── Tarjeta de producto (Compacta, Fina y Distribuida de forma Perfecta) ─────
 const ProductCard = ({ item, index, modo }) => {
     const isCompra = modo === 'compradores';
     const isFormula = modo === 'formuladores';
@@ -139,66 +139,78 @@ const ProductCard = ({ item, index, modo }) => {
             : 'text-slate-400';
 
     return (
-        <div className="bg-white/80 backdrop-blur-md rounded-[22px] flex items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.005] transition-all duration-200 overflow-hidden">
-            {/* Acento lateral */}
-            <div className={`w-1.5 shrink-0 rounded-l-[22px] ${accentLeft}`} />
+        <div className="bg-white/80 backdrop-blur-md rounded-xl flex items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] transition-all duration-200 overflow-hidden w-full">
+            {/* Acento lateral adaptado a rounded-l-xl y más delgado (w-1) */}
+            <div className={`w-1 shrink-0 rounded-l-xl ${accentLeft}`} />
 
-            {/* Puesto */}
-            <div className="flex flex-col items-center justify-center px-3 shrink-0 bg-blue-50/40 border-r border-gray-100/50 min-w-[48px]">
-                <span className="text-[8px] font-black text-gray-400 uppercase leading-none mb-0.5">TOP</span>
-                <span className={`text-sm font-black leading-none ${rankColor}`}>
+            {/* Puesto (Más esbelto y compacto) */}
+            <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
+                <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
+                <span className={`text-xs font-black leading-none ${rankColor}`}>
                     #{index + 1}
                 </span>
             </div>
 
-            {/* Info del producto */}
-            <div className="flex-1 min-w-0 py-2.5 px-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                    <h4 className="font-black text-gray-800 text-xs leading-tight truncate">
+            {/* Contenedor de contenido estructurado verticalmente */}
+            <div className="flex-1 min-w-0 py-2 px-3.5 flex flex-col justify-between gap-1.5">
+                
+                {/* Fila Superior: Nombre del Producto solo (aprovecha todo el ancho) */}
+                <div className="w-full min-w-0">
+                    <h4 className="font-bold text-gray-800 text-xs leading-tight truncate">
                         {item.nombre || item.producto || 'Sin nombre'}
                     </h4>
-                    <p className="text-[10px] text-gray-400 font-bold mt-0.5 truncate">
-                        {item.codigo && <span className="mr-1">{item.codigo} ·</span>}
-                        {item.laboratorio && (
-                            <span className="inline-flex items-center gap-0.5">
-                                <FaBuilding size={8} /> {item.laboratorio}
-                            </span>
+                </div>
+
+                {/* Fila Inferior: Valores Financieros y Laboratorio distribuidos uniformemente */}
+                <div className="flex items-center justify-between gap-3 w-full py-0.5 min-w-0">
+                    
+                    {/* Sección Financiera: Se expande usando flex-1 para no quedarse arrinconada */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {(isCompra || isGeneral) && (
+                            // flex-1 y max-w controlan que use el espacio pero mantenga estructura fina
+                            <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                                <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
+                                    Comprado
+                                </p>
+                                <p className="text-[11px] font-black text-[#24C765] leading-none">
+                                    {formatNum(item.cantidad_comprada ?? item.cantidad ?? 0)} <span className="text-[9px] font-bold text-gray-400/80">und.</span>
+                                </p>
+                                <p className="text-[9px] font-black text-gray-700 leading-none mt-0.5 truncate">
+                                    {formatCOP(item.valor_comprado ?? item.valor ?? 0)}
+                                </p>
+                            </div>
                         )}
-                    </p>
+
+                        {isGeneral && <div className="w-px h-5 bg-gray-200/80 shrink-0 mx-0.5" />}
+
+                        {(isFormula || isGeneral) && (
+                            // flex-1 y max-w controlan que use el espacio pero mantenga estructura fina
+                            <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                                <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
+                                    Formulado
+                                </p>
+                                <p className="text-[11px] font-black text-[#1C85E8] leading-none">
+                                    {formatNum(item.cantidad_formulada ?? item.cantidad ?? 0)} <span className="text-[9px] font-bold text-gray-400/80">und.</span>
+                                </p>
+                                <p className="text-[9px] font-black text-gray-700 leading-none mt-0.5 truncate">
+                                    {formatCOP(item.valor_formulado ?? item.valor ?? 0)}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Laboratorio: Se queda perfectamente anclado a la derecha del todo */}
+                    <div className="min-w-0 shrink-0 flex justify-end">
+                        {item.laboratorio && (
+                            <p className="text-[9px] text-gray-400 font-bold truncate uppercase tracking-tight flex items-center gap-0.5 bg-gray-50/60 border border-gray-100/50 px-1.5 py-0.5 rounded-md max-w-[90px]">
+                                <FaBuilding size={7.5} className="text-gray-400/70 shrink-0" /> 
+                                <span className="truncate">{item.laboratorio}</span>
+                            </p>
+                        )}
+                    </div>
+                    
                 </div>
 
-                {/* Valores según modo */}
-                <div className="flex items-center gap-2 shrink-0 bg-blue-50/30 p-2 rounded-xl border border-blue-100/30">
-                    {(isCompra || isGeneral) && (
-                        <div className="text-right">
-                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                                Comprado
-                            </p>
-                            <p className="text-xs font-black text-[#24C765] leading-none">
-                                {formatNum(item.cantidad_comprada ?? item.cantidad ?? 0)} und.
-                            </p>
-                            <p className="text-[9px] font-bold text-gray-400 leading-none mt-0.5">
-                                {formatCOP(item.valor_comprado ?? item.valor ?? 0)}
-                            </p>
-                        </div>
-                    )}
-
-                    {isGeneral && <div className="w-px h-6 bg-gray-200" />}
-
-                    {(isFormula || isGeneral) && (
-                        <div className="text-right">
-                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                                Formulado
-                            </p>
-                            <p className="text-xs font-black text-[#1C85E8] leading-none">
-                                {formatNum(item.cantidad_formulada ?? item.cantidad ?? 0)} und.
-                            </p>
-                            <p className="text-[9px] font-bold text-gray-400 leading-none mt-0.5">
-                                {formatCOP(item.valor_formulado ?? item.valor ?? 0)}
-                            </p>
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
@@ -399,6 +411,8 @@ const DetallesTop = ({
     laboratoriosComprados = [],
     // Laboratorios formulados por este médico
     laboratoriosFormulados = [],
+    // Puesto real del médico en el ranking del modo anterior
+    puestoReal = null,
 }) => {
     const [modo, setModo] = useState(vistaAnterior || 'general');
     const [busqueda, setBusqueda] = useState('');
@@ -500,18 +514,34 @@ const DetallesTop = ({
                     </Link>
 
                     <div className="flex-1 min-w-0 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1C85E8] shrink-0">
-                            <FaUserDoctor size={16} />
-                        </div>
+                     {/* Círculo de puesto real */}
+                    {(() => {
+                        // Definimos el color del fondo según el puesto
+                       let colorFondo = "bg-gradient-to-br from-blue-600 to-indigo-700"; // Color por defecto de tu config
+                        
+                        if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200";
+                        if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200";
+                        if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300";
+
+                        return (
+                            <div className={`w-11 h-11 rounded-full flex flex-col items-center justify-center shrink-0 border-2 shadow-sm transition-all duration-300 ${colorFondo}`}>
+                                {puestoReal === 1 && <FaCrown size={9} className="text-white mb-0.5 animate-bounce" />}
+                                <span className="text-[10px] font-black text-white leading-none">
+                                    {puestoReal ? `#${puestoReal}` : '—'}
+                                </span>
+                            </div>
+                        );
+                    })()}
+
                         <div className="min-w-0">
-                            <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md mb-0.5 ${cfg.badge}`}>
-                                Modo {cfg.label} · Top {limitAnterior}
-                            </span>
                             <h1 className="text-xs font-black text-gray-800 uppercase tracking-tight leading-tight truncate">
                                 {medico?.nombre}
                             </h1>
                             <p className="text-[10px] text-[#1C85E8] font-bold leading-none mt-0.5">
                                 {medico?.especialidad} · Doc: {medico?.documento}
+                            </p>
+                            <p className="text-[9px] text-gray-400 font-bold leading-none mt-0.5 uppercase tracking-wider">
+                                Modo: {cfg.label}
                             </p>
                         </div>
                     </div>
@@ -580,39 +610,56 @@ const DetallesTop = ({
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4 mt-4">
 
                     {/* Resumen financiero del médico */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {(modo === 'general' || modo === 'compradores') && (
-                            <div className="bg-white rounded-[22px] p-4 shadow-sm border border-white/40 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
-                                        Total Comprado
-                                    </p>
-                                    <p className="text-base font-black text-[#24C765] mt-0.5">
-                                        {formatCOP(totales.total_comprado)}
-                                    </p>
-                                </div>
-                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#24C765] flex items-center justify-center shadow-inner">
-                                    <FaBagShopping size={18} />
-                                </div>
-                            </div>
-                        )}
-                        {(modo === 'general' || modo === 'formuladores') && (
-                            <div className="bg-white rounded-[22px] p-4 shadow-sm border border-white/40 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
-                                        Total Formulado
-                                    </p>
-                                    <p className="text-base font-black text-[#1C85E8] mt-0.5">
-                                        {formatCOP(totales.total_formulado)}
-                                    </p>
-                                </div>
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1C85E8] flex items-center justify-center shadow-inner">
-                                    <FaStethoscope size={18} />
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    {/* Resumen financiero del médico (Optimizado y sin íconos duplicados) */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {(modo === 'general' || modo === 'compradores') && (
+        <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+                {/* Fila superior: Título y Unidades limpias al frente */}
+                <div className="flex items-baseline justify-between gap-2 w-full">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">
+                        Total Comprado
+                    </p>
+                    <p className="text-[10.5px] font-black text-[#24C765] leading-none shrink-0">
+                        {formatNum(totales.unidades_compradas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
+                    </p>
+                </div>
+                {/* Fila inferior: Gran Cifra Monetaria */}
+                <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
+                    {formatCOP(totales.total_comprado)}
+                </p>
+            </div>
+            {/* Único ícono principal de referencia */}
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#24C765] flex items-center justify-center shadow-inner shrink-0">
+                <FaBagShopping size={15} />
+            </div>
+        </div>
+    )}
 
+    {(modo === 'general' || modo === 'formuladores') && (
+        <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+                {/* Fila superior: Título y Unidades limpias al frente */}
+                <div className="flex items-baseline justify-between gap-2 w-full">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">
+                        Total Formulado
+                    </p>
+                    <p className="text-[10.5px] font-black text-[#1C85E8] leading-none shrink-0">
+                        {formatNum(totales.unidades_formuladas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
+                    </p>
+                </div>
+                {/* Fila inferior: Gran Cifra Monetaria */}
+                <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
+                    {formatCOP(totales.total_formulado)}
+                </p>
+            </div>
+            {/* Único ícono principal de referencia */}
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1C85E8] flex items-center justify-center shadow-inner shrink-0">
+                <FaStethoscope size={15} />
+            </div>
+        </div>
+    )}
+</div>
                     {/* Acordeón Laboratorios */}
                     <LaboratoriosAcordeon
                         laboratoriosComprados={laboratoriosComprados}
@@ -650,7 +697,7 @@ const DetallesTop = ({
                         </div>
                     )}
 
-                   
+                 
                 </main>
 
                 <BarraNave />

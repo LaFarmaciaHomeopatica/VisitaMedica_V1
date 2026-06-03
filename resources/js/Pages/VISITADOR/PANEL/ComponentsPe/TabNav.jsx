@@ -4,20 +4,9 @@ import { FaUserDoctor, FaCalendarDays, FaCrown } from 'react-icons/fa6';
 /**
  * Barra de pestañas de navegación del panel principal.
  */
-const TabNav = ({ tabActiva, setTabActiva, totalMedicos, totalPendientes }) => {
+const TabNav = ({ tabActiva, setTabActiva,  totalPendientes }) => {
     const tabs = [
-        {
-            id:    'agenda',
-            label: `Mi Agenda (${totalMedicos})`,
-            icon:  <FaUserDoctor size={14} />,
-            activeColor: 'text-[#1C85E8]',
-        },
-        {
-            id:    'pendientes',
-            label: `Visitas Pendientes (${totalPendientes})`,
-            icon:  <FaCalendarDays size={14} />,
-            activeColor: 'text-[#02CFE3]',
-        },
+        
         
     ];
 

@@ -194,6 +194,35 @@ class TopMedicosController extends Controller
             ->orderByDesc('cantidad_formulada')
             ->get();
 
+        // ── Puesto real del médico en el ranking según modo ──────────────────
+        $vistaParam = $request->input('vista', 'general');
+
+        $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string)$d)->values();
+
+        $rankingGlobal = DB::table('transacciones')
+            ->select(
+                'medico_documento',
+                DB::raw('SUM(valor_comprado)  as total_comprado'),
+                DB::raw('SUM(valor_formulado) as total_formulado')
+            )
+            ->whereIn('medico_documento', $todosLosDocs)
+            ->whereBetween('fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')])
+            ->groupBy('medico_documento')
+            ->get()
+            ->map(fn($r) => [
+                'documento' => $r->medico_documento,
+                'suma'      => match($vistaParam) {
+                    'compradores'  => (float)$r->total_comprado,
+                    'formuladores' => (float)$r->total_formulado,
+                    default        => (float)$r->total_comprado + (float)$r->total_formulado,
+                },
+            ])
+            ->sortByDesc('suma')
+            ->values();
+
+       $puestoReal = $rankingGlobal->search(fn($r) => (string)$r['documento'] === (string)$medico->documento);
+        $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
+
         return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
             'medico' => [
                 'id'          => $medico->id,
@@ -203,17 +232,20 @@ class TopMedicosController extends Controller
             ],
             'mesActual'              => $mes,
             'totales'                => [
-                'total_comprado'  => (float) ($totales->total_comprado  ?? 0),
-                'total_formulado' => (float) ($totales->total_formulado ?? 0),
-                'transacciones'   => (int)   ($totales->transacciones   ?? 0),
+                'total_comprado'      => (float) ($totales->total_comprado      ?? 0),
+                'total_formulado'     => (float) ($totales->total_formulado     ?? 0),
+                'unidades_compradas'  => (int)   ($totales->unidades_compradas  ?? 0),
+                'unidades_formuladas' => (int)   ($totales->unidades_formuladas ?? 0),
+                'transacciones'       => (int)   ($totales->transacciones       ?? 0),
             ],
             'productosComprados'     => $productosComprados,
             'productosFormulados'    => $productosFormulados,
             'laboratoriosComprados'  => $laboratoriosComprados,
             'laboratoriosFormulados' => $laboratoriosFormulados,
-            'vistaAnterior'          => $request->input('vista',   'general'),
+            'vistaAnterior'          => $vistaParam,
             'limitAnterior'          => (int) $request->input('limit',  10),
             'searchAnterior'         => $request->input('search', ''),
+            'puestoReal'             => $puestoReal,
         ]);
     }
 }
