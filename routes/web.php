@@ -144,7 +144,7 @@ Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visi
 Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
         // Médicos
         Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
-        Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');
+        Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
         // Módulo de Visitas
         Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');

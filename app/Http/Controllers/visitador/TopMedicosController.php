@@ -115,16 +115,26 @@ class TopMedicosController extends Controller
     public function detalleTop(Request $request, string $documento)
     {
         $visitador = Visitador::where('usuario_id', Auth::id())->firstOrFail();
-        $medico    = $visitador->medicos()->where('documento', $documento)->firstOrFail();
+        $medico    = $visitador->medicos()->with('tipoDocumento')->where('documento', $documento)->firstOrFail();
 
         $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
-        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
-        $fin    = $inicio->copy()->endOfMonth();
+        $fin    = Carbon::parse($mes . '-01')->endOfMonth();
+
+        $periodo = $request->input('periodo', 'mes_actual');
+        $inicio = match($periodo) {
+            '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
+            '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
+            '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
+            '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
+            'all' => null,
+            default => Carbon::parse($mes . '-01')->startOfMonth(), // 'mes_actual'
+        };
 
         // Query base reutilizable
         $base = DB::table('transacciones as t')
             ->where('t.medico_documento', $medico->documento)
-            ->whereBetween('t.fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')]);
+            ->where('t.fecha', '<=', $fin->format('Y-m-d'))
+            ->when($inicio, fn($q) => $q->where('t.fecha', '>=', $inicio->format('Y-m-d')));
 
         // ── Totales ──────────────────────────────────────────────────────────
         $totales = (clone $base)
@@ -206,7 +216,8 @@ class TopMedicosController extends Controller
                 DB::raw('SUM(valor_formulado) as total_formulado')
             )
             ->whereIn('medico_documento', $todosLosDocs)
-            ->whereBetween('fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')])
+            ->where('fecha', '<=', $fin->format('Y-m-d'))
+            ->when($inicio, fn($q) => $q->where('fecha', '>=', $inicio->format('Y-m-d')))
             ->groupBy('medico_documento')
             ->get()
             ->map(fn($r) => [
@@ -220,17 +231,25 @@ class TopMedicosController extends Controller
             ->sortByDesc('suma')
             ->values();
 
-       $puestoReal = $rankingGlobal->search(fn($r) => (string)$r['documento'] === (string)$medico->documento);
+        $puestoReal = $rankingGlobal->search(fn($r) => (string)$r['documento'] === (string)$medico->documento);
         $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
 
         return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
             'medico' => [
-                'id'          => $medico->id,
-                'documento'   => $medico->documento,
-                'nombre'      => trim($medico->nombre . ' ' . $medico->apellido),
-                'especialidad'=> $medico->especialidad ?? 'General',
+                'id'                 => $medico->id,
+                'documento'          => $medico->documento,
+                'nombre'             => trim($medico->nombre . ' ' . $medico->apellido),
+                'especialidad'       => $medico->especialidad ?? 'General',
+                'direccion_detalles' => $medico->direccion_detalles,
+                'telefono_contacto'  => $medico->telefono_contacto,
+                'horario_atencion'   => $medico->horario_atencion,
+                'geolocalizacion'    => $medico->geolocalizacion,
+                'tipo_documento'     => $medico->tipoDocumento ? [
+                    'nombre' => $medico->tipoDocumento->nombre
+                ] : null,
             ],
             'mesActual'              => $mes,
+            'periodoActivo'          => $periodo,
             'totales'                => [
                 'total_comprado'      => (float) ($totales->total_comprado      ?? 0),
                 'total_formulado'     => (float) ($totales->total_formulado     ?? 0),

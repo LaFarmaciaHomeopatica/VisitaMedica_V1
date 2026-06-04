@@ -211,10 +211,10 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
 
                                     {/* Info principal — clickeable a detalle */}
                                     <Link
-                                        href={`/MedicoDetalle/${medico.id}`}
+                                        href={`/visitador/top-medicos/${medico.documento}?origen=listado`}
                                         className="flex-1 min-w-0 py-4 pr-2 active:scale-[0.98] transition-transform"
                                     >
-                                        <h4 className="font-bold text-gray-800 text-sm leading-tight truncate">
+                                         <h4 className="font-bold text-gray-800 text-sm leading-tight truncate">
                                             {nombreCompleto || 'Médico sin nombre'}
                                         </h4>
                                         <p className="text-xs text-[#1C85E8] font-bold uppercase tracking-tight mt-0.5">

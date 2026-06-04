@@ -69,7 +69,7 @@ const PendientesTab = ({ visitasPendientesFiltradas, medicos, irAEjecutarVisita 
                     return (
                         <Link
                             key={visita.id}
-                            href={`/MedicoDetalle/${medicoData.id}`}
+                            href={`/visitador/top-medicos/${medicoData.documento}?origen=panel`}
                             className="block bg-white/80 backdrop-blur-md rounded-[20px] shadow-sm border border-white/40 hover:bg-white transition-all duration-200 active:scale-[0.99] overflow-hidden"
                         >
                             {CardContent}
