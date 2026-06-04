@@ -16,6 +16,7 @@ use App\Http\Controllers\administrador\MedicoTemporalController;
 use App\Http\Controllers\administrador\MetricasController;
 use App\Http\Controllers\administrador\MetasController;
 use App\Http\Controllers\visitador\TopMedicosController;
+use App\Http\Controllers\visitador\AlertaController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -139,6 +140,8 @@ Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->na
 Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
 
 Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
+Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
         // Médicos
         Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
         Route::get('/MedicoDetalle/{id}', [MedicoController::class, 'show'])->name('medicos.show');

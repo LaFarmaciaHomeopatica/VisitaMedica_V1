@@ -8,6 +8,7 @@ import {
     FaXmark,
     FaPowerOff, // Icono de apagado / cerrar sesión
     FaRankingStar, // Icono de ranking (puedes cambiarlo por otro si prefieres)
+    FaBell, // Icono de alertas
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
@@ -19,6 +20,7 @@ const BottomNavigation = () => {
     { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
     { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
     { icon: <FaRankingStar />, label: 'Top 10', route: '/visitador/top-medicos' }, // ← Nueva ruta del Ranking
+    { icon: <FaBell />, label: 'Alertas', route: '/visitador/alertas' }, // ← Nueva ruta de Alertas
 ];
 
     // Configuración del botón de salida (Inertia por defecto usa POST para logout)
