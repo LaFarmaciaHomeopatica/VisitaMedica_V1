@@ -21,12 +21,14 @@ class AlertaController extends Controller
             return redirect()->route('panel')->with('error', 'Visitador no encontrado.');
         }
 
-        $mesStr = $request->input('mes', Carbon::now()->format('Y-m'));
-        $mesActualInicio = Carbon::parse($mesStr . '-01')->startOfMonth();
-        $mesActualFin = $mesActualInicio->copy()->endOfMonth();
+        // 1. El mes seleccionado en el filtro es el mes con el que queremos COMPARAR (el pasado)
+        $mesFiltroStr = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
+        $mesCompararInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
+        $mesCompararFin = $mesCompararInicio->copy()->endOfMonth();
 
-        $mesAnteriorInicio = $mesActualInicio->copy()->subMonth()->startOfMonth();
-        $mesAnteriorFin = $mesAnteriorInicio->copy()->endOfMonth();
+        // 2. El mes actual siempre será el mes real en curso (Junio 2026)
+        $mesActualInicio = Carbon::now()->startOfMonth();
+        $mesActualFin = Carbon::now()->endOfMonth();
 
         $medicos = $visitador->medicos()->get();
         $todosMedicosDoc = $medicos->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
@@ -34,6 +36,10 @@ class AlertaController extends Controller
         $medicosAlertas = [];
 
         if ($todosMedicosDoc->isNotEmpty()) {
+            // Rango SQL que cubre desde el mes más viejo (filtro) hasta el mes de hoy
+            $fechaMinima = min($mesCompararInicio->format('Y-m-d'), $mesActualInicio->format('Y-m-d'));
+            $fechaMaxima = max($mesCompararFin->format('Y-m-d'), $mesActualFin->format('Y-m-d'));
+
             $transacciones = DB::table('transacciones as t')
                 ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
                 ->select(
@@ -46,7 +52,7 @@ class AlertaController extends Controller
                     't.unidades_formuladas'
                 )
                 ->whereIn('t.medico_documento', $todosMedicosDoc)
-                ->whereBetween('t.fecha', [$mesAnteriorInicio->format('Y-m-d'), $mesActualFin->format('Y-m-d')])
+                ->whereBetween('t.fecha', [$fechaMinima, $fechaMaxima])
                 ->get();
 
             $datosPorMedico = [];
@@ -58,12 +64,12 @@ class AlertaController extends Controller
                     'nombre'       => trim($medico->nombre . ' ' . $medico->apellido),
                     'especialidad' => $medico->especialidad ?? 'General',
                     'totales'      => [
-                        'formulado_mes_anterior' => 0,
-                        'formulado_mes_actual'   => 0,
+                        'formulado_mes_anterior' => 0, // Actuará como mes del filtro
+                        'formulado_mes_actual'   => 0, // Mes real actual (Junio)
                         'formulado_diferencia'   => 0,
                         'formulado_tendencia'    => 'igual',
-                        'comprado_mes_anterior'  => 0,
-                        'comprado_mes_actual'    => 0,
+                        'comprado_mes_anterior'  => 0, // Actuará como mes del filtro
+                        'comprado_mes_actual'    => 0, // Mes real actual (Junio)
                         'comprado_diferencia'    => 0,
                         'comprado_tendencia'     => 'igual',
                     ],
@@ -81,7 +87,7 @@ class AlertaController extends Controller
 
                 $fecha         = Carbon::parse($t->fecha);
                 $esMesActual   = $fecha->between($mesActualInicio, $mesActualFin);
-                $esMesAnterior = $fecha->between($mesAnteriorInicio, $mesAnteriorFin);
+                $esMesFiltro   = $fecha->between($mesCompararInicio, $mesCompararFin);
 
                 $compradas  = (int) ($t->unidades_compradas ?? 0);
                 $formuladas = (int) ($t->unidades_formuladas ?? 0);
@@ -89,7 +95,7 @@ class AlertaController extends Controller
                 if ($esMesActual) {
                     $datosPorMedico[$doc]['totales']['comprado_mes_actual']  += $compradas;
                     $datosPorMedico[$doc]['totales']['formulado_mes_actual'] += $formuladas;
-                } elseif ($esMesAnterior) {
+                } elseif ($esMesFiltro) {
                     $datosPorMedico[$doc]['totales']['comprado_mes_anterior']  += $compradas;
                     $datosPorMedico[$doc]['totales']['formulado_mes_anterior'] += $formuladas;
                 }
@@ -113,7 +119,7 @@ class AlertaController extends Controller
                 if ($esMesActual) {
                     $datosPorMedico[$doc]['productos'][$prodCod]['comprado_mes_actual']  += $compradas;
                     $datosPorMedico[$doc]['productos'][$prodCod]['formulado_mes_actual'] += $formuladas;
-                } elseif ($esMesAnterior) {
+                } elseif ($esMesFiltro) {
                     $datosPorMedico[$doc]['productos'][$prodCod]['comprado_mes_anterior']  += $compradas;
                     $datosPorMedico[$doc]['productos'][$prodCod]['formulado_mes_anterior'] += $formuladas;
                 }
@@ -133,10 +139,10 @@ class AlertaController extends Controller
                     $pInfo['comprado_diferencia']  = $pInfo['comprado_mes_actual'] - $pInfo['comprado_mes_anterior'];
                     $pInfo['comprado_tendencia']   = $pInfo['comprado_diferencia'] > 0 ? 'subio' : ($pInfo['comprado_diferencia'] < 0 ? 'bajo' : 'igual');
 
-                    if (
-                        $pInfo['formulado_mes_anterior'] > 0 || $pInfo['formulado_mes_actual'] > 0 ||
-                        $pInfo['comprado_mes_anterior']  > 0 || $pInfo['comprado_mes_actual']  > 0
-                    ) {
+                    $totalUnidades = $pInfo['formulado_mes_anterior'] + $pInfo['formulado_mes_actual'] + 
+                                     $pInfo['comprado_mes_anterior']  + $pInfo['comprado_mes_actual'];
+
+                    if ($totalUnidades > 0) {
                         $prods[] = $pInfo;
                     }
                 }
@@ -156,7 +162,7 @@ class AlertaController extends Controller
 
         return Inertia::render('VISITADOR/ALERTAS/Alerta', [
             'medicosAlertas' => $medicosAlertas,
-            'mesActual'      => $mesStr,
+            'mesActual'      => $mesFiltroStr, // Sostiene el mes seleccionado en la UI
         ]);
     }
 
@@ -169,12 +175,17 @@ class AlertaController extends Controller
 
         $medico = $visitador->medicos()->with('tipoDocumento')->where('documento', $documento)->firstOrFail();
 
-        $mesStr          = $request->input('mes', Carbon::now()->format('Y-m'));
-        $mesActualInicio = Carbon::parse($mesStr . '-01')->startOfMonth();
-        $mesActualFin    = $mesActualInicio->copy()->endOfMonth();
+        // 1. Mes del selector
+        $mesFiltroStr = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
+        $mesCompararInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
+        $mesCompararFin = $mesCompararInicio->copy()->endOfMonth();
 
-        $mesAnteriorInicio = $mesActualInicio->copy()->subMonth()->startOfMonth();
-        $mesAnteriorFin    = $mesAnteriorInicio->copy()->endOfMonth();
+        // 2. Mes de hoy (Junio)
+        $mesActualInicio = Carbon::now()->startOfMonth();
+        $mesActualFin = Carbon::now()->endOfMonth();
+
+        $fechaMinima = min($mesCompararInicio->format('Y-m-d'), $mesActualInicio->format('Y-m-d'));
+        $fechaMaxima = max($mesCompararFin->format('Y-m-d'), $mesActualFin->format('Y-m-d'));
 
         $transacciones = DB::table('transacciones as t')
             ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
@@ -188,7 +199,7 @@ class AlertaController extends Controller
                 't.unidades_formuladas'
             )
             ->where('t.medico_documento', $medico->documento)
-            ->whereBetween('t.fecha', [$mesAnteriorInicio->format('Y-m-d'), $mesActualFin->format('Y-m-d')])
+            ->whereBetween('t.fecha', [$fechaMinima, $fechaMaxima])
             ->get();
 
         $productosMap = [];
@@ -200,7 +211,7 @@ class AlertaController extends Controller
 
             $fecha         = Carbon::parse($t->fecha);
             $esMesActual   = $fecha->between($mesActualInicio, $mesActualFin);
-            $esMesAnterior = $fecha->between($mesAnteriorInicio, $mesAnteriorFin);
+            $esMesFiltro   = $fecha->between($mesCompararInicio, $mesCompararFin);
 
             $compradas  = (int) ($t->unidades_compradas ?? 0);
             $formuladas = (int) ($t->unidades_formuladas ?? 0);
@@ -224,7 +235,7 @@ class AlertaController extends Controller
             if ($esMesActual) {
                 $productosMap[$prodCod]['comprado_mes_actual']  += $compradas;
                 $productosMap[$prodCod]['formulado_mes_actual'] += $formuladas;
-            } elseif ($esMesAnterior) {
+            } elseif ($esMesFiltro) {
                 $productosMap[$prodCod]['comprado_mes_anterior']  += $compradas;
                 $productosMap[$prodCod]['formulado_mes_anterior'] += $formuladas;
             }
@@ -237,10 +248,10 @@ class AlertaController extends Controller
             $pInfo['comprado_diferencia']  = $pInfo['comprado_mes_actual'] - $pInfo['comprado_mes_anterior'];
             $pInfo['comprado_tendencia']   = $pInfo['comprado_diferencia'] > 0 ? 'subio' : ($pInfo['comprado_diferencia'] < 0 ? 'bajo' : 'igual');
 
-            if (
-                $pInfo['formulado_mes_anterior'] > 0 || $pInfo['formulado_mes_actual'] > 0 ||
-                $pInfo['comprado_mes_anterior']  > 0 || $pInfo['comprado_mes_actual']  > 0
-            ) {
+            $totalUnidades = $pInfo['formulado_mes_anterior'] + $pInfo['formulado_mes_actual'] + 
+                             $pInfo['comprado_mes_anterior']  + $pInfo['comprado_mes_actual'];
+
+            if ($totalUnidades > 0) {
                 $productosAlertas[] = $pInfo;
             }
         }
@@ -251,7 +262,7 @@ class AlertaController extends Controller
             return $diffA <=> $diffB;
         });
 
-        // ── Puesto real en el ranking (dentro del método, antes del return) ──
+        // ── Puesto real en el ranking ──
         $todosLosDocs = $visitador->medicos()
             ->pluck('documento')
             ->filter()
@@ -266,7 +277,7 @@ class AlertaController extends Controller
                 DB::raw('SUM(valor_formulado) as total_formulado')
             )
             ->whereIn('medico_documento', $todosLosDocs)
-            ->whereBetween('fecha', [$mesAnteriorInicio->format('Y-m-d'), $mesActualFin->format('Y-m-d')])
+            ->whereBetween('fecha', [$fechaMinima, $fechaMaxima])
             ->groupBy('medico_documento')
             ->get()
             ->map(fn($r) => [
@@ -294,7 +305,7 @@ class AlertaController extends Controller
                     : null,
             ],
             'productosAlertas' => $productosAlertas,
-            'mesActual'        => $mesStr,
+            'mesActual'        => $mesFiltroStr,
             'puestoReal'       => $puestoReal,
         ]);
     }

@@ -227,8 +227,8 @@ export default function Ginicio({
                         <KpiCard label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
                         <KpiCard label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
                         <KpiCard label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard label="Transacciones"   value={fmt(stats?.total_transacciones)} accent="#8b5cf6" href="/Gtransacciones" />
-                        <KpiCard label="Méd. con Tx"     value={fmt(stats?.medicos_con_tx)}      accent="#06b6d4" />
+                        <KpiCard label="unidades compradas" value={fmt(stats?.unidades_compradas)} accent="#ef4444" />
+                        <KpiCard label="unidades formuladas" value={fmt(stats?.unidades_formuladas)} accent="#ec4899" />
                         <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
                         <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
                         <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import BarraNave from '../barranave'; 
 import {
     FaArrowLeft,
@@ -10,14 +10,14 @@ import {
     FaMinus,
     FaCrown,
     FaPhoneFlip,
-    FaLocationDot
+    FaLocationDot,
+    FaCalendarDays
 } from 'react-icons/fa6';
 
-// Antes:
 const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', puestoReal = null }) => {
     // ── Estados Locales ──
     const [search, setSearch] = useState('');
-    const [mostrarDetalles, setMostrarDetalles] = useState(false); // Estado para el Hero Desplegable
+    const [mostrarDetalles, setMostrarDetalles] = useState(false); 
 
     // Estado para controlar la altura exacta del header flotante
     const [headerHeight, setHeaderHeight] = useState(180);
@@ -37,7 +37,41 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Filtrado de productos
+    // ── Manejador del Selector de Meses (Inertia Request) ──
+    const handleMesChange = (e) => {
+        const nuevoMes = e.target.value;
+        
+        // Recargamos la misma página de detalle pero inyectando el nuevo mes en la URL
+        router.get(
+            route('visitador.alertas.detalle', medico.documento), 
+            { mes: nuevoMes }, 
+            { preserveState: true, replace: true }
+        );
+    };
+
+    // ── Helper para formatear el string YYYY-MM a "MES DE YYYY" ──
+    const formatMesLabel = (mesString) => {
+        if (!mesString) return '';
+        const [year, month] = mesString.split('-');
+        const meses = [
+            'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+            'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+        ];
+        const index = parseInt(month, 10) - 1;
+        return `${meses[index]} DE ${year}`;
+    };
+
+    // ── Obtener el mes real del sistema de forma dinámica para el botón de evolución ──
+    const getMesActualSistema = () => {
+        const fecha = new Date();
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        return `${year}-${month}`;
+    };
+
+    const mesSistemaString = getMesActualSistema(); // Devuelve "2026-06" (según la fecha actual del sistema)
+
+    // Filtrado de productos por búsqueda local
     const productosFiltrados = productosAlertas.filter(prod => 
         (prod.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
         (prod.laboratorio || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -46,7 +80,7 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
 
     const handleSearch = (e) => setSearch(e.target.value);
 
-    // Helper component para rendimiento
+    // Helper component para insignias de tendencia
     const RendimientoIndicador = ({ tendencia, diferencia }) => {
         const isUp = tendencia === 'subio';
         const isDown = tendencia === 'bajo';
@@ -72,15 +106,15 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
         );
     };
 
-    // Extraemos las propiedades reales mapeándolas con prioridad de la DB
+    // Desestructuración de propiedades del Médico
     const telefonoMedico = medico?.telefono || medico?.telefono_contacto || '';
     const direccionMedico = medico?.direccion || medico?.direccion_detalles || '';
     const horarioMedico = medico?.horario || medico?.horario_atencion || '';
 
-    // URL dinámica y segura para Google Maps usando las propiedades mapeadas
+    // URL dinámica corregida para Google Maps
     const googleMapsUrl = medico?.geolocalizacion
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(medico.geolocalizacion)}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccionMedico || medico?.nombre || '')}`;
+        ? `https://maps.google.com/?q=${encodeURIComponent(medico.geolocalizacion)}`
+        : `https://maps.google.com/?q=${encodeURIComponent(direccionMedico || medico?.nombre || '')}`;
 
     return (
         <>
@@ -91,26 +125,30 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
                 ref={headerRef}
                 className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20"
             >
-                {/* Fila 1: Regresar + Título + Búsqueda */}
-                <div className="max-w-[1440px] mx-auto p-4 md:p-6">
-                    <div className="flex items-center gap-3 md:gap-6">
-                        <Link
-                            href={`/visitador/alertas?mes=${mesActual}`}
-                            className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-[#1C85E8] hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
-                        >
-                            <FaArrowLeft className="text-xs" /> 
-                        </Link>
+                <div className="max-w-[1440px] mx-auto p-4 md:p-6 space-y-4">
+                    {/* Fila 1: Regresar + Título + Búsqueda + Selectores */}
+                    <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+                        
+                        <div className="flex items-center gap-3 shrink-0">
+                            <Link
+                                href={`/visitador/alertas?mes=${mesActual}`}
+                                className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-[#1C85E8] hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
+                            >
+                                <FaArrowLeft className="text-xs" /> 
+                            </Link>
 
-                        <div className="hidden md:flex flex-col min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1C85E8]/70 leading-none mb-0.5">
-                                Panel de Alertas
-                            </p>
-                            <h1 className="text-xs md:text-sm font-black text-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
-                                Análisis de Tendencias
-                            </h1>
+                            <div className="flex flex-col min-w-0 text-left">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-[#1C85E8]/70 leading-none mb-0.5">
+                                    Panel de Alertas
+                                </p>
+                                <h1 className="text-xs md:text-sm font-black text-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
+                                    Análisis de Tendencias
+                                </h1>
+                            </div>
                         </div>
 
-                        <div className="relative flex-grow max-w-4xl">
+                        {/* Barra de Búsqueda */}
+                        <div className="relative flex-grow max-w-xl">
                             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
                                 <FaMagnifyingGlass className="text-xs md:text-sm" />
                             </span>
@@ -118,14 +156,52 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
                                 type="text"
                                 value={search}
                                 onChange={handleSearch}
-                                placeholder="Buscar producto por nombre, laboratorio o código..."
-                                className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700"
+                                placeholder="Buscar producto por nombre o código..."
+                                className="w-full bg-blue-50/50 border-none rounded-full py-2.5 pl-11 pr-4 text-xs focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700"
                             />
                         </div>
-                        
-                        <div className="flex items-center gap-1.5 text-[#1C85E8] text-[10px] font-black uppercase tracking-wider bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 shrink-0">
-                            <span>Período: {mesActual}</span>
-                        </div>
+                        {/* ── SECCIÓN DE CONTROL DE MESES ESTILO IMAGEN ── */}
+<div className="flex flex-wrap items-center gap-3 shrink-0 self-end md:self-auto">
+    
+    {/* Card Izquierda: El Selector Activo */}
+    <div className="relative flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm hover:border-blue-300 transition-all cursor-pointer group">
+        
+        {/* pointer-events-none evita que los textos e iconos bloqueen el clic hacia el input trasero */}
+        <div className="flex items-center gap-2 pointer-events-none z-10">
+            <FaCalendarDays className="text-[#1C85E8] text-xs shrink-0" />
+            <div className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider select-none">
+                <span>Comparar contra:</span>
+                <span className="text-gray-700 font-black ml-0.5">
+                    {formatMesLabel(mesActual)}
+                </span>
+            </div>
+        </div>
+
+        {/* El input ahora está al frente con z-20 pero usamos un truco visual para que reaccione al clic real */}
+        <input 
+            type="month" 
+            value={mesActual} 
+            onChange={handleMesChange}
+            onClick={(e) => {
+                // Forzar la apertura del selector nativo en navegadores modernos si es soportado
+                if (typeof e.target.showPicker === 'function') {
+                    e.target.showPicker();
+                }
+            }}
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20 block text-[16px]" 
+        />
+    </div>
+
+    {/* Card Derecha: Badge de Evolución (Informativo Dinámico) */}
+    <div className="flex items-center bg-blue-50/70 border border-blue-200/60 px-4 py-2 rounded-full shadow-sm">
+        <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-[#1C85E8]">
+            Evolución: {formatMesLabel(mesActual).replace('DE ', '')} ➔ {formatMesLabel(mesSistemaString).replace('DE ', '')}
+        </span>
+    </div>
+
+</div>
+                        {/* ────────────────────────────────────────────── */}
+
                     </div>
                 </div>
             </header>
@@ -138,101 +214,84 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
 
                     {/* ── CARD HERO DEL MÉDICO DESPLEGABLE ── */}
-<section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-6 rounded-[30px] shadow-lg text-white relative">
-    <div className="flex items-start gap-4">
-        {/* Avatar del Puesto Ranking */}
-        {(() => {
-            let colorFondo = "bg-white/20";
-            if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
-            if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
-            if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
+                    <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-6 rounded-[30px] shadow-lg text-white relative">
+                        <div className="flex items-start gap-4">
+                            {/* Avatar del Puesto Ranking */}
+                            {(() => {
+                                let colorFondo = "bg-white/20";
+                                if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
+                                if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
+                                if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
 
-            return (
-                <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
-                    {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
-                    <span className="text-base font-black text-white leading-none">
-                        {puestoReal ? `#${puestoReal}` : '—'}
-                    </span>
-                </div>
-            );
-        })()}
+                                return (
+                                    <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
+                                        {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
+                                        <span className="text-base font-black text-white leading-none">
+                                            {puestoReal ? `#${puestoReal}` : '—'}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
 
-        {/* Nombre completo + especialidad y botón Info en fila inferior */}
-        <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-extrabold text-white leading-tight">
-                {medico?.nombre || 'Sin Nombre'}
-            </h2>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full border border-white/20">
-                    {medico?.especialidad || 'General'}
-                </span>
-                <button
-                    onClick={() => setMostrarDetalles(!mostrarDetalles)}
-                    className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95"
-                >
-                    {mostrarDetalles ? 'Cerrar' : 'Info'}
-                </button>
-            </div>
-        </div>
-    </div>
-
-    {/* Datos detallados — desplegable */}
-    {mostrarDetalles && (
-        <div className="bg-white/90 backdrop-blur-md rounded-[20px] border border-white/50 mt-5 p-5 text-slate-800 animate-in slide-in-from-top-2 duration-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {/* Columna 1 */}
-                <div className="space-y-3">
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">
-                            {(medico?.tipo_documento?.nombre || 'CC') + ' ' + (medico?.documento || '—')}
-                        </p>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">ID Registro</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">#{medico?.id || '—'}</p>
-                    </div>
-                </div>
-
-                {/* Columna 2 */}
-                <div className="space-y-3 sm:border-l sm:pl-5 border-gray-100">
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-xs font-bold text-gray-700">{telefonoMedico || 'No registrado'}</p>
-                            {telefonoMedico && (
-                                <a href={`tel:${telefonoMedico}`} className="text-[#24C765] hover:scale-110 transition-transform">
-                                    <FaPhoneFlip className="text-[11px]" />
-                                </a>
-                            )}
+                            {/* Nombre completo + especialidad */}
+                            <div className="flex-1 min-w-0 text-left">
+                                <h2 className="text-lg font-extrabold text-white leading-tight">
+                                    {medico?.nombre || 'Sin Nombre'}
+                                </h2>
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <span className="text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full border border-white/20">
+                                        {medico?.especialidad || 'General'}
+                                    </span>
+                                    <button
+                                        onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                                        className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95"
+                                    >
+                                        {mostrarDetalles ? 'Cerrar' : 'Info'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Horario de Atención</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">{horarioMedico || 'No definido'}</p>
-                    </div>
-                </div>
 
-                {/* Columna 3 */}
-                <div className="sm:border-l sm:pl-5 border-gray-100 flex flex-col justify-center">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Dirección de Consultorio</p>
-                    <div className="flex items-start gap-2 mt-0.5">
-                        <p className="text-xs font-bold text-gray-700 leading-tight flex-1">
-                            {direccionMedico || 'Sin dirección registrada'}
-                        </p>
-                        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-[#1C85E8] shrink-0 hover:scale-110 transition-transform mt-0.5">
-                            <FaLocationDot className="text-sm" />
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )}
-</section>
+                        {/* Datos detallados — Desplegable */}
+                        {mostrarDetalles && (
+                            <div className="bg-white/90 backdrop-blur-md rounded-[20px] border border-white/50 mt-5 p-5 text-slate-800 animate-in slide-in-from-top-2 duration-200 text-left">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
+                                        <p className="text-xs font-bold text-gray-700 mt-0.5">
+                                            {(medico?.tipo_documento?.nombre || 'CC') + ' ' + (medico?.documento || '—')}
+                                        </p>
+                                    </div>
+                                    <div className="sm:border-l sm:pl-5 border-gray-100">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <p className="text-xs font-bold text-gray-700">{telefonoMedico || 'No registrado'}</p>
+                                            {telefonoMedico && (
+                                                <a href={`tel:${telefonoMedico}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                    <FaPhoneFlip className="text-[11px]" />
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="sm:border-l sm:pl-5 border-gray-100 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Dirección de Consultorio</p>
+                                        <div className="flex items-start gap-2 mt-0.5">
+                                            <p className="text-xs font-bold text-gray-700 leading-tight flex-1">
+                                                {direccionMedico || 'Sin dirección registrada'}
+                                            </p>
+                                            <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
+                                                className="text-[#1C85E8] shrink-0 hover:scale-110 transition-transform mt-0.5">
+                                                <FaLocationDot className="text-sm" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </section>
 
                     {/* Subtítulo conteo */}
-                    <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2 mt-4">
+                    <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2 mt-4 text-left">
                         <FaFileMedical className="text-sm text-[#02CFE3]" /> 
                         Mostrando {productosFiltrados.length} productos ordenados por alertas críticas
                     </h3>
@@ -248,7 +307,7 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
                                     <div className="flex flex-col md:flex-row items-stretch w-full relative">
                                         <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
                                         
-                                        {/* Left Section: Product Details */}
+                                        {/* Detalle del Producto */}
                                         <div className="flex-1 p-4 pl-5 flex flex-col justify-center bg-white/30 border-r border-gray-150">
                                             <h4 className="font-bold text-gray-800 text-xs md:text-sm leading-tight mb-1 truncate">
                                                 {prod.nombre}
@@ -262,56 +321,57 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = [], mesActual = '', p
                                             </div>
                                         </div>
 
-                                        {/* Right Section: Table columns */}
-                                        <div className="w-full md:w-[60%] shrink-0 grid grid-cols-2 text-center bg-gray-50/20">
-                                            {/* Formulado */}
-                                            <div className="border-r border-gray-150 flex flex-col">
-                                                <div className="py-1 px-2 text-[8px] font-black text-[#1C85E8] bg-blue-50/30 uppercase tracking-wider border-b border-gray-150">
-                                                    Formulado
-                                                </div>
-                                                <div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
-                                                    <div className="py-2.5">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
-                                                        <strong className="text-gray-700">{prod.formulado_mes_anterior}</strong>
-                                                    </div>
-                                                    <div className="py-2.5">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
-                                                        <strong className="text-gray-700">{prod.formulado_mes_actual}</strong>
-                                                    </div>
-                                                    <div className="py-2.5 flex flex-col items-center justify-center">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
-                                                        <RendimientoIndicador 
-                                                            tendencia={prod.formulado_tendencia} 
-                                                            diferencia={prod.formulado_diferencia} 
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        {/* Columnas de Métricas */}
+                                        {/* Columnas de Métricas */}
+<div className="w-full md:w-[60%] shrink-0 grid grid-cols-2 text-center bg-gray-50/20">
+    {/* Formulado */}
+    <div className="border-r border-gray-150 flex flex-col">
+ <div className="py-1 px-2 text-[8px] font-black text-[#1C85E8] bg-blue-50/30 uppercase tracking-wider border-b border-gray-150">
+Formulado
+ </div>
+ <div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
+ <div className="py-2.5">
+<span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
+ <strong className="text-gray-700">{prod.formulado_mes_anterior}</strong>
+ </div>
+ <div className="py-2.5">
+ <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
+ <strong className="text-gray-700">{prod.formulado_mes_actual}</strong>
+ </div>
+ <div className="py-2.5 flex flex-col items-center justify-center">
+ <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
+ <RendimientoIndicador 
+ tendencia={prod.formulado_tendencia} 
+ diferencia={prod.formulado_diferencia} 
+ />
+ </div>
+ </div>
+</div>
 
-                                            {/* Comprado */}
-                                            <div className="flex flex-col">
-                                                <div className="py-1 px-2 text-[8px] font-black text-green-600 bg-green-50/30 uppercase tracking-wider border-b border-gray-150">
-                                                    Comprado
-                                                </div>
-                                                <div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
-                                                    <div className="py-2.5">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
-                                                        <strong className="text-gray-700">{prod.comprado_mes_anterior}</strong>
-                                                    </div>
-                                                    <div className="py-2.5">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
-                                                        <strong className="text-gray-700">{prod.comprado_mes_actual}</strong>
-                                                    </div>
-                                                    <div className="py-2.5 flex flex-col items-center justify-center">
-                                                        <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
-                                                        <RendimientoIndicador 
-                                                            tendencia={prod.comprado_tendencia} 
-                                                            diferencia={prod.comprado_diferencia} 
+ {/* Comprado */}
+ <div className="flex flex-col">
+<div className="py-1 px-2 text-[8px] font-black text-green-600 bg-green-50/30 uppercase tracking-wider border-b border-gray-150">
+Comprado
+ </div>
+<div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
+<div className="py-2.5">
+ <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
+ <strong className="text-gray-700">{prod.comprado_mes_anterior}</strong>
+</div>
+<div className="py-2.5">
+ <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
+<strong className="text-gray-700">{prod.comprado_mes_actual}</strong>
+ </div>
+<div className="py-2.5 flex flex-col items-center justify-center">
+ <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
+ <RendimientoIndicador 
+                                        tendencia={prod.comprado_tendencia} 
+                                                diferencia={prod.comprado_diferencia} 
                                                         />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                                   </div>
+                                               </div>
+                                          </div>
+                                      </div>
                                     </div>
                                 </div>
                             ))}

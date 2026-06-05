@@ -206,6 +206,7 @@ public function show(Request $request, $id)
     // ── Período de tiempo ────────────────────────────────────────────────
     $periodo    = $request->input('periodo', 'all');
     $fechaDesde = match($periodo) {
+        'mes' => Carbon::now()->startOfMonth()->format('Y-m-d'),
         '3m' => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
         '6m' => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
         '1y' => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
@@ -221,12 +222,19 @@ public function show(Request $request, $id)
         ->where('medico_id', $id)
         ->when($fechaDesde, fn($q) => $q->where('fecha_programada', '>=', $fechaDesde));
 
-    // ── KPIs transacciones ────────────────────────────────────────────────
+    // ── KPIs transacciones (Métricas corregidas) ───────────────────────────
     $txStats = $txBase()->select(
         DB::raw('COUNT(*) as total_transacciones'),
         DB::raw('COALESCE(SUM(valor_comprado), 0) as total_valor_comprado'),
         DB::raw('COALESCE(SUM(valor_formulado), 0) as total_valor_formulado'),
-        DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades'),
+        
+        // Mantenemos esta por compatibilidad con tu interfaz si se usa en otro lado:
+        DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades'), 
+        
+        // NUEVAS: Mapeamos explícitamente las métricas que tu React espera recibir
+        DB::raw('COALESCE(SUM(unidades_compradas), 0) as total_unidades_compradas'),
+        DB::raw('COALESCE(SUM(unidades_formuladas), 0) as total_unidades_formuladas'),
+        
         DB::raw('COUNT(DISTINCT producto_codigo) as total_productos'),
         DB::raw("COUNT(DISTINCT DATE_FORMAT(fecha, '%Y-%m')) as meses_activo")
     )->first();
@@ -331,6 +339,102 @@ public function show(Request $request, $id)
         'visitasStats'         => $visitasStats,
         'visitas'              => $visitas,
         'visitadoresAsignados' => $visitadoresAsignados,
+    ]);
+}
+
+
+public function alertasProductos(Request $request, $id)
+{
+    // 1. Obtener el médico
+    $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
+    $doc = $medico->documento;
+
+    // 2. MES ACTUAL (Fijo: El mes real en el que estamos hoy)
+    $hoyReal = Carbon::now();
+    $inicioMesActual = $hoyReal->copy()->startOfMonth()->format('Y-m-d');
+    $finMesActual    = $hoyReal->copy()->endOfMonth()->format('Y-m-d');
+    $mesActualLabel  = ucfirst($hoyReal->locale('es')->isoFormat('MMMM YYYY'));
+
+    // 3. MES SELECCIONADO (Dinámico: El periodo pasado o histórico que elige el admin)
+    $mesQuery = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
+    
+    try {
+        $mesSeleccionado = Carbon::createFromFormat('Y-m', $mesQuery);
+    } catch (\Exception $e) {
+        $mesSeleccionado = Carbon::now()->subMonth();
+        $mesQuery = $mesSeleccionado->format('Y-m');
+    }
+
+    $inicioMesSeleccionado = $mesSeleccionado->copy()->startOfMonth()->format('Y-m-d');
+    $finMesSeleccionado    = $mesSeleccionado->copy()->endOfMonth()->format('Y-m-d');
+    $mesSeleccionadoLabel  = ucfirst($mesSeleccionado->locale('es')->isoFormat('MMMM YYYY'));
+
+    // 4. Determinar los extremos cronológicos para optimizar la consulta SQL
+    $fechaMin = min($inicioMesActual, $inicioMesSeleccionado);
+    $fechaMax = max($finMesActual, $finMesSeleccionado);
+
+    // 5. Consulta combinada de transacciones
+    $transacciones = DB::table('transacciones')
+        ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
+        ->where('transacciones.medico_documento', $doc)
+        ->whereBetween('transacciones.fecha', [$fechaMin, $fechaMax])
+        ->select(
+            'productos.codigo',
+            'productos.nombre',
+            'productos.laboratorio',
+            // Sumatorias del Mes Seleccionado por el usuario
+            DB::raw("SUM(CASE WHEN transacciones.fecha BETWEEN '$inicioMesSeleccionado' AND '$finMesSeleccionado' THEN transacciones.unidades_formuladas ELSE 0 END) as form_sel"),
+            DB::raw("SUM(CASE WHEN transacciones.fecha BETWEEN '$inicioMesSeleccionado' AND '$finMesSeleccionado' THEN transacciones.unidades_compradas ELSE 0 END) as comp_sel"),
+            // Sumatorias del Mes Actual real
+            DB::raw("SUM(CASE WHEN transacciones.fecha BETWEEN '$inicioMesActual' AND '$finMesActual' THEN transacciones.unidades_formuladas ELSE 0 END) as form_act"),
+            DB::raw("SUM(CASE WHEN transacciones.fecha BETWEEN '$inicioMesActual' AND '$finMesActual' THEN transacciones.unidades_compradas ELSE 0 END) as comp_act")
+        )
+        ->groupBy('productos.codigo', 'productos.nombre', 'productos.laboratorio')
+        ->get();
+
+    // 6. FILTRAR Y MAPEAR: Eliminar registros donde absolutamente todo sea cero
+    $productosAlertas = $transacciones->filter(function($item) {
+        // Sumamos todas las unidades de los dos meses analizados
+        $totalUnidades = $item->form_sel + $item->comp_sel + $item->form_act + $item->comp_act;
+        
+        // Si es mayor a 0, el producto se queda. Si es 0, se descarta por completo.
+        return $totalUnidades > 0;
+    })->map(function($item) {
+        $difFormulado = $item->form_act - $item->form_sel;
+        $difComprado  = $item->comp_act - $item->comp_sel;
+
+        return [
+            'codigo'                     => $item->codigo,
+            'nombre'                     => $item->nombre,
+            'laboratorio'                => $item->laboratorio,
+            
+            // Valores del mes histórico seleccionado
+            'formulado_mes_seleccionado' => (int)$item->form_sel,
+            'comprado_mes_seleccionado'  => (int)$item->comp_sel,
+
+            // Valores del mes actual real
+            'formulado_mes_actual'       => (int)$item->form_act,
+            'comprado_mes_actual'        => (int)$item->comp_act,
+            
+            // Tendencias y variaciones
+            'formulado_diferencia'       => abs($difFormulado),
+            'formulado_tendencia'        => $difFormulado > 0 ? 'subio' : ($difFormulado < 0 ? 'bajo' : 'igual'),
+
+            'comprado_diferencia'        => abs($difComprado),
+            'comprado_tendencia'         => $difComprado > 0 ? 'subio' : ($difComprado < 0 ? 'bajo' : 'igual'),
+        ];
+    })->sortByDesc('formulado_mes_seleccionado')->values()->all();
+
+    $puestoReal = $medico->categoria_id == 1 ? 1 : null;
+
+    // 7. Retornar a la vista Inertia
+    return Inertia::render('ADMINISTRADOR/MEDICOS/ProductosAlertaAdmin', [
+        'medico'               => $medico,
+        'productosAlertas'     => $productosAlertas,
+        'mesActualLabel'       => $mesActualLabel,       
+        'mesSeleccionadoLabel' => $mesSeleccionadoLabel, 
+        'mesQuery'             => $mesQuery,             
+        'puestoReal'           => $puestoReal
     ]);
 }
 }

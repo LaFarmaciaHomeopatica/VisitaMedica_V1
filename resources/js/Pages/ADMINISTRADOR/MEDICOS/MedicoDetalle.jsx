@@ -75,6 +75,8 @@ const PERIODOS = [
     { key: '1y',  label: '1 año' },
     { key: '6m',  label: '6 meses' },
     { key: '3m',  label: '3 meses' },
+    { key: 'mes', label: 'Mes Actual' },
+
 ];
 
 export default function MedicoDetalle({
@@ -140,12 +142,19 @@ export default function MedicoDetalle({
                                 )}
                             </p>
                         </div>
+                        
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                             {medico.categoria && (
                                 <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 uppercase">
                                     {medico.categoria.nombre}
                                 </span>
                             )}
+                            <Link
+    href={route('Gmedicos.alertas', medico.id)}
+    className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+>
+    <FaFlask className="text-xs" /> Analizar Alertas
+</Link>
                             {medico.visitador && (
                                 <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 uppercase">
                                     Visitador: {medico.visitador.nombre} {medico.visitador.apellido}
@@ -213,8 +222,10 @@ export default function MedicoDetalle({
                     <div className="flex gap-3">
                         <KpiCard label="Val. comprado"   value={fmtM(txStats?.total_valor_comprado)}  accent="#4184F0" />
                         <KpiCard label="Val. formulado"  value={fmtM(txStats?.total_valor_formulado)} accent="#8b5cf6" />
-                        <KpiCard label="Unidades"        value={fmt(txStats?.total_unidades)}          accent="#f59e0b" />
-                        <KpiCard label="Transacciones"   value={fmt(txStats?.total_transacciones)}     accent="#3D3FD8" />
+                        <KpiCard label="Unidades Generales"        value={fmt(txStats?.total_unidades)}          accent="#f59e0b" />
+                        {/* CORREGIDO: Se cambia total_unidades_compradas por unidades_compradas (o el mapeo real del backend) */}
+                        <KpiCard label="Unidades compradas" value={fmt(txStats?.unidades_compradas ?? txStats?.total_unidades_compradas)} accent="#ef4444" />
+                        <KpiCard label="Unidades formuladas" value={fmt(txStats?.unidades_formuladas ?? txStats?.total_unidades_formuladas)} accent="#ec4899" />
                         <KpiCard label="Productos"       value={fmt(txStats?.total_productos)}         accent="#10b981" sub={`${txStats?.meses_activo ?? 0} meses activo`} />
                         <KpiCard label="Total visitas"   value={fmt(visitasStats?.total)}              accent="#ef4444" sub={`${visitasStats?.efectivas ?? 0} efectivas`} />
                     </div>

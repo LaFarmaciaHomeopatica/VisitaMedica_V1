@@ -100,8 +100,7 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
 
     // Ruta para procesar el archivo subido (Importar)
     Route::post('productos/importar', [ProductosController::class, 'import'])->name('productos.import');
-    });
-
+   
 
 
     Route::get('/Gtransacciones', [TransaccionesController::class, 'index'])->name('Gtransacciones.index');
@@ -124,6 +123,13 @@ Route::get('/Gtransacciones/plantilla', [TransaccionesController::class, 'planti
 Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'importar'])->name('Gtransacciones.importar');
 
 
+Route::get('administrador/medicos/{id}/alertas-productos', [
+    Medico2Controller::class, 
+    'alertasProductos'
+])->name('Gmedicos.alertas');
+
+
+ });
 
 
 
