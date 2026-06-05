@@ -19,7 +19,7 @@ const BottomNavigation = () => {
     { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
     { icon: <FaCalendarCheck />, label: 'Visitas', route: '/MisVisitas' },
     { icon: <FaUserDoctor />, label: 'Médicos', route: '/ListadoMedicos' },
-    { icon: <FaRankingStar />, label: 'Top 10', route: '/visitador/top-medicos' }, // ← Nueva ruta del Ranking
+    { icon: <FaRankingStar />, label: 'Top Medicos', route: '/visitador/top-medicos' }, // ← Nueva ruta del Ranking
     { icon: <FaBell />, label: 'Alertas', route: '/visitador/alertas' }, // ← Nueva ruta de Alertas
 ];
 

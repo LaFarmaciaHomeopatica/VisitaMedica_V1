@@ -13,4 +13,4 @@ export const getEstadoEstilo = (estado) => {
 };
 
 export const getNameById = (list, id) =>
-    list.find(item => item.id == id)?.nombre || 'NO ASIGNADO';
+    list.find(item => item.id == id)?.nombre||list.find(item => item.id == id)?.apellido || 'NO ASIGNADO';

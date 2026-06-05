@@ -7,6 +7,9 @@ export default function VisitaViewModal({
 }) {
     if (!isOpen || !visita) return null;
 
+    // Buscamos el objeto del médico actual en el arreglo para extraer nombre y apellido
+    const medicoActual = medicos?.find(m => m.id === visita.medico_id);
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
@@ -29,7 +32,10 @@ export default function VisitaViewModal({
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Médico</label>
                             <p className="text-[13px] font-black text-slate-800 uppercase leading-tight">
-                                {getNameById(medicos, visita.medico_id)}
+                                {medicoActual 
+                                    ? `${medicoActual.nombre} ${medicoActual.apellido || ''}`
+                                    : 'MÉDICO NO ENCONTRADO'
+                                }
                             </p>
                         </div>
                         <div>

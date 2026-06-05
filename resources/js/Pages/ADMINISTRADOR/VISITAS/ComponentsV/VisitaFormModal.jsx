@@ -107,7 +107,7 @@ export default function VisitaFormModal({
                                 disabled={!data.visitador_id}
                             >
                                 <option value="">{data.visitador_id ? 'SELECCIONAR...' : 'ELIJA VISITADOR'}</option>
-                                {medicosFiltradosPorVisitador.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                                {medicosFiltradosPorVisitador.map(m => <option key={m.id} value={m.id}>{m.nombre} {m.apellido}</option>)}
                             </select>
                         </div>
                     </div>

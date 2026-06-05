@@ -149,14 +149,40 @@ class GinicioController extends Controller
         })->sortByDesc('valor_comprado')->values();
 
 
-        // --- Visitas por estado ---
-        $visitasPorEstado = DB::table('visitas')
-            ->whereBetween('fecha_programada', [$fechaInicio, $fechaFin])
+        // --- Visitas por estado (Sincronización de Identificadores) ---
+        $visitasPorEstadoQuery = DB::table('visitas')
+            ->whereBetween('fecha_programada', [$fechaInicio, $fechaFin]);
+
+        if ($medicoDoc) {
+            // 1. Buscamos el ID numérico en la tabla de médicos principales
+            $medicoIdReal = DB::table('medicos')
+                ->whereRaw('TRIM(documento) = ?', [trim($medicoDoc)])
+                ->value('id');
+
+            // 2. Si no aparece, buscamos en la tabla de médicos temporales por si acaso
+            if (!$medicoIdReal) {
+                $medicoIdReal = DB::table('medicos_temporales')
+                    ->whereRaw('TRIM(documento) = ?', [trim($medicoDoc)])
+                    ->value('id');
+            }
+
+            // 3. Aplicamos el filtro usando el ID numérico directo
+            if ($medicoIdReal) {
+                $visitasPorEstadoQuery->where('medico_id', $medicoIdReal);
+            } else {
+                // Si el documento no existe en ninguna de las dos tablas maestras,
+                // forzamos un resultado vacío seguro en vez de romper la consulta.
+                $visitasPorEstadoQuery->where('medico_id', 0);
+            }
+        }
+
+        $visitasPorEstado = $visitasPorEstadoQuery
             ->select('estado', DB::raw('COUNT(*) as total'))
             ->groupBy('estado')
             ->get();
 
-        // --- Lista de médicos para el filtro (Solo los que tienen transacciones en el periodo para no saturar el DOM) ---
+
+        // --- Lista de médicos para el filtro ---
         $medicosLista = (clone $base)
             ->join('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
             ->select('m.documento', DB::raw("TRIM(CONCAT(m.nombre, ' ', m.apellido)) as nombre"))

@@ -21,7 +21,7 @@ const HeroSection = ({
     const { auth } = usePage().props;
 
     return (
-        <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-3 rounded-b-[40px] max-w-5xl mx-auto shadow-lg relative text-white border-none">
+        <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-3 rounded-b-[40px] w-full md:max-w-none shadow-lg relative text-white border-none">
             <div className="flex items-center gap-4 mb-6">
                 <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/80 leading-none mb-1">
