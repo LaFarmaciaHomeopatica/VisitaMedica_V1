@@ -261,4 +261,4 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
     );
 };
 
-export default ListadoMedicos;
+export default ListadoMedicos; 

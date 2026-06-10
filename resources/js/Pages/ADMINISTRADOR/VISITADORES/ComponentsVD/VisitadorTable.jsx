@@ -39,7 +39,7 @@ const VisitadorTable = ({ currentItems, onEdit, onToggleEstado }) => {
                                                 {v.nombre} {v.apellido}
                                             </span>
                                             <span className="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">
-                                                {v.user ? `@${v.user.username || v.user.nombre}` : 'Sin usuario'}
+                                                {v.user ? `${v.user.username || v.user.nombre}` : 'Sin usuario'}
                                             </span>
                                         </div>
                                     </td>

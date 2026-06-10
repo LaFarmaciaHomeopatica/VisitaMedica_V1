@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 
+const initialState = {
+    id: '', nombre: '', apellido: '', documento: '',
+    especialidad: '', geolocalizacion: '', direccion_detalles: '',
+    telefono_contacto: '', horario_atencion: '', visitador_id: '',
+    fecha_inicio_relacion: '', tipo_documento_id: '', categoria_id: '',
+};
+
 export const useMedicoForm = (visitadores) => {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [visitadorNombre, setVisitadorNombre] = useState('');
 
-    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
-        id: '', nombre: '', apellido: '', documento: '',
-        especialidad: '', geolocalizacion: '', direccion_detalles: '',
-        telefono_contacto: '', horario_atencion: '', visitador_id: '',
-        fecha_inicio_relacion: '', tipo_documento_id: '', categoria_id: '',
-    });
+    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm(initialState);
 
     useEffect(() => {
         if (data.visitador_id && visitadores.length > 0) {
@@ -23,7 +25,7 @@ export const useMedicoForm = (visitadores) => {
     }, [data.visitador_id, visitadores]);
 
     const openCreateModal = () => {
-        reset();
+        setData(initialState);
         clearErrors();
         setIsEditing(false);
         setIsFormModalOpen(true);

@@ -40,12 +40,12 @@ class Medico2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'categoria_id' => 'required|exists:categoria,id', // <--- Agregado antes de documento
+            'categoria_id' => 'nullable|exists:categoria,id', // <--- Agregado antes de documento
             'documento' => 'required|numeric|unique:medicos,documento',
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
             'tipo_documento_id' => 'required|integer',
-            'especialidad' => 'required|string|max:100',
+            'especialidad' => 'nullable|string|max:100',
             'geolocalizacion' => 'nullable|string|max:300',
             'direccion_detalles' => 'nullable|string',
             'telefono_contacto' => 'nullable|string|max:50',
@@ -79,12 +79,12 @@ class Medico2Controller extends Controller
     public function update(Request $request, Medico $medico)
     {
         $validated = $request->validate([
-            'categoria_id' => 'required|exists:categoria,id', // <--- Agregado antes de documento
+            'categoria_id' => 'nullable|exists:categoria,id', // <--- Agregado antes de documento
             'documento' => 'required|numeric|unique:medicos,documento,' . $medico->id,
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
             'tipo_documento_id' => 'required|integer',
-            'especialidad' => 'required|string|max:100',
+            'especialidad' => 'nullable|string|max:100',
             'geolocalizacion' => 'nullable|string|max:300',
             'direccion_detalles' => 'nullable|string',
             'telefono_contacto' => 'nullable|string|max:50',

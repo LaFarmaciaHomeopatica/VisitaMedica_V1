@@ -52,7 +52,7 @@ const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumen
                                     )}
                                     {usuariosLibres.map(u => (
                                         <option key={u.id} value={u.id}>
-                                            @{u.username} (ID: {u.id})
+                                            {u.username} (ID: {u.id})
                                         </option>
                                     ))}
                                 </select>

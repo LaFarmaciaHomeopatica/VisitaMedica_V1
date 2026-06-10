@@ -23,7 +23,7 @@ export const useVisitadores = (visitadores = []) => {
         documento: '',
         tipo_documento_id: '',
         zona_id: '',
-        estado: 'habilitado',
+        estado: 'Habilitado',
     });
 
     // --- EFECTO: BUSCAR USUARIO POR ID (DEBOUNCE) ---

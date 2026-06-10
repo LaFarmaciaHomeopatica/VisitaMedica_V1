@@ -21,6 +21,9 @@ export default function UsuariosTable({ currentItems, roles, onEdit, onDelete })
                     <thead className="sticky top-[-30px] z-30 shadow-sm">
                         <tr className="bg-blue-600 border-b border-slate-200">
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
+                                Id
+                            </th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
                                 Username
                             </th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
@@ -46,7 +49,12 @@ export default function UsuariosTable({ currentItems, roles, onEdit, onDelete })
                                     >
                                         <td className="px-6 py-2 border-r border-slate-50">
                                             <span className="text-[11px] font-bold text-slate-700 uppercase leading-none">
-                                                @{u.username}
+                                                {u.id}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-2 border-r border-slate-50">
+                                            <span className="text-[11px] font-bold text-slate-700 uppercase leading-none">
+                                                {u.username}
                                             </span>
                                         </td>
                                         <td className="px-6 py-2 border-r border-slate-50">
