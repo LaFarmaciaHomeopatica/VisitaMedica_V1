@@ -38,12 +38,16 @@ class MedicosImport implements ToCollection, WithHeadingRow
     {
         $insertData = [];
 
-        foreach ($rows as $row) {
-            $documentoLimpio = preg_replace('/[^0-9]/', '', (string)$row['documento']);
-            
-            if (empty($documentoLimpio) || empty($row['nombre'])) {
-                continue;
-            }
+       foreach ($rows as $row) {
+    if (empty($row['documento'] ?? null) || empty($row['nombre'] ?? null)) {
+        continue;
+    }
+
+    $documentoLimpio = preg_replace('/[^0-9]/', '', (string)$row['documento']);
+    
+    if (empty($documentoLimpio)) {
+        continue;
+    }
 
             // 1. MAPEADOR FLEXIBLE DE DIRECCIÓN Y TELÉFONO
             $direccionFinal = $row['direccion_detalles'] 
