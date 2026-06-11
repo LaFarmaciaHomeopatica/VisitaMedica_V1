@@ -1,5 +1,114 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 
+// ─── Componente reutilizable SearchableSelect ───────────────────────────────
+function SearchableSelect({ value, onChange, options, placeholder, getKey, getLabel, disabled }) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef(null);
+    const inputRef = useRef(null);
+
+    const selected = options.find(o => String(getKey(o)) === String(value));
+
+    const filtered = query.trim()
+        ? options.filter(o => getLabel(o).toLowerCase().includes(query.toLowerCase()))
+        : options;
+
+    useEffect(() => {
+        function handleClick(e) {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                setOpen(false);
+                setQuery('');
+            }
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    function handleOpen() {
+        if (disabled) return;
+        setOpen(true);
+        setQuery('');
+        setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
+    function handleSelect(opt) {
+        onChange(getKey(opt));
+        setOpen(false);
+        setQuery('');
+    }
+
+    function handleClear(e) {
+        e.stopPropagation();
+        onChange('');
+        setOpen(false);
+        setQuery('');
+    }
+
+    return (
+        <div ref={containerRef} className="relative w-full">
+            <button
+                type="button"
+                onClick={handleOpen}
+                disabled={disabled}
+                className={`w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-xs font-bold outline-none focus:bg-white focus:border-[#3D3FD8] transition-all flex items-center justify-between gap-2 text-left ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+                <span className={selected ? 'text-slate-800 truncate' : 'text-slate-400'}>
+                    {selected ? getLabel(selected).toUpperCase() : placeholder}
+                </span>
+                <span className="flex items-center gap-1 shrink-0">
+                    {selected && !disabled && (
+                        <span
+                            onClick={handleClear}
+                            className="text-slate-300 hover:text-rose-400 transition-colors"
+                        >
+                            ✕
+                        </span>
+                    )}
+                    <span className={`text-slate-300 text-[10px] transition-transform inline-block ${open ? 'rotate-180' : ''}`}>▼</span>
+                </span>
+            </button>
+
+            {open && (
+                <div className="absolute z-[200] mt-1 w-full bg-white rounded-2xl shadow-2xl border-2 border-[#3D3FD8] overflow-hidden">
+                    <div className="px-3 pt-3 pb-2 border-b border-slate-50">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            placeholder="Buscar..."
+                            className="w-full bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-300 placeholder:font-normal"
+                        />
+                    </div>
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                        {filtered.length === 0 ? (
+                            <li className="px-4 py-3 text-[10px] text-slate-400 font-bold uppercase text-center">
+                                Sin resultados
+                            </li>
+                        ) : (
+                            filtered.map(opt => {
+                                const isActive = String(getKey(opt)) === String(value);
+                                return (
+                                    <li
+                                        key={getKey(opt)}
+                                        onClick={() => handleSelect(opt)}
+                                        className={`px-4 py-2.5 text-xs font-bold uppercase cursor-pointer transition-colors ${
+                                            isActive ? 'bg-blue-50 text-[#3D3FD8]' : 'text-slate-700 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {getLabel(opt)}
+                                    </li>
+                                );
+                            })
+                        )}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function VisitaFormModal({
     isOpen, onClose, onSubmit,
     isEditing, data, setData,
@@ -12,7 +121,6 @@ export default function VisitaFormModal({
     const [showResults, setShowResults] = useState(false);
     const wrapperRef = useRef(null);
 
-    // Sincronización inicial al abrir el modal o cambiar de registro
     useEffect(() => {
         if (isOpen) {
             if (isEditing && data.muestras) {
@@ -23,12 +131,10 @@ export default function VisitaFormModal({
         }
     }, [isOpen, isEditing, data.id]);
 
-    // Manejo de clics fuera para cerrar la lista y sincronizar valor manual
     useEffect(() => {
         function handleClickOutside(event) {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
                 setShowResults(false);
-                // Si el usuario escribió algo y cerró haciendo clic fuera, lo guardamos en el form
                 if (searchTerm !== data.muestras) {
                     setData('muestras', searchTerm);
                 }
@@ -38,15 +144,9 @@ export default function VisitaFormModal({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [searchTerm, data.muestras, setData]);
 
-    // Filtrado de productos por nombre o código
     const filteredProducts = useMemo(() => {
         const query = searchTerm ? searchTerm.toString().toLowerCase().trim() : '';
-
-        // No mostrar resultados si el campo está vacío o si coincide exactamente con lo ya seleccionado
-        if (!query || query.length < 1 || query === data.muestras?.toLowerCase()) {
-            return [];
-        }
-
+        if (!query || query.length < 1 || query === data.muestras?.toLowerCase()) return [];
         return productos.filter(p => {
             const nombre = p.nombre ? p.nombre.toLowerCase() : '';
             const codigo = p.codigo ? p.codigo.toLowerCase() : '';
@@ -54,14 +154,10 @@ export default function VisitaFormModal({
         }).slice(0, 8);
     }, [searchTerm, productos, data.muestras]);
 
-    // Función de selección definitiva
     const handleSelectProduct = (product) => {
         const selectedValue = `${product.codigo} - ${product.nombre}`;
-
-        // Actualizamos estado visual y estado de Inertia de forma atómica
         setSearchTerm(selectedValue);
         setData('muestras', selectedValue);
-
         setShowResults(false);
     };
 
@@ -87,28 +183,26 @@ export default function VisitaFormModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Visitador Responsable</label>
-                            <select
+                            <SearchableSelect
                                 value={data.visitador_id}
-                                onChange={e => setData(prev => ({ ...prev, visitador_id: e.target.value, medico_id: '' }))}
-                                className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-xs font-bold focus:bg-white focus:border-[#3D3FD8] outline-none transition-all"
-                                required
-                            >
-                                <option value="">SELECCIONAR...</option>
-                                {visitadores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-                            </select>
+                                onChange={val => setData(prev => ({ ...prev, visitador_id: val, medico_id: '' }))}
+                                options={visitadores}
+                                placeholder="Seleccionar..."
+                                getKey={v => v.id}
+                                getLabel={v => v.nombre}
+                            />
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Médico / Contacto</label>
-                            <select
+                            <SearchableSelect
                                 value={data.medico_id}
-                                onChange={e => onMedicoChange(e.target.value)}
-                                className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-xs font-bold focus:bg-white focus:border-[#3D3FD8] outline-none transition-all disabled:opacity-50"
-                                required
+                                onChange={val => onMedicoChange(val)}
+                                options={medicosFiltradosPorVisitador}
+                                placeholder={data.visitador_id ? 'Seleccionar...' : 'Elija visitador'}
+                                getKey={m => m.id}
+                                getLabel={m => `${m.nombre} ${m.apellido}`}
                                 disabled={!data.visitador_id}
-                            >
-                                <option value="">{data.visitador_id ? 'SELECCIONAR...' : 'ELIJA VISITADOR'}</option>
-                                {medicosFiltradosPorVisitador.map(m => <option key={m.id} value={m.id}>{m.nombre} {m.apellido}</option>)}
-                            </select>
+                            />
                         </div>
                     </div>
 
@@ -153,25 +247,21 @@ export default function VisitaFormModal({
                             </select>
                         </div>
 
-                        {/* BUSCADOR DE PRODUCTOS (MUESTRAS) */}
+                        {/* BUSCADOR DE PRODUCTOS (MUESTRAS) — sin cambios */}
                         <div className="relative" ref={wrapperRef}>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Muestras (Producto)</label>
                             <input
                                 type="text"
                                 value={searchTerm}
-                                onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    setShowResults(true);
-                                }}
+                                onChange={(e) => { setSearchTerm(e.target.value); setShowResults(true); }}
                                 onFocus={() => setShowResults(true)}
                                 placeholder="Buscar código o nombre..."
                                 className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-xs font-bold focus:bg-white focus:border-[#3D3FD8] outline-none transition-all"
                             />
-
                             {showResults && filteredProducts.length > 0 && (
                                 <div
                                     className="absolute z-[100] w-full bg-white border-2 border-[#3D3FD8] rounded-2xl shadow-2xl mt-1 max-h-48 overflow-y-auto"
-                                    onMouseDown={(e) => e.preventDefault()} // BLOQUEA el cierre del input al clickear la lista
+                                    onMouseDown={(e) => e.preventDefault()}
                                 >
                                     {filteredProducts.map((p) => (
                                         <div
@@ -190,7 +280,7 @@ export default function VisitaFormModal({
                         </div>
                     </div>
 
-                    {/* Textareas de detalles y comentarios */}
+                    {/* Textareas */}
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Detalles de la Muestra</label>
                         <textarea
@@ -200,7 +290,6 @@ export default function VisitaFormModal({
                             placeholder="Lote, cantidad u otro tipo de muestra..."
                         />
                     </div>
-
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Notas de la Visita</label>
                         <textarea
@@ -212,7 +301,7 @@ export default function VisitaFormModal({
                     </div>
                 </div>
 
-                {/* Lista de Errores de Validación */}
+                {/* Errores */}
                 {Object.keys(errors).length > 0 && (
                     <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-100">
                         {Object.entries(errors).map(([key, msg]) => (
@@ -221,7 +310,7 @@ export default function VisitaFormModal({
                     </div>
                 )}
 
-                {/* Botones de Acción */}
+                {/* Botones */}
                 <div className="mt-8 flex flex-col gap-3">
                     <button
                         type="submit"

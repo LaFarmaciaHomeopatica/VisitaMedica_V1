@@ -1,5 +1,118 @@
-import React from 'react';
-import { FaXmark } from 'react-icons/fa6';
+import React, { useState, useRef, useEffect } from 'react';
+import { FaXmark, FaChevronDown } from 'react-icons/fa6';
+
+function SearchableSelect({ value, onChange, options, placeholder, getKey, getLabel }) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef(null);
+    const inputRef = useRef(null);
+
+    const selected = options.find(o => String(getKey(o)) === String(value));
+
+    const filtered = query.trim()
+        ? options.filter(o => getLabel(o).toLowerCase().includes(query.toLowerCase()))
+        : options;
+
+    // Close on outside click
+    useEffect(() => {
+        function handleClick(e) {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                setOpen(false);
+                setQuery('');
+            }
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    function handleOpen() {
+        setOpen(true);
+        setQuery('');
+        setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
+    function handleSelect(opt) {
+        onChange(getKey(opt));
+        setOpen(false);
+        setQuery('');
+    }
+
+    function handleClear(e) {
+        e.stopPropagation();
+        onChange('');
+        setOpen(false);
+        setQuery('');
+    }
+
+    return (
+        <div ref={containerRef} className="relative w-full">
+            {/* Trigger */}
+            <button
+                type="button"
+                onClick={handleOpen}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10 flex items-center justify-between gap-2 text-left"
+            >
+                <span className={selected ? 'text-slate-800 truncate' : 'text-slate-400'}>
+                    {selected ? getLabel(selected) : placeholder}
+                </span>
+                <span className="flex items-center gap-1 shrink-0">
+                    {selected && (
+                        <span
+                            onClick={handleClear}
+                            className="text-slate-300 hover:text-rose-400 transition-colors cursor-pointer"
+                        >
+                            <FaXmark className="w-3 h-3" />
+                        </span>
+                    )}
+                    <FaChevronDown className={`w-3 h-3 text-slate-300 transition-transform ${open ? 'rotate-180' : ''}`} />
+                </span>
+            </button>
+
+            {/* Dropdown */}
+            {open && (
+                <div className="absolute z-50 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+                    {/* Search input */}
+                    <div className="px-3 pt-3 pb-2 border-b border-slate-50">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            placeholder="Buscar..."
+                            className="w-full bg-slate-50 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-300 placeholder:font-normal"
+                        />
+                    </div>
+
+                    {/* Options list */}
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                        {filtered.length === 0 ? (
+                            <li className="px-4 py-3 text-[10px] text-slate-400 font-bold uppercase text-center">
+                                Sin resultados
+                            </li>
+                        ) : (
+                            filtered.map(opt => {
+                                const isActive = String(getKey(opt)) === String(value);
+                                return (
+                                    <li
+                                        key={getKey(opt)}
+                                        onClick={() => handleSelect(opt)}
+                                        className={`px-4 py-2.5 text-[11px] font-bold uppercase cursor-pointer transition-colors ${
+                                            isActive
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : 'text-slate-700 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {getLabel(opt)}
+                                    </li>
+                                );
+                            })
+                        )}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function TransaccionFormModal({
     isOpen, onClose,
@@ -27,34 +140,28 @@ export default function TransaccionFormModal({
                     {/* Médico */}
                     <div className="col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Médico</label>
-                        <select
+                        <SearchableSelect
                             value={data.medico_documento}
-                            onChange={e => setData('medico_documento', e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10"
-                        >
-                            <option value="">Seleccionar Médico</option>
-                            {medicos.map(m => (
-                                <option key={m.documento} value={m.documento}>
-                                    {m.nombre} {m.apellido}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={val => setData('medico_documento', val)}
+                            options={medicos}
+                            placeholder="Seleccionar Médico"
+                            getKey={m => m.documento}
+                            getLabel={m => `${m.nombre} ${m.apellido}`}
+                        />
                         {errors.medico_documento && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.medico_documento}</p>}
                     </div>
 
                     {/* Producto */}
                     <div className="col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Producto</label>
-                        <select
+                        <SearchableSelect
                             value={data.producto_codigo}
-                            onChange={e => setData('producto_codigo', e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10"
-                        >
-                            <option value="">Seleccionar Producto</option>
-                            {productos.map(p => (
-                                <option key={p.codigo} value={p.codigo}>{p.nombre}</option>
-                            ))}
-                        </select>
+                            onChange={val => setData('producto_codigo', val)}
+                            options={productos}
+                            placeholder="Seleccionar Producto"
+                            getKey={p => p.codigo}
+                            getLabel={p => p.nombre}
+                        />
                         {errors.producto_codigo && <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.producto_codigo}</p>}
                     </div>
 
@@ -80,7 +187,7 @@ export default function TransaccionFormModal({
                         />
                     </div>
 
-                    {/* Unidades formuladas*/}
+                    {/* Unidades formuladas */}
                     <div className="col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Unidades Formuladas</label>
                         <input
@@ -91,7 +198,7 @@ export default function TransaccionFormModal({
                         />
                     </div>
 
-                    {/* Valor formulado*/}
+                    {/* Valor formulado */}
                     <div className="col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Valor Formulado</label>
                         <input
@@ -101,7 +208,6 @@ export default function TransaccionFormModal({
                             className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-4 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10"
                         />
                     </div>
-
 
                     {/* Fecha */}
                     <div className="col-span-1">
