@@ -4,7 +4,7 @@ const MedicoViewModal = ({ isOpen, onClose, medico }) => {
     if (!isOpen || !medico) return null;
 
     // Función auxiliar para etiquetas de datos
-    const InfoField = ({ label, value, icon }) => (
+    const InfoField = ({ label, value }) => (
         <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
             <p className="text-sm font-bold text-slate-700">{value || '---'}</p>
@@ -23,7 +23,7 @@ const MedicoViewModal = ({ isOpen, onClose, medico }) => {
                         <div>
                             <span className="text-[10px] font-black bg-white/20 px-3 py-1 rounded-full uppercase tracking-tighter">Ficha Médica Digital</span>
                             <h3 className="text-2xl font-black uppercase mt-2 leading-none">
-                                {medico.nombre} {medico.apellido}
+                                {medico.nombre || ''} {medico.apellido || ''}
                             </h3>
                         </div>
                         <button onClick={onClose} className="bg-white/10 p-2 rounded-full hover:bg-white/20 transition-all">
@@ -37,15 +37,18 @@ const MedicoViewModal = ({ isOpen, onClose, medico }) => {
                 <div className="p-6 max-h-[70vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                        {/* Identificación */}
-                        <InfoField label="Documento" value={`${medico.tipo_documento.nombre || ''} - ${medico.documento}`} />
+                        {/* Identificación Blindada */}
+                        <InfoField 
+                            label="Documento" 
+                            value={medico.tipo_documento ? `${medico.tipo_documento?.nombre || ''} - ${medico.documento || ''}` : medico.documento} 
+                        />
                         <InfoField label="Especialidad" value={medico.especialidad} />
 
-                        {/* Contacto y Categoría */}
+                        {/* Contacto y Categoría Blindada */}
                         <InfoField label="Teléfono de Contacto" value={medico.telefono_contacto} />
                         <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Categoría ID</p>
-                            <p className="text-sm font-bold text-blue-700">{medico.categoria.nombre || 'Sin categoría'}</p>
+                            <p className="text-sm font-bold text-blue-700">{medico.categoria?.nombre || 'Sin categoría'}</p>
                         </div>
 
                         {/* Ubicación y Horarios */}
@@ -56,15 +59,20 @@ const MedicoViewModal = ({ isOpen, onClose, medico }) => {
                         <InfoField label="Horario de Atención" value={medico.horario_atencion} />
                         <InfoField label="Geolocalización" value={medico.geolocalizacion} />
 
-                        {/* Datos de Gestión */}
+                        {/* Datos de Gestión Blindados contra Nulls */}
                         <div className="col-span-1 md:col-span-2 mt-2 pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase">ID Visitador Asignado</p>
-                                <p className="text-sm font-bold text-slate-600">{medico.visitador?.nombre + ' ' + medico.visitador?.apellido}</p>
+                                <p className="text-sm font-bold text-slate-600">
+                                    {medico.visitador 
+                                        ? `${medico.visitador?.nombre || ''} ${medico.visitador?.apellido || ''}`.trim() 
+                                        : 'No asignado'
+                                    }
+                                </p>
                             </div>
                             <div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase">Inicio de Relación</p>
-                                <p className="text-sm font-bold text-slate-600">{medico.fecha_inicio_relacion}</p>
+                                <p className="text-sm font-bold text-slate-600">{medico.fecha_inicio_relacion || '---'}</p>
                             </div>
                         </div>
                     </div>

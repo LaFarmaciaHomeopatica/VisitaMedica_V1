@@ -10,13 +10,27 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
 class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize
 {
+    protected $ids;
+
+    // El constructor recibe los IDs seleccionados (opcional)
+    public function __construct(array $ids = [])
+    {
+        $this->ids = $ids;
+    }
+
     public function query()
     {
-        // Optimización: Solo traer las columnas necesarias de las relaciones
-        return Transaccion::query()->with([
+        $query = Transaccion::query()->with([
             'medico:documento,nombre,apellido', 
             'producto:codigo,nombre'
         ]);
+
+        // Si hay IDs seleccionados, filtramos la consulta
+        if (!empty($this->ids)) {
+            $query->whereIn('id', $this->ids);
+        }
+
+        return $query;
     }
 
     public function headings(): array
@@ -48,7 +62,6 @@ class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, Shoul
             $transaccion->valor_comprado,
             $transaccion->valor_formulado,
             $transaccion->fecha,
-            // Verificamos que sea una instancia de Carbon antes de formatear
         ];
     }
 }

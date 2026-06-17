@@ -128,6 +128,9 @@ Route::get('administrador/medicos/{id}/alertas-productos', [
     'alertasProductos'
 ])->name('Gmedicos.alertas');
 
+Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'exportar'])
+    ->name('GmedicosTemporales.exportar');
+
 
  });
 
@@ -168,7 +171,6 @@ Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'
         Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
 
 
-       
     });
 
     /*

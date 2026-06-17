@@ -53,9 +53,19 @@ const Gtransacciones = ({ auth, transacciones = [], medicos = [], productos = []
         });
     };
 
-    // --- Exportación ---
+    // --- Exportación Modificada (Soporta Selección de filas) ---
     const handleExport = () => {
-        window.location.href = route('Gtransacciones.exportar');
+        let url = route('Gtransacciones.exportar');
+
+        // Si hay elementos seleccionados en el hook, los adjuntamos a la URL
+        if (selection.selectedIds && selection.selectedIds.length > 0) {
+            const params = new URLSearchParams();
+            selection.selectedIds.forEach(id => params.append('ids[]', id));
+            url += '?' + params.toString();
+        }
+
+        // Ejecuta la descarga nativa sin interrumpir el estado de Inertia
+        window.location.href = url;
     };
 
     // --- Plantilla ---

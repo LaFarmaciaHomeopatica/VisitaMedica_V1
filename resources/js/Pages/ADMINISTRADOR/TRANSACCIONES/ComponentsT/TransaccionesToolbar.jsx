@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 
 export default function TransaccionesToolbar({
     searchTerm, onSearchChange,
-    selectedIds,
+    selectedIds = [], // Aseguramos un valor por defecto si no viene
     onDelete, onNew,
     onFileChange, onExport, onDownloadTemplate,
     currentItems = [], onSelectAll,
@@ -31,6 +31,21 @@ export default function TransaccionesToolbar({
         valorFormulado: "Val. Formulado"
     };
 
+    // Función manejadora local para construir la descarga nativa
+    const handleExportClick = () => {
+        if (selectedIds.length > 0) {
+            // Convertimos el array de IDs a formato query string: ?ids[]=1&ids[]=2
+            const params = new URLSearchParams();
+            selectedIds.forEach(id => params.append('ids[]', id));
+            
+            // Reemplaza 'Gtransacciones.exportar' por el nombre de tu ruta o URL /administrador/transacciones/exportar
+            window.location.href = route('Gtransacciones.exportar') + '?' + params.toString();
+        } else {
+            // Si no hay seleccionados, ejecuta la función original (Exportar todo)
+            onExport();
+        }
+    };
+
     return (
         <div className="fixed top-20 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
             <div className="flex items-center justify-between gap-2 overflow-x-auto lg:overflow-visible">
@@ -45,7 +60,6 @@ export default function TransaccionesToolbar({
                                 onChange={e => onSelectAll(e, currentItems)}
                                 className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-transform group-hover:scale-105"
                             />
-                            {/* Texto identificativo */}
                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight leading-none select-none">
                                 Selecc.<br />Todo
                             </span>
@@ -131,7 +145,7 @@ export default function TransaccionesToolbar({
                         Calor
                     </button>
 
-                    {/* BOTÓN DESPLEGABLE DE COLUMNAS (Integrado con el Hook) */}
+                    {/* BOTÓN DESPLEGABLE DE COLUMNAS */}
                     <div className="relative" ref={columnFilterRef}>
                         <button
                             onClick={() => setShowColumnFilter(!showColumnFilter)}
@@ -170,6 +184,7 @@ export default function TransaccionesToolbar({
                         )}
                     </div>
 
+                    {/* BOTÓN BORRAR MULTIPLE */}
                     <button
                         onClick={onDelete}
                         disabled={selectedIds.length === 0}
@@ -179,13 +194,19 @@ export default function TransaccionesToolbar({
                         {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} BORRAR
                     </button>
 
+                    {/* BOTÓN MODIFICADO DE EXPORTAR (DINÁMICO) */}
                     <button
-                        onClick={onExport}
-                        className="text-emerald-600 hover:bg-emerald-50 px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all"
+                        onClick={handleExportClick}
+                        className={`px-3 py-2 rounded-lg font-black text-[10px] uppercase border transition-all ${
+                            selectedIds.length > 0 
+                                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-md' 
+                                : 'text-emerald-600 hover:bg-emerald-50 border-transparent'
+                        }`}
                     >
-                        EXPORTAR
+                        {selectedIds.length > 0 ? `Exportar (${selectedIds.length})` : 'Exportar Todo'}
                     </button>
 
+                    {/* BOTÓN PLANTILLA */}
                     <button
                         onClick={onDownloadTemplate}
                         className="text-slate-500 hover:bg-slate-100 px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all border border-slate-200 flex items-center gap-1"
@@ -197,6 +218,7 @@ export default function TransaccionesToolbar({
                         PLANTILLA
                     </button>
 
+                    {/* BOTÓN IMPORTAR */}
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         className="text-amber-600 hover:bg-amber-50 px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all"
@@ -211,6 +233,7 @@ export default function TransaccionesToolbar({
                         onChange={onFileChange}
                     />
 
+                    {/* BOTÓN CREAR NUEVA */}
                     <button
                         onClick={onNew}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-md hover:bg-blue-700 transition-all flex items-center gap-1.5"

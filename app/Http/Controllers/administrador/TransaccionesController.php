@@ -107,9 +107,21 @@ class TransaccionesController extends Controller
     /**
      * Exportar transacciones a Excel
      */
-    public function exportar()
+   public function exportar(Request $request)
     {
-        return Excel::download(new TransaccionesExport, 'reporte_transacciones_' . now()->format('d-m-Y') . '.xlsx');
+        // Validamos que si envían 'ids', sea un arreglo válido
+        $request->validate([
+            'ids' => 'nullable|array',
+            'ids.*' => 'exists:transacciones,id'
+        ]);
+
+        $ids = $request->input('ids', []); // Si no viene nada, por defecto es un array vacío
+
+        // Pasamos los IDs al constructor de nuestra clase de exportación
+        return Excel::download(
+            new TransaccionesExport($ids), 
+            'reporte_transacciones_' . now()->format('d-m-Y') . '.xlsx'
+        );
     }
 
     /**

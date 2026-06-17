@@ -37,9 +37,15 @@ const GmedicosTemporales = ({
         });
     };
 
-    const handleExport = () => {
-        console.log('Exportando datos filtrados...');
-    };
+const handleExport = (ids = []) => {
+    console.log('ids recibidos en handleExport:', ids);
+    const base = route('GmedicosTemporales.exportar');
+    const params = ids.length > 0
+        ? '?ids[]=' + ids.join('&ids[]=')
+        : '';
+    console.log('URL final:', base + params);
+    window.location.href = base + params;
+};
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -63,6 +69,7 @@ const GmedicosTemporales = ({
                     onDelete={handleDeleteSelected}
                     onExport={handleExport}
                     onNew={() => console.log('Nueva Gestión')}
+
                 />
 
                 <MedicosTempTable

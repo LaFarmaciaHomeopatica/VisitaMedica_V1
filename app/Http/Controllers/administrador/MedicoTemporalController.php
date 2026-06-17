@@ -10,6 +10,8 @@ use App\Models\TipoDocumento;
 use App\Models\Visitador; // Cambiado de User a Visitador
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\Medicostempexport;
 use Illuminate\Support\Facades\DB;
 
 class MedicoTemporalController extends Controller
@@ -121,4 +123,13 @@ class MedicoTemporalController extends Controller
         MedicoTemporal::whereIn('id', $request->ids)->delete();
         return redirect()->back()->with('success', 'Registros eliminados.');
     }
+
+
+
+public function exportar(Request $request)
+{
+    $ids = $request->input('ids', []);
+    \Log::debug('IDs recibidos:', $ids);
+    return Excel::download(new MedicosTempExport($ids), 'medicos_temporales.xlsx');
+}
 }

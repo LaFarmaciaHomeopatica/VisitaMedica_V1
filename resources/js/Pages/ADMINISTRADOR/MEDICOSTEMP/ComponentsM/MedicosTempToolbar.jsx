@@ -109,16 +109,24 @@ export default function MedicosTempToolbar({
                         {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} BORRAR
                     </button>
 
-                    <button onClick={onExport} className="text-emerald-600 hover:bg-emerald-50 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all">
-                        EXPORTAR
+            
+                    <button onClick={() => {
+    console.log('selectedIds al click:', selectedIds);
+    onExport(selectedIds);
+}}
+                        className={`px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all flex items-center gap-1.5 border ${
+                            selectedIds.length > 0
+                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                : 'text-emerald-600 hover:bg-emerald-50 border-transparent'
+                        }`}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {selectedIds.length > 0 ? `(${selectedIds.length}) EXPORTAR` : 'EXPORTAR'}
                     </button>
 
-                    <button
-                        onClick={onNew}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1.5 shadow-indigo-100"
-                    >
-                        <span className="text-sm">+</span> NUEVA GESTIÓN
-                    </button>
+                    
                 </div>
 
             </div>
