@@ -20,6 +20,7 @@ const PanelAdmin = ({ children }) => {
         { name: 'Médicos Temp.', icon: <FaUserClock />, route: '/GmedicosTemporales' },
         { name: 'Metas', icon: <FaBullseye />, route: '/Gmetas' },
         { name: 'Usuarios', icon: <FaUserGear />, route: '/Gusuarios' },
+       { name: 'Odoo', icon: <FaHouseMedical />, route: '/odoo/medicos' }
     ];
 
     return (

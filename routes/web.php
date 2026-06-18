@@ -17,6 +17,7 @@ use App\Http\Controllers\administrador\MetricasController;
 use App\Http\Controllers\administrador\MetasController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
+use App\Http\Controllers\api_odoo\OdooController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -133,6 +134,41 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
 
 
  });
+
+Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(function () {
+ 
+    /*
+    |------------------------------------------------------------------
+    | Vista principal: Consulta de Médicos en Odoo
+    |------------------------------------------------------------------
+    | GET /odoo/medicos
+    | Renderiza la vista con el buscador por número de documento.
+    | La búsqueda real se ejecuta desde el mismo controlador
+    | cuando se envía el parámetro ?documento=...
+    |------------------------------------------------------------------
+    */
+    Route::get('/medicos', [OdooController::class, 'index'])
+        ->name('medicos');
+ 
+    /*
+    |------------------------------------------------------------------
+    | Vista de configuración: Parámetros de conexión (.env)
+    |------------------------------------------------------------------
+    | GET  /odoo/config          → muestra el formulario de ajustes
+    | POST /odoo/config/guardar  → persiste los valores en .env
+    |                              (implementación pendiente)
+    |------------------------------------------------------------------
+    */
+    Route::get('/config', [OdooController::class, 'config'])
+        ->name('config');
+ 
+    // POST deshabilitado hasta implementación supervisada
+    // Route::post('/config/guardar', [OdooController::class, 'configSave'])
+    //     ->name('config.save');
+    Route::post('/config/guardar', [OdooController::class, 'configSave'])->name('config.save');
+ 
+});
+
 
 
 
