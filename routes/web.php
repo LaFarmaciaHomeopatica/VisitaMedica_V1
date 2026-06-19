@@ -18,6 +18,7 @@ use App\Http\Controllers\administrador\MetasController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
+use App\Http\Controllers\api_odoo\OdooSyncController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -150,6 +151,8 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
     Route::get('/medicos', [OdooController::class, 'index'])
         ->name('medicos');
  
+    Route::post('/medicos/buscar', [OdooSyncController::class, 'buscarPorDocumento'])
+        ->name('medicos.buscar');
     /*
     |------------------------------------------------------------------
     | Vista de configuración: Parámetros de conexión (.env)
@@ -166,8 +169,15 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
     // Route::post('/config/guardar', [OdooController::class, 'configSave'])
     //     ->name('config.save');
     Route::post('/config/guardar', [OdooController::class, 'configSave'])->name('config.save');
+
+// Sincronización — nuevas
+Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
+Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
+Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
+
  
 });
+
 
 
 
