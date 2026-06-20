@@ -10,14 +10,32 @@ use Illuminate\Support\Facades\Log;
 
 class OdooSyncController extends Controller
 {
+    /**
+     * Vista de productos — solo renderiza, el estado de conexión
+     * se obtiene de la misma forma que en OdooController::index()
+     */
+    public function indexProductos()
+    {
+        $url      = config('odoo.url');
+        $db       = config('odoo.db');
+        $username = config('odoo.username');
+        $password = config('odoo.password');
+
+        $conexionEstado = 'sin_probar';
+        if (!empty($url) && !empty($db) && !empty($password)) {
+            $uid = $this->obtenerUid($url, $db, $username, $password);
+            $conexionEstado = $uid ? 'conectado' : 'error';
+        }
+
+        return Inertia::render('API_ODOO/Odooproductos', [
+            'conexionEstado' => $conexionEstado,
+        ]);
+    }
+
     // =========================================================================
     //  HELPERS PRIVADOS — CONEXIÓN
     // =========================================================================
 
-    /**
-     * Obtiene el UID autenticándose contra Odoo.
-     * Retorna el UID (int) o null si falla.
-     */
     private function obtenerUid(string $url, string $db, string $username, string $password): ?int
     {
         try {
@@ -44,10 +62,6 @@ class OdooSyncController extends Controller
         }
     }
 
-    /**
-     * Ejecuta execute_kw en el endpoint /xmlrpc/2/object
-     * Equivale a: $models->execute_kw($db, $uid, $password, $modelo, $metodo, $args, $kwargs)
-     */
     private function ejecutarKw(
         string $url,
         string $db,
@@ -59,7 +73,6 @@ class OdooSyncController extends Controller
         array  $kwargs = []
     ): ?array {
         try {
-            // Construimos el XML manualmente equivalente al execute_kw de ripcord
             $argsXml   = $this->valorToXml($args);
             $kwargsXml = $this->valorToXml($kwargs);
 
@@ -100,14 +113,6 @@ class OdooSyncController extends Controller
     //  BÚSQUEDA POR DOCUMENTO
     // =========================================================================
 
-    /**
-     * Recibe un documento desde la vista, lo busca en Odoo y retorna
-     * el nombre completo + datos básicos del contacto encontrado.
-     *
-     * Equivale a:
-     *   $ids     = $models->execute_kw($db, $uid, $pw, 'res.partner', 'search', [[['vat','=',$doc]]]);
-     *   $records = $models->execute_kw($db, $uid, $pw, 'res.partner', 'read',   [$ids], ['fields'=>[...]]);
-     */
     public function buscarPorDocumento(Request $request)
     {
         $request->validate([
@@ -119,19 +124,16 @@ class OdooSyncController extends Controller
         $username = config('odoo.username');
         $password = config('odoo.password');
 
-        // 1. Autenticarse y obtener UID
         $uid = $this->obtenerUid($url, $db, $username, $password);
         if (!$uid) {
             return back()->withErrors(['error' => 'No se pudo autenticar con Odoo.']);
         }
 
-        // 2. Buscar IDs que coincidan con el documento (campo vat)
-        // Equivale a: search([[['vat', '=', $documento]]])
         $ids = $this->ejecutarKw($url, $db, $uid, $password,
             'res.partner',
             'search',
-            [[['vat', '=', $request->documento]]],  // dominio de búsqueda
-            ['limit' => 5]                           // máximo 5 resultados
+            [[['vat', '=', $request->documento]]],
+            ['limit' => 5]
         );
 
         if (empty($ids)) {
@@ -141,8 +143,6 @@ class OdooSyncController extends Controller
             ]);
         }
 
-        // 3. Leer los campos de esos IDs
-        // Equivale a: read([$ids], ['fields' => ['name', 'vat', 'email', 'phone']])
         $records = $this->ejecutarKw($url, $db, $uid, $password,
             'res.partner',
             'read',
@@ -150,7 +150,6 @@ class OdooSyncController extends Controller
             ['fields' => ['name', 'vat', 'email', 'phone', 'mobile']]
         );
 
-        // 4. Buscar transacciones asociadas (Pedidos y Facturas de Odoo)
         $transacciones = $this->obtenerTransaccionesOdoo($url, $db, $uid, $password, $ids);
 
         return back()->with('resultado', [
@@ -160,35 +159,247 @@ class OdooSyncController extends Controller
         ]);
     }
 
+    // =========================================================================
+    //  PRODUCTOS — Líneas de venta y factura de un médico (solo lectura)
+    // =========================================================================
+
+    /**
+     * Busca por documento y retorna los productos (líneas) de todas sus
+     * ventas y facturas en Odoo: código, nombre, cantidad y precio.
+     */
+    public function buscarProductos(Request $request)
+{
+    $request->validate([
+        'documento' => 'required|string|max:20',
+    ]);
+
+    $url      = config('odoo.url');
+    $db       = config('odoo.db');
+    $username = config('odoo.username');
+    $password = config('odoo.password');
+
+    $uid = $this->obtenerUid($url, $db, $username, $password);
+    
+    // Si falla la conexión, renderizamos la vista con el error en las props
+    if (!$uid) {
+        return Inertia::render('API_ODOO/Odooproductos', [
+            'conexionEstado' => 'error',
+            'resultadoProductos' => [
+                'encontrado' => false,
+                'mensaje'    => 'No se pudo autenticar con Odoo.',
+            ]
+        ]);
+    }
+
+    // 1. Buscar el partner por documento
+    $ids = $this->ejecutarKw($url, $db, $uid, $password,
+        'res.partner',
+        'search',
+        [[['vat', '=', $request->documento]]],
+        ['limit' => 5]
+    );
+
+    if (empty($ids)) {
+        return Inertia::render('API_ODOO/Odooproductos', [
+            'conexionEstado' => 'conectado',
+            'resultadoProductos' => [
+                'encontrado' => false,
+                'mensaje'    => 'No se encontró ningún contacto con ese documento en Odoo.',
+            ]
+        ]);
+    }
+
+    // 2. Datos básicos del médico
+    $partner = $this->ejecutarKw($url, $db, $uid, $password,
+        'res.partner',
+        'read',
+        [$ids],
+        ['fields' => ['name', 'vat']]
+    );
+
+    // 3. Productos facturados/vendidos
+    $productos = $this->obtenerProductosOdoo($url, $db, $uid, $password, $ids);
+
+    // RETORNO DIRECTO DE PROPS (Reemplaza al back()->with)
+    return Inertia::render('API_ODOO/Odooproductos', [
+        'conexionEstado' => 'conectado',
+        'resultadoProductos' => [
+            'encontrado'    => true,
+            'medico'        => $partner[0] ?? null,
+            'productos'     => $productos,
+        ]
+    ]);
+}
+
+    /**
+     * Trae las líneas de producto (sale.order.line y account.move.line)
+     * asociadas a las órdenes/facturas de un partner. Solo lectura.
+     */
+  private function obtenerProductosOdoo(string $url, string $db, int $uid, string $password, array $partnerIds): array
+    {
+        $productos = [];
+
+        // 1. Traer IDs de las órdenes de venta del partner
+        $orderIds = $this->ejecutarKw($url, $db, $uid, $password,
+            'sale.order',
+            'search',
+            [[['partner_id', 'in', $partnerIds]]]
+        );
+
+        Log::info('[OdooSync] DEBUG orderIds encontrados: ' . json_encode($orderIds));
+
+        if (!empty($orderIds)) {
+            try {
+                $lineasVenta = $this->ejecutarKw($url, $db, $uid, $password,
+                    'sale.order.line',
+                    'search_read',
+                    [[['order_id', 'in', $orderIds]]],
+                    [
+                        'fields' => ['product_id', 'name', 'product_uom_qty', 'price_unit', 'price_subtotal', 'order_id', 'display_type'],
+                        'order'  => 'id desc',
+                    ]
+                );
+
+                Log::info('[OdooSync] DEBUG lineasVenta count: ' . (is_array($lineasVenta) ? count($lineasVenta) : 'null'));
+
+                if (is_array($lineasVenta)) {
+                    foreach ($lineasVenta as $linea) {
+                        // En Odoo 18, display_type puede ser 'line_section' o 'line_note' para secciones/notas — las saltamos
+                        if (!empty($linea['display_type'])) continue;
+                        if (empty($linea['product_id'])) continue;
+
+                        $productId  = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
+                        $codigo     = is_array($linea['product_id']) ? $this->extraerCodigo($linea['product_id'][1] ?? '') : '—';
+                        $nombreProd = is_array($linea['product_id']) ? $this->limpiarNombre($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
+
+                        $productos[] = [
+                            'origen'      => 'Venta',
+                            'referencia'  => is_array($linea['order_id'] ?? null) ? ($linea['order_id'][1] ?? '—') : '—',
+                            'codigo'      => $codigo,
+                            'producto_id' => $productId,
+                            'nombre'      => $nombreProd,
+                            'cantidad'    => is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0,
+                            'precio'      => is_numeric($linea['price_unit']      ?? null) ? (float) $linea['price_unit']      : 0,
+                            'subtotal'    => is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0,
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('[OdooSync] Error consultando sale.order.line: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Traer IDs de las facturas (out_invoice) del partner
+        $moveIds = $this->ejecutarKw($url, $db, $uid, $password,
+            'account.move',
+            'search',
+            [[
+                ['partner_id', 'in', $partnerIds],
+                ['move_type', '=', 'out_invoice'],
+            ]]
+        );
+
+        Log::info('[OdooSync] DEBUG moveIds encontrados: ' . json_encode($moveIds));
+
+        if (!empty($moveIds)) {
+            try {
+                // OPTIMIZACIÓN ODOO 18:
+                // En Odoo 18 filtramos explícitamente por display_type = 'product' 
+                // para capturar solo los productos reales y omitir apuntes contables automáticos.
+                $lineasFactura = $this->ejecutarKw($url, $db, $uid, $password,
+                    'account.move.line',
+                    'search_read',
+                    [[
+                        ['move_id', 'in', $moveIds],
+                        ['display_type', '=', 'product'] 
+                    ]],
+                    [
+                        'fields' => ['product_id', 'name', 'quantity', 'price_unit', 'price_subtotal', 'move_id'],
+                        'order'  => 'id desc',
+                    ]
+                );
+
+                Log::info('[OdooSync] DEBUG lineasFactura count: ' . (is_array($lineasFactura) ? count($lineasFactura) : 'null'));
+
+                if (is_array($lineasFactura)) {
+                    foreach ($lineasFactura as $linea) {
+                        if (empty($linea['product_id'])) continue;
+
+                        $productId  = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
+                        $codigo     = is_array($linea['product_id']) ? $this->extraerCodigo($linea['product_id'][1] ?? '') : '—';
+                        $nombreProd = is_array($linea['product_id']) ? $this->limpiarNombre($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
+
+                        $productos[] = [
+                            'origen'      => 'Factura',
+                            'referencia'  => is_array($linea['move_id'] ?? null) ? ($linea['move_id'][1] ?? '—') : '—',
+                            'codigo'      => $codigo,
+                            'producto_id' => $productId,
+                            'nombre'      => $nombreProd,
+                            'cantidad'    => is_numeric($linea['quantity']       ?? null) ? (float) $linea['quantity']       : 0,
+                            'precio'      => is_numeric($linea['price_unit']     ?? null) ? (float) $linea['price_unit']     : 0,
+                            'subtotal'    => is_numeric($linea['price_subtotal'] ?? null) ? (float) $linea['price_subtotal'] : 0,
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('[OdooSync] Error consultando account.move.line v18: ' . $e->getMessage());
+            }
+        }
+
+        return $productos;
+    }
+
+    /**
+     * Odoo suele devolver el nombre del producto con el código entre corchetes:
+     * "[COD123] Nombre del producto" — extraemos el código.
+     */
+    private function extraerCodigo(string $nombreCompleto): string
+    {
+        if (preg_match('/^\[(.+?)\]/', $nombreCompleto, $m)) {
+            return $m[1];
+        }
+        return '—';
+    }
+
+    /**
+     * Quita el prefijo "[CODIGO]" del nombre para dejar solo el nombre limpio.
+     */
+    private function limpiarNombre(string $nombreCompleto): string
+    {
+        return trim(preg_replace('/^\[.+?\]\s*/', '', $nombreCompleto));
+    }
+
     /**
      * Busca las transacciones (sale.order y account.move) de un partner en Odoo de solo lectura.
+     * Incluye total, base imponible (sin impuestos) e impuestos por separado.
      */
     private function obtenerTransaccionesOdoo(string $url, string $db, int $uid, string $password, array $partnerIds): array
     {
         $transacciones = [];
 
-        // 1. Intentar con sale.order (Pedidos de venta)
+        // 1. sale.order (Pedidos de venta)
         try {
             $sales = $this->ejecutarKw($url, $db, $uid, $password,
                 'sale.order',
                 'search_read',
                 [[['partner_id', 'in', $partnerIds]]],
                 [
-                    'fields' => ['id', 'name', 'date_order', 'amount_total', 'state'],
+                    'fields' => ['id', 'name', 'date_order', 'amount_total', 'amount_untaxed', 'amount_tax', 'state'],
                     'order'  => 'date_order desc',
-                    
                 ]
             );
 
             if (is_array($sales)) {
                 foreach ($sales as $sale) {
                     $transacciones[] = [
-                        'origen'     => 'Odoo (Venta)',
-                        'id'         => $sale['id'],
-                        'referencia' => $sale['name'],
-                        'fecha'      => $sale['date_order'] ?? null,
-                        'total'      => $sale['amount_total'] ?? 0,
-                        'estado'     => $sale['state'] ?? 'Desconocido',
+                        'origen'         => 'Odoo (Venta)',
+                        'id'             => $sale['id'],
+                        'referencia'     => $sale['name'],
+                        'fecha'          => $sale['date_order'] ?? null,
+                        'total'          => is_numeric($sale['amount_total']   ?? null) ? (float) $sale['amount_total']   : 0,
+                        'base_imponible' => is_numeric($sale['amount_untaxed'] ?? null) ? (float) $sale['amount_untaxed'] : 0,
+                        'impuestos'      => is_numeric($sale['amount_tax']     ?? null) ? (float) $sale['amount_tax']     : 0,
+                        'estado'         => $sale['state'] ?? 'Desconocido',
                     ];
                 }
             }
@@ -196,7 +407,7 @@ class OdooSyncController extends Controller
             Log::warning('[OdooSync] Error consultando sale.order: ' . $e->getMessage());
         }
 
-        // 2. Intentar con account.move (Facturas de cliente)
+        // 2. account.move (Facturas de cliente)
         try {
             $moves = $this->ejecutarKw($url, $db, $uid, $password,
                 'account.move',
@@ -206,21 +417,23 @@ class OdooSyncController extends Controller
                     ['move_type', '=', 'out_invoice']
                 ]],
                 [
-                    'fields' => ['id', 'name', 'invoice_date', 'amount_total', 'state'],
+                    'fields' => ['id', 'name', 'invoice_date', 'amount_total', 'amount_untaxed', 'amount_tax', 'state'],
                     'order'  => 'invoice_date desc',
-                    
                 ]
             );
 
             if (is_array($moves)) {
+                Log::info('[OdooSync] DEBUG account.move raw: ' . json_encode($moves[0] ?? null));
                 foreach ($moves as $move) {
                     $transacciones[] = [
-                        'origen'     => 'Odoo (Factura)',
-                        'id'         => $move['id'],
-                        'referencia' => $move['name'],
-                        'fecha'      => $move['invoice_date'] ?? null,
-                        'total'      => $move['amount_total'] ?? 0,
-                        'estado'     => $move['state'] ?? 'Desconocido',
+                        'origen'         => 'Odoo (Factura)',
+                        'id'             => $move['id'],
+                        'referencia'     => $move['name'],
+                        'fecha'          => $move['invoice_date'] ?? null,
+                        'total'          => is_numeric($move['amount_total']   ?? null) ? (float) $move['amount_total']   : 0,
+                        'base_imponible' => is_numeric($move['amount_untaxed'] ?? null) ? (float) $move['amount_untaxed'] : 0,
+                        'impuestos'      => is_numeric($move['amount_tax']     ?? null) ? (float) $move['amount_tax']     : 0,
+                        'estado'         => $move['state'] ?? 'Desconocido',
                     ];
                 }
             }
@@ -228,7 +441,6 @@ class OdooSyncController extends Controller
             Log::warning('[OdooSync] Error consultando account.move: ' . $e->getMessage());
         }
 
-        // Ordenar por fecha descendentemente
         usort($transacciones, function ($a, $b) {
             $fA = $a['fecha'] ?? '';
             $fB = $b['fecha'] ?? '';
@@ -262,13 +474,9 @@ class OdooSyncController extends Controller
         XML;
     }
 
-    /**
-     * Convierte un array PHP al formato XML-RPC correspondiente
-     */
     private function valorToXml(mixed $valor): string
     {
         if (is_array($valor)) {
-            // Array asociativo → struct
             if (array_keys($valor) !== range(0, count($valor) - 1)) {
                 $members = '';
                 foreach ($valor as $k => $v) {
@@ -276,7 +484,6 @@ class OdooSyncController extends Controller
                 }
                 return "<struct>{$members}</struct>";
             }
-            // Array indexado → array
             $items = '';
             foreach ($valor as $v) {
                 $items .= "<value>{$this->valorToXml($v)}</value>";
@@ -291,16 +498,12 @@ class OdooSyncController extends Controller
         return "<string></string>";
     }
 
-    /**
-     * Parsea la respuesta XML-RPC de Odoo a un array PHP
-     */
     private function parseXmlResponse(string $body): mixed
     {
         try {
             $xml = simplexml_load_string($body);
             if (!$xml) return null;
 
-            // Si hay fault (error de Odoo)
             if (isset($xml->fault)) {
                 Log::error('[OdooSync] Fault de Odoo: ' . $body);
                 return null;
@@ -318,9 +521,6 @@ class OdooSyncController extends Controller
         }
     }
 
-    /**
-     * Parsea recursivamente un nodo de valor XML-RPC
-     */
     private function parseValue(\SimpleXMLElement $valueNode): mixed
     {
         foreach ($valueNode->children() as $typeNode) {

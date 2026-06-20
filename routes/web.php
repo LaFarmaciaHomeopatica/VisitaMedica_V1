@@ -175,6 +175,14 @@ Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
 Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
 Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
 
+
+
+        Route::get('/productos',         [OdooSyncController::class, 'indexProductos'])
+            ->name('productos');
+        Route::post('/productos/buscar', [OdooSyncController::class, 'buscarProductos'])
+            ->name('productos.buscar');
+
+
  
 });
 
