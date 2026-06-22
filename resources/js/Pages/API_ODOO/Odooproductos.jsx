@@ -5,7 +5,7 @@ import {
     FaMagnifyingGlass, FaGear, FaPlug, FaCircleCheck,
     FaCircleXmark, FaTriangleExclamation, FaUser,
     FaIdCard, FaArrowLeft, FaDatabase, FaSpinner,
-    FaBoxesStacked, FaBarcode
+    FaBoxesStacked, FaBarcode, FaXmark
 } from 'react-icons/fa6';
 
 function ConexionBadge({ estado = 'sin_probar' }) {
@@ -27,17 +27,19 @@ function ConexionBadge({ estado = 'sin_probar' }) {
 const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
 const fmtN = (n) => new Intl.NumberFormat('es-CO').format(n);
 
-// 1. Recibe 'resultadoProductos' directamente en los parámetros del componente
 export default function OdooProductos({ auth, conexionEstado = 'sin_probar', flash, errors, resultadoProductos }) {
 
     const [documento, setDocumento]   = useState('');
     const [buscando, setBuscando]     = useState(false);
     const [filtroOrigen, setFiltroOrigen] = useState('todos');
+    const [agruparRepetidos, setAgruparRepetidos] = useState(false);
+    
+    // NUEVO ESTADO PARA BUSCAR DENTRO DE LOS PRODUCTOS TRAÍDOS
+    const [busquedaTexto, setBusquedaTexto] = useState('');
 
-    // 2. Extraemos directamente de la prop o valores por defecto
     const productos = resultadoProductos?.productos || [];
     const medico = resultadoProductos?.medico || null;
-    const buscado = !!resultadoProductos; // Si existe la prop, es porque ya se buscó
+    const buscado = !!resultadoProductos;
     const errorMsg = !resultadoProductos?.encontrado ? (resultadoProductos?.mensaje || errors?.error || flash?.error || '') : '';
 
     const handleBuscar = (e) => {
@@ -45,6 +47,7 @@ export default function OdooProductos({ auth, conexionEstado = 'sin_probar', fla
         if (!documento.trim()) return;
         setBuscando(true);
         setFiltroOrigen('todos');
+        setBusquedaTexto(''); // Resetear el buscador interno al traer un nuevo médico
         
         router.post(route('odoo.productos.buscar'), { documento }, {
             preserveState: true,
@@ -54,11 +57,35 @@ export default function OdooProductos({ auth, conexionEstado = 'sin_probar', fla
         });
     };
 
-    // ... El resto del código (filtros, acumuladores y JSX) queda exactamente igual
+    // 1. FILTRADO: Filtra por origen Y por coincidencia en Nombre, Código o Referencia
+    const productosFiltradosInicial = productos.filter(p => {
+        // Validación de Origen
+        const cumpleOrigen = filtroOrigen === 'todos' ? true : p.origen === filtroOrigen;
+        
+        // Validación de Buscador de Texto (Filtra de manera insensible a mayúsculas/minúsculas)
+        const query = busquedaTexto.toLowerCase().trim();
+        const cumpleBusqueda = !query ? true : (
+            (p.nombre?.toLowerCase() || '').includes(query) ||
+            (p.codigo?.toLowerCase() || '').includes(query) ||
+            (p.referencia?.toLowerCase() || '').includes(query)
+        );
+        
+        return cumpleOrigen && cumpleBusqueda;
+    });
 
-    const productosFiltrados = productos.filter(p =>
-        filtroOrigen === 'todos' ? true : p.origen === filtroOrigen
-    );
+    // 2. AGRUPACIÓN: Si el toggle está activo, colapsa los repetidos sobre la lista ya filtrada
+    const productosFiltrados = agruparRepetidos
+        ? Object.values(productosFiltradosInicial.reduce((acc, p) => {
+            const key = p.producto_id;
+            if (!acc[key]) {
+                acc[key] = { ...p, cantidad: Number(p.cantidad) || 0, subtotal: Number(p.subtotal) || 0 };
+            } else {
+                acc[key].cantidad += Number(p.cantidad) || 0;
+                acc[key].subtotal += Number(p.subtotal) || 0;
+            }
+            return acc;
+        }, {}))
+        : productosFiltradosInicial;
 
     const totalGeneral = productosFiltrados.reduce((acc, p) => acc + (Number(p.subtotal) || 0), 0);
     const cantidadTotal = productosFiltrados.reduce((acc, p) => acc + (Number(p.cantidad) || 0), 0);
@@ -106,7 +133,7 @@ export default function OdooProductos({ auth, conexionEstado = 'sin_probar', fla
                 {/* CONTENIDO */}
                 <div className="px-8 pt-7 space-y-6">
 
-                    {/* Buscador */}
+                    {/* Buscador de Médico */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
                             Consultar productos por número de documento del médico
@@ -138,34 +165,79 @@ export default function OdooProductos({ auth, conexionEstado = 'sin_probar', fla
                     {buscado && (
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 
-                            {/* Cabecera + médico + pills */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex-wrap gap-3">
-                                <div className="flex items-center gap-2">
-                                    <FaBoxesStacked className="text-emerald-500 text-sm" />
-                                    <div>
-                                        <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                                            {medico?.name ? `Productos · ${medico.name}` : `Resultado · Doc: ${documento}`}
-                                        </h3>
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mt-0.5">
-                                            Mostrando {productosFiltrados.length} de {productos.length} líneas de producto
-                                        </p>
+                            {/* Cabecera + CONTROLES (Filtros y Buscador interno) */}
+                            <div className="flex flex-col gap-4 p-6 border-b border-slate-100 bg-slate-50/50">
+                                <div className="flex items-center justify-between flex-wrap gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <FaBoxesStacked className="text-emerald-500 text-sm" />
+                                        <div>
+                                            <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                                                {medico?.name ? `Productos · ${medico.name}` : `Resultado · Doc: ${documento}`}
+                                            </h3>
+                                            <p className="text-[8px] font-semibold text-slate-400 uppercase mt-0.5">
+                                                Mostrando {productosFiltrados.length} de {productos.length} líneas de producto
+                                            </p>
+                                        </div>
                                     </div>
+
+                                    {productos.length > 0 && (
+                                        <div className="flex items-center gap-3 flex-wrap shrink-0">
+                                            {/* Toggle Selector de Agrupación */}
+                                            <label className="inline-flex items-center gap-2 cursor-pointer bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors select-none border border-slate-200">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={agruparRepetidos} 
+                                                    onChange={(e) => setAgruparRepetidos(e.target.checked)}
+                                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+                                                />
+                                                <span className="text-[9px] font-black uppercase text-slate-600 tracking-tight">
+                                                    Agrupar repetidos
+                                                </span>
+                                            </label>
+
+                                            {/* Filtros de origen */}
+                                            <div className="flex items-center gap-1 bg-slate-200/60 p-0.5 rounded-lg text-[9px] font-bold uppercase border border-slate-200">
+                                                {[
+                                                    { key: 'todos',   label: 'Todos',     active: 'bg-white text-slate-800 shadow-sm' },
+                                                    { key: 'Venta',   label: 'Ventas',    active: 'bg-indigo-600 text-white shadow-sm' },
+                                                    { key: 'Factura', label: 'Facturas',  active: 'bg-amber-600 text-white shadow-sm' },
+                                                ].map(({ key, label, active }) => (
+                                                    <button key={key} type="button" onClick={() => setFiltroOrigen(key)}
+                                                        className={`px-3 py-1 rounded-md transition-all ${
+                                                            filtroOrigen === key ? active : 'text-slate-500 hover:text-slate-800'
+                                                        }`}>
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
+                                {/* BLOQUE DEL BUSCADOR EN TIEMPO REAL */}
                                 {productos.length > 0 && (
-                                    <div className="flex items-center gap-1 bg-slate-200/60 p-0.5 rounded-lg text-[9px] font-bold uppercase shrink-0">
-                                        {[
-                                            { key: 'todos',   label: 'Todos',     active: 'bg-white text-slate-800 shadow-sm' },
-                                            { key: 'Venta',   label: 'Ventas',    active: 'bg-indigo-600 text-white shadow-sm' },
-                                            { key: 'Factura', label: 'Facturas',  active: 'bg-amber-600 text-white shadow-sm' },
-                                        ].map(({ key, label, active }) => (
-                                            <button key={key} type="button" onClick={() => setFiltroOrigen(key)}
-                                                className={`px-3 py-1 rounded-md transition-all ${
-                                                    filtroOrigen === key ? active : 'text-slate-500 hover:text-slate-800'
-                                                }`}>
-                                                {label}
-                                            </button>
-                                        ))}
+                                    <div className="flex justify-end pt-3 border-t border-slate-200/60">
+                                        <div className="relative w-full max-w-xs">
+                                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                                <FaMagnifyingGlass className="text-[9px]" />
+                                            </span>
+                                            <input 
+                                                type="text" 
+                                                value={busquedaTexto}
+                                                onChange={e => setBusquedaTexto(e.target.value)}
+                                                placeholder="Filtrar por nombre, código o ref..."
+                                                className="w-full bg-white border border-slate-200 rounded-lg py-1.5 pl-8 pr-7 text-[10px] font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700 placeholder-slate-400"
+                                            />
+                                            {busquedaTexto && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setBusquedaTexto('')}
+                                                    className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-600"
+                                                >
+                                                    <FaXmark className="text-[10px]" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -237,7 +309,7 @@ export default function OdooProductos({ auth, conexionEstado = 'sin_probar', fla
                                 <div className="text-center py-16 text-slate-400">
                                     <FaBoxesStacked className="text-4xl text-slate-200 mb-2 mx-auto block" />
                                     <p className="text-[11px] font-bold uppercase">
-                                        {errorMsg || 'No se encontraron productos para este médico.'}
+                                        {errorMsg || 'No se encontraron productos que coincidan con los filtros aplicados.'}
                                     </p>
                                 </div>
                             )}
