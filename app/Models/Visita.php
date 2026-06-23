@@ -15,6 +15,7 @@ class Visita extends Model
         'visitador_id',
         'fecha_programada',
         'fecha_realizada',
+        'fecha_fin_real',
         'estado',
         'comentarios',
         'muestras',           // Nuevo campo
@@ -66,5 +67,6 @@ class Visita extends Model
     protected $casts = [
         'fecha_programada' => 'datetime:Y-m-d H:i',
         'fecha_realizada'  => 'datetime:Y-m-d H:i',  // ← agregar esta
+    'fecha_fin_real'   => 'datetime:Y-m-d H:i',  // ← agregar esta
     ];
 }

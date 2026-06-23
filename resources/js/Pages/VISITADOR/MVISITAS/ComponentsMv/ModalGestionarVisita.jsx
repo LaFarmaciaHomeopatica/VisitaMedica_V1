@@ -285,7 +285,7 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                         </div>
                     )}
 
-                    {/* Hora Final */}
+                    {/* Hora Final programada  */}
                     <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                             Hora Final
@@ -301,6 +301,38 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                             }}
                         />
                     </div>
+                    {/* ── HORA DE CIERRE REAL (Condicional) ── */}
+{(logic.formReporte.data.estado === 'efectiva' || esEfectiva) && (
+    <div className="animate-fade-in">
+        <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+            ⏱️ Hora de Cierre Real
+        </label>
+        
+        <input
+            type="text"
+            disabled={true}
+            className="w-full bg-emerald-50/50 border border-emerald-100 text-emerald-700 rounded-2xl p-4 text-xs font-black mt-1"
+            value={
+                // 1. Si la visita seleccionada ya viene con el string formateado del backend (Visitas viejas)
+                logic.visitaSeleccionada?.hora_cierre_12h 
+                    ? logic.visitaSeleccionada.hora_cierre_12h 
+                    // 2. Si se acaba de guardar en caliente, lo tomamos del formulario reactivo
+                    : logic.formReporte.data.fecha_fin_real 
+                        ? date('g:i A', strtotime(logic.formReporte.data.fecha_fin_real)) // Si usas alguna librería tipo format o similar, o simplemente un slice si viene limpio: logic.formReporte.data.fecha_fin_real.slice(11, 16)
+                        // 3. Fallback: Si el formulario ya tiene guardada la hora formateada por la respuesta de Inertia
+                        : logic.formReporte.data.hora_cierre_12h
+                            ? logic.formReporte.data.hora_cierre_12h
+                            : "SE REGISTRARÁ AL GUARDAR"
+            }
+        />
+        <p className="text-[9px] text-emerald-500 font-medium italic mt-1 ml-1">
+            * El sistema capturará la hora exacta del servidor al guardar como efectiva.
+        </p>
+    </div>
+)}
+
+                    
+
 
                     {/* Buscador de Productos */}
                     <div className="relative" ref={wrapperRef}>

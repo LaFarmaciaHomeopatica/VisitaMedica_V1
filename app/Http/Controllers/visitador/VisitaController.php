@@ -21,37 +21,42 @@ class VisitaController extends Controller
             ->first();
     }
 
-  // En tu método index():
-public function index()
-{
-    $visitador = $this->getVisitador();
-    if (!$visitador) return redirect()->route('login');
+    public function index()
+    {
+        $visitador = $this->getVisitador();
+        if (!$visitador) return redirect()->route('login');
 
-    // Opción explícita: Recargar los médicos con las columnas necesarias para estar 100% seguros
-    $medicosDisponibles = $visitador->medicos()->get(['id', 'visitador_id', 'nombre', 'apellido', 'geolocalizacion', 'direccion_detalles']);
+        $medicosDisponibles = $visitador->medicos()->get(['id', 'visitador_id', 'nombre', 'apellido', 'geolocalizacion', 'direccion_detalles']);
 
-    return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
-        'visitas' => Visita::with('medico')
-            ->where('visitador_id', $visitador->id)
-            ->orderBy('fecha_programada', 'asc')
-            ->get()
-            ->map(function ($visita) {
-                $visita->hora_12h = date('g:i A', strtotime($visita->fecha_programada));
-                return $visita;
-            }),
-        'medicosDisponibles' => $medicosDisponibles, // <-- Enviamos la variable con los nuevos campos
-        'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(),
-        'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
-    ]);
-}
-public function store(Request $request)
+        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
+            'visitas' => Visita::with('medico')
+                ->where('visitador_id', $visitador->id)
+                ->orderBy('fecha_programada', 'asc')
+                ->get()
+                ->map(function ($visita) {
+                    $visita->hora_12h = date('g:i A', strtotime($visita->fecha_programada));
+                    
+                    // 1. CAMBIO AQUÍ: Aseguramos que todas las visitas cargadas tengan su hora de cierre formateada en 12h
+                    $visita->hora_cierre_12h = $visita->fecha_fin_real 
+                        ? date('g:i A', strtotime($visita->fecha_fin_real)) 
+                        : null;
+
+                    return $visita;
+                }),
+            'medicosDisponibles' => $medicosDisponibles,
+            'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(),
+            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
+        ]);
+    }
+
+    public function store(Request $request)
     {
         $visitador = $this->getVisitador();
 
         $request->validate([
             'medico_id' => [
                 'required',
-                Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)), //  Corregido aquí
+                Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)),
             ],
             'fecha_programada'   => 'required|date',
             'fecha_realizada'    => 'nullable|date',
@@ -95,46 +100,58 @@ public function store(Request $request)
         return redirect()->back()->with('success', 'Visita agendada.');
     }
 
-   public function marcarEfectiva(Request $request, $id)
-{
-    $visitador = $this->getVisitador();
-    $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
+    public function marcarEfectiva(Request $request, $id)
+    {
+        $visitador = $this->getVisitador();
+        $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
-    $request->validate([
-        'estado'             => 'required|in:efectiva,No contactado,reprogramada,cancelada,programada',
-        'comentarios'        => 'nullable|string',
-        'muestras'           => 'nullable|string|max:255',
-        'comentario_muestra' => 'nullable|string',
-        'fecha_programada'   => 'nullable|date',
-        'fecha_realizada'    => 'nullable|date',
-        'latitud'            => 'nullable|numeric|between:-90,90',   // ← nuevo
-        'longitud'           => 'nullable|numeric|between:-180,180', // ← nuevo
-    ]);
+        $request->validate([
+            'estado'             => 'required|in:efectiva,No contactado,reprogramada,cancelada,programada',
+            'comentarios'        => 'nullable|string',
+            'muestras'           => 'nullable|string|max:255',
+            'comentario_muestra' => 'nullable|string',
+            'fecha_programada'   => 'nullable|date',
+            'fecha_realizada'    => 'nullable|date',
+            'fecha_fin_real'     => 'nullable|date', 
+            'latitud'            => 'nullable|numeric|between:-90,90',  
+            'longitud'           => 'nullable|numeric|between:-180,180', 
+        ]);
 
-    $updateData = [
-        'estado'             => $request->estado,
-        'comentarios'        => $request->comentarios,
-        'muestras'           => $request->muestras,
-        'comentario_muestra' => $request->comentario_muestra,
-        'fecha_programada'   => $request->fecha_programada,
-        'fecha_realizada'    => $request->fecha_realizada,
-    ];
+        $updateData = [
+            'estado'             => $request->estado,
+            'comentarios'        => $request->comentarios,
+            'muestras'           => $request->muestras,
+            'comentario_muestra' => $request->comentario_muestra,
+            'fecha_programada'   => $request->fecha_programada,
+            'fecha_realizada'    => $request->fecha_realizada,
+        ];
 
-    // Solo guardar ubicación si el estado es "efectiva"
-    if ($request->estado === 'efectiva' && $request->latitud && $request->longitud) {
-        $updateData['latitud']  = $request->latitud;
-        $updateData['longitud'] = $request->longitud;
+        // Guardamos la hora del servidor exacta
+        $ahora = now();
+
+        if (in_array($request->estado, ['efectiva', 'No contactado', 'cancelada'])) {
+            $updateData['fecha_fin_real'] = $ahora; 
+        }
+
+        if ($request->estado === 'efectiva' && $request->latitud && $request->longitud) {
+            $updateData['latitud']  = $request->latitud;
+            $updateData['longitud'] = $request->longitud;
+        }
+
+        $visita->update($updateData);
+
+        // 2. CAMBIO AQUÍ: Retornamos la hora formateada directamente en el flash session 
+        // para que React la pinte en tiempo récord sin recargar el modal entero.
+        return redirect()->back()->with([
+            'message' => 'Actualizado.',
+            'fecha_fin_fresca' => date('g:i A', strtotime($ahora))
+        ]);
     }
-
-    $visita->update($updateData);
-    return redirect()->back()->with('message', 'Actualizado.');
-}
 
     public function reprogramar(Request $request, $id)
     {
         $visitador = $this->getVisitador();
         
-        // Se eliminó la validación de horario laboral aquí también.
         $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
         
         $visita->update([

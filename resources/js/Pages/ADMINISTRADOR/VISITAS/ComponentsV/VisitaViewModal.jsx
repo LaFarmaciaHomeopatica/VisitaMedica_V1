@@ -29,7 +29,7 @@ const formatearFecha = (fechaStr) => {
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
 
             {/* Contenedor principal — ancho máximo grande, layout horizontal */}
-            <div className="relative bg-white w-full max-w-5xl rounded-[30px] shadow-2xl border border-slate-100 max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="relative bg-white w-full max-w-7xl rounded-[30px] shadow-2xl border border-slate-100 max-h-[92vh] overflow-hidden flex flex-col">
 
                 {/* Header */}
                 <div className="flex justify-between items-center px-8 pt-7 pb-5 border-b border-slate-100 shrink-0">
@@ -103,11 +103,18 @@ const formatearFecha = (fechaStr) => {
         </p>
     </div>
     <div>
-        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Finalizada</label>
+        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Fin Programada</label>
         <p className="text-xs font-bold text-blue-600 italic">
             {formatearFecha(visita.fecha_realizada) || 'SIN REGISTRO'}
         </p>
     </div>
+    <div>
+        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Finalizada</label>
+        <p className="text-xs font-bold text-blue-600 italic">
+            {formatearFecha(visita.fecha_fin_real) || 'SIN REGISTRO'}
+        </p>
+    </div>
+
 </div>
 
                         {/* Muestra */}
