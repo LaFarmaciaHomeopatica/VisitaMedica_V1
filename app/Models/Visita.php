@@ -18,7 +18,10 @@ class Visita extends Model
         'estado',
         'comentarios',
         'muestras',           // Nuevo campo
-        'comentario_muestra'  // Nuevo campo
+        'comentario_muestra',  // Nuevo campo
+              'latitud',   // ← nuevo
+    'longitud',  // ← nuevo
+        
     ];
 
     //  Relación con Médico

@@ -92,32 +92,40 @@ public function store(Request $request)
         return redirect()->back()->with('success', 'Visita agendada.');
     }
 
-    public function marcarEfectiva(Request $request, $id)
-    {
-        $visitador = $this->getVisitador();
-        $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
+   public function marcarEfectiva(Request $request, $id)
+{
+    $visitador = $this->getVisitador();
+    $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
-        $request->validate([
-            'estado'             => 'required|in:efectiva,No contactado,reprogramada,cancelada,programada',
-            'comentarios'        => 'nullable|string',
-            'muestras'           => 'nullable|string|max:255',
-            'comentario_muestra' => 'nullable|string',
-            'fecha_programada'   => 'nullable|date',
-            'fecha_realizada'    => 'nullable|date',
-        ]);
+    $request->validate([
+        'estado'             => 'required|in:efectiva,No contactado,reprogramada,cancelada,programada',
+        'comentarios'        => 'nullable|string',
+        'muestras'           => 'nullable|string|max:255',
+        'comentario_muestra' => 'nullable|string',
+        'fecha_programada'   => 'nullable|date',
+        'fecha_realizada'    => 'nullable|date',
+        'latitud'            => 'nullable|numeric|between:-90,90',   // ← nuevo
+        'longitud'           => 'nullable|numeric|between:-180,180', // ← nuevo
+    ]);
 
-        $updateData = [
-            'estado'             => $request->estado,
-            'comentarios'        => $request->comentarios,
-            'muestras'           => $request->muestras,
-            'comentario_muestra' => $request->comentario_muestra,
-            'fecha_programada'   => $request->fecha_programada,
-            'fecha_realizada'    => $request->fecha_realizada,
-        ];
+    $updateData = [
+        'estado'             => $request->estado,
+        'comentarios'        => $request->comentarios,
+        'muestras'           => $request->muestras,
+        'comentario_muestra' => $request->comentario_muestra,
+        'fecha_programada'   => $request->fecha_programada,
+        'fecha_realizada'    => $request->fecha_realizada,
+    ];
 
-        $visita->update($updateData);
-        return redirect()->back()->with('message', 'Actualizado.');
+    // Solo guardar ubicación si el estado es "efectiva"
+    if ($request->estado === 'efectiva' && $request->latitud && $request->longitud) {
+        $updateData['latitud']  = $request->latitud;
+        $updateData['longitud'] = $request->longitud;
     }
+
+    $visita->update($updateData);
+    return redirect()->back()->with('message', 'Actualizado.');
+}
 
     public function reprogramar(Request $request, $id)
     {

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { router } from '@inertiajs/react';
 import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark } from 'react-icons/fa6';
 import { format } from 'date-fns';
 
@@ -6,12 +7,32 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showResults, setShowResults] = useState(false);
     const wrapperRef = useRef(null);
-    
-    // MODIFICACIÓN: Estado para almacenar y alertar si se intenta reprogramar sin cambiar la fecha
     const [dateWarning, setDateWarning] = useState('');
+    const [coordenadas, setCoordenadas] = useState({ latitud: null, longitud: null });
+    const [gpsStatus, setGpsStatus] = useState('');
 
-    // MODIFICACIÓN: Efecto secundario que auto-selecciona el estado "reprogramada" si el usuario
-    // cambia la fecha u hora original. Si se regresa la fecha a la original, restaura el estado previo.
+    const capturarUbicacion = () => {
+        if (!navigator.geolocation) {
+            setGpsStatus('error');
+            return;
+        }
+        setGpsStatus('obteniendo');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setCoordenadas({
+                    latitud:  pos.coords.latitude,
+                    longitud: pos.coords.longitude,
+                });
+                setGpsStatus('ok');
+            },
+            (err) => {
+                console.warn('GPS error:', err);
+                setGpsStatus('error');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    };
+
     useEffect(() => {
         if (!logic.modalGestionAbierto || !logic.visitaSeleccionada) return;
         
@@ -31,7 +52,6 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
         }
     }, [logic.formReporte.data.fecha_programada, logic.modalGestionAbierto, logic.visitaSeleccionada]);
 
-    // Al abrir, sincronizar todos los campos con la visita seleccionada
     useEffect(() => {
         if (logic.modalGestionAbierto && logic.visitaSeleccionada) {
             const v = logic.visitaSeleccionada;
@@ -45,15 +65,14 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                 medico_id: v.medico_id || '',
             });
             setSearchTerm(v.muestras || '');
-            
-            // MODIFICACIÓN: Resetear advertencia de fecha al abrir
             setDateWarning('');
+            setCoordenadas({ latitud: null, longitud: null });
+            setGpsStatus('');
         }
     }, [logic.modalGestionAbierto, logic.visitaSeleccionada]);
 
-
     const esEfectiva = logic.visitaSeleccionada?.estado === 'efectiva';
-    // Cerrar buscador al hacer clic fuera
+
     useEffect(() => {
         function handleClickOutside(event) {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -95,13 +114,16 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
     };
 
     const handleActualizar = () => {
-        logic.formReporte.post(route('visitas.marcarEfectiva', logic.visitaSeleccionada.id), {
-            onSuccess: () => logic.setModalGestionAbierto(false)
+        router.post(route('visitas.marcarEfectiva', logic.visitaSeleccionada.id), {
+            ...logic.formReporte.data,
+            latitud:  coordenadas.latitud,
+            longitud: coordenadas.longitud,
+        }, {
+            onSuccess: () => logic.setModalGestionAbierto(false),
+            onError: (errors) => console.log('Errores:', errors),
         });
     };
 
-    // MODIFICACIÓN: Validador para la selección manual del estado. 
-    // Si elige "reprogramada" sin cambiar fecha/hora original, bloquea la acción y muestra aviso.
     const handleSelectOption = (optId) => {
         const originalDate = logic.visitaSeleccionada?.fecha_programada?.slice(0, 16).replace(' ', 'T') || '';
         const currentDate = logic.formReporte.data.fecha_programada?.replace(' ', 'T') || '';
@@ -114,13 +136,20 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
 
         setDateWarning('');
         logic.formReporte.setData('estado', optId);
+
+        if (optId === 'efectiva') {
+            capturarUbicacion();
+        } else {
+            setCoordenadas({ latitud: null, longitud: null });
+            setGpsStatus('');
+        }
     };
 
     const opciones = [
-        { id: 'efectiva', label: 'Efectiva', icon: FaCircleCheck, color: 'text-green-500' },
+        { id: 'efectiva',      label: 'Efectiva',      icon: FaCircleCheck, color: 'text-green-500'  },
         { id: 'No contactado', label: 'No contactado', icon: FaCircleXmark, color: 'text-orange-500' },
-        { id: 'reprogramada', label: 'Reprogramar', icon: FaClock, color: 'text-blue-500' },
-        { id: 'cancelada', label: 'Cancelada', icon: FaBan, color: 'text-red-500' },
+        { id: 'reprogramada',  label: 'Reprogramar',   icon: FaClock,       color: 'text-blue-500'   },
+        { id: 'cancelada',     label: 'Cancelada',     icon: FaBan,         color: 'text-red-500'    },
     ];
 
     if (!logic.modalGestionAbierto || !logic.visitaSeleccionada) return null;
@@ -160,7 +189,7 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                         </div>
                     </div>
 
-                    {/* Fechas */}
+                    {/* Hora Inicio */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
@@ -174,10 +203,9 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                                 onChange={handleFechaProgramadaChange}
                             />
                         </div>
-                      
                     </div>
 
-                    {/* ── SE MOVIÓ AQUÍ: Estado (Resultado de la visita) justo debajo de las Horas ── */}
+                    {/* Estado */}
                     {!esEfectiva && (
                         <div className="animate-in fade-in duration-200">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
@@ -197,35 +225,49 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                                         type="button"
                                         disabled={esEfectiva}
                                         onClick={() => handleSelectOption(opt.id)}
-                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${logic.formReporte.data.estado === opt.id
-                                            ? 'bg-blue-50 border-blue-500'
-                                            : 'bg-gray-50 border-transparent text-gray-400'
-                                            }`}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                                            logic.formReporte.data.estado === opt.id
+                                                ? 'bg-blue-50 border-blue-500'
+                                                : 'bg-gray-50 border-transparent text-gray-400'
+                                        }`}
                                     >
                                         <opt.icon className={`text-lg ${logic.formReporte.data.estado === opt.id ? opt.color : 'text-gray-300'}`} />
                                         <span className="text-xs font-bold">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Indicador GPS */}
+                            {logic.formReporte.data.estado === 'efectiva' && gpsStatus && (
+                                <div className={`mt-3 p-3 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${
+                                    gpsStatus === 'obteniendo' ? 'bg-blue-50 text-blue-500'   :
+                                    gpsStatus === 'ok'         ? 'bg-green-50 text-green-600' :
+                                                                 'bg-red-50 text-red-500'
+                                }`}>
+                                    {gpsStatus === 'obteniendo' && <><span className="animate-spin">⏳</span> Obteniendo ubicación...</>}
+                                    {gpsStatus === 'ok'         && <>📍 Ubicación capturada correctamente</>}
+                                    {gpsStatus === 'error'      && <>⚠ No se pudo obtener la ubicación — se guardará sin coordenadas</>}
+                                </div>
+                            )}
                         </div>
                     )}
 
-
-                      <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                                Hora Final
-                            </label>
-                            <input
-                                type="time"
-                                disabled={esEfectiva}
-                                className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 focus:ring-2 focus:ring-[#5D8BF4]"
-                                value={logic.formReporte.data.fecha_realizada?.slice(11, 16) || ''}
-                                onChange={e => {
-                                    const fecha = logic.formReporte.data.fecha_programada?.slice(0, 10) || format(new Date(), 'yyyy-MM-dd');
-                                    logic.formReporte.setData('fecha_realizada', `${fecha}T${e.target.value}`);
-                                }}
-                            />
-                        </div>
+                    {/* Hora Final */}
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                            Hora Final
+                        </label>
+                        <input
+                            type="time"
+                            disabled={esEfectiva}
+                            className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 focus:ring-2 focus:ring-[#5D8BF4]"
+                            value={logic.formReporte.data.fecha_realizada?.slice(11, 16) || ''}
+                            onChange={e => {
+                                const fecha = logic.formReporte.data.fecha_programada?.slice(0, 10) || format(new Date(), 'yyyy-MM-dd');
+                                logic.formReporte.setData('fecha_realizada', `${fecha}T${e.target.value}`);
+                            }}
+                        />
+                    </div>
 
                     {/* Buscador de Productos */}
                     <div className="relative" ref={wrapperRef}>
@@ -306,10 +348,10 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                             <button
                                 type="button"
                                 onClick={handleActualizar}
-                                disabled={logic.formReporte.processing}
+                                disabled={gpsStatus === 'obteniendo'}
                                 className="flex-1 py-4 bg-[#5D8BF4] text-white rounded-2xl font-black text-[10px] tracking-widest shadow-lg hover:bg-blue-600 transition-all disabled:opacity-50 focus:outline-none"
                             >
-                                {logic.formReporte.processing ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+                                {gpsStatus === 'obteniendo' ? 'OBTENIENDO UBICACIÓN...' : 'GUARDAR CAMBIOS'}
                             </button>
                         </div>
                     )}
