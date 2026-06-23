@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { router } from '@inertiajs/react';
-import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark } from 'react-icons/fa6';
+import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark, FaLocationDot } from 'react-icons/fa6'; // Añadida FaLocationDot
 import { format } from 'date-fns';
 
 const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
@@ -152,6 +152,9 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
         { id: 'cancelada',     label: 'Cancelada',     icon: FaBan,         color: 'text-red-500'    },
     ];
 
+    // Alias corto para acceder de manera limpia a los datos del médico asignado a esta visita
+    const datosMedico = logic.visitaSeleccionada?.medico;
+
     if (!logic.modalGestionAbierto || !logic.visitaSeleccionada) return null;
 
     return (
@@ -179,14 +182,44 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
 
                 <div className="space-y-5">
 
-                    {/* Médico (solo lectura) */}
+                    {/* Médico (solo lectura) + Tarjeta de Dirección */}
                     <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                             Doctor
                         </label>
                         <div className="w-full bg-gray-50 rounded-2xl p-4 text-xs font-bold mt-1 text-gray-700">
-                            {logic.visitaSeleccionada?.medico?.nombre} {logic.visitaSeleccionada?.medico?.apellido}
+                            {datosMedico?.nombre} {datosMedico?.apellido}
                         </div>
+
+                        
+                        {/* --- EXPOSICIÓN DE DIRECCIÓN Y GEOLOCALIZACIÓN DEL CONSULTORIO --- */}
+{datosMedico && (datosMedico.direccion_detalles || datosMedico.geolocalizacion) && (
+    <div className="mt-2 p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-2">
+        {datosMedico.direccion_detalles && (
+            <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(datosMedico.direccion_detalles)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-[11px] text-slate-600 font-medium hover:text-[#5D8BF4] hover:underline transition-all"
+                title="Ver dirección en Google Maps"
+            >
+                <span className="font-bold text-slate-700">Dirección consultorio:</span> {datosMedico.direccion_detalles}
+            </a>
+        )}
+        {datosMedico.geolocalizacion && (
+            <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${datosMedico.geolocalizacion}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-mono hover:text-[#5D8BF4] hover:underline transition-all"
+                title="Ver coordenadas en Google Maps"
+            >
+                <FaLocationDot className="text-[#5D8BF4] text-xs" />
+                <span>Ubicación base: {datosMedico.geolocalizacion}</span>
+            </a>
+        )}
+    </div>
+)}
                     </div>
 
                     {/* Hora Inicio */}

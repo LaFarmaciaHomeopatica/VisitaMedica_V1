@@ -61,13 +61,49 @@ export default function VisitasTable({
                                         />
                                     </td>
 
-                                    <td className="px-6 py-2 border-r border-slate-50">
-                                        <span className="text-[11px] font-bold text-slate-700 uppercase leading-none tracking-tight">
-                                            {medicoActual 
-                                                ? `${medicoActual.nombre} ${medicoActual.apellido || ''}`
-                                                : 'MÉDICO SIN ASIGNAR'
-                                            }
-                                        </span>
+                                    {/* COLUMNA MÉDICO CON ENLACES A MAPA */}
+                                    <td className="px-6 py-2 border-r border-slate-50 min-w-[200px]">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[11px] font-bold text-slate-700 uppercase leading-tight tracking-tight">
+                                                {medicoActual 
+                                                    ? `${medicoActual.nombre} ${medicoActual.apellido || ''}`
+                                                    : 'MÉDICO SIN ASIGNAR'
+                                                }
+                                            </span>
+                                            
+                                            {/* Sub-bloque de ubicación interactiva */}
+                                            {medicoActual && (medicoActual.direccion_detalles || medicoActual.geolocalizacion) && (
+                                                <div className="flex flex-col gap-0.5 mt-0.5 border-t border-slate-100/70 pt-0.5">
+                                                    {medicoActual.direccion_detalles && (
+                                                        <a 
+                                                            href={`https://maps.google.com/?q=${encodeURIComponent(medicoActual.direccion_detalles)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-[9px] text-slate-400 font-medium truncate max-w-[220px] hover:text-blue-600 hover:underline transition-all"
+                                                            title={`Ver dirección en Google Maps: ${medicoActual.direccion_detalles}`}
+                                                        >
+                                                            {medicoActual.direccion_detalles}
+                                                        </a>
+                                                    )}
+                                                    
+                                                    {medicoActual.geolocalizacion && (
+                                                        <a 
+                                                            href={`https://maps.google.com/?q=${medicoActual.geolocalizacion}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-0.5 text-[9px] text-slate-400 font-mono hover:text-blue-600 hover:underline transition-all"
+                                                            title="Ver coordenadas exactas en Google Maps"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            </svg>
+                                                            <span>GPS: {medicoActual.geolocalizacion}</span>
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </td>
 
                                     <td className="px-6 py-2 border-r border-slate-50">

@@ -21,26 +21,29 @@ class VisitaController extends Controller
             ->first();
     }
 
-    public function index()
-    {
-        $visitador = $this->getVisitador();
-        if (!$visitador) return redirect()->route('login');
+  // En tu método index():
+public function index()
+{
+    $visitador = $this->getVisitador();
+    if (!$visitador) return redirect()->route('login');
 
-        return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
-            'visitas' => Visita::with('medico')
-                ->where('visitador_id', $visitador->id)
-                ->orderBy('fecha_programada', 'asc')
-                ->get()
-                ->map(function ($visita) {
-                    // Mantenemos el formateo de la hora solo para la vista
-                    $visita->hora_12h = date('g:i A', strtotime($visita->fecha_programada));
-                    return $visita;
-                }),
-            'medicosDisponibles' => $visitador->medicos,
-            'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(),
-            'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
-        ]);
-    }
+    // Opción explícita: Recargar los médicos con las columnas necesarias para estar 100% seguros
+    $medicosDisponibles = $visitador->medicos()->get(['id', 'visitador_id', 'nombre', 'apellido', 'geolocalizacion', 'direccion_detalles']);
+
+    return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
+        'visitas' => Visita::with('medico')
+            ->where('visitador_id', $visitador->id)
+            ->orderBy('fecha_programada', 'asc')
+            ->get()
+            ->map(function ($visita) {
+                $visita->hora_12h = date('g:i A', strtotime($visita->fecha_programada));
+                return $visita;
+            }),
+        'medicosDisponibles' => $medicosDisponibles, // <-- Enviamos la variable con los nuevos campos
+        'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(),
+        'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
+    ]);
+}
 public function store(Request $request)
     {
         $visitador = $this->getVisitador();

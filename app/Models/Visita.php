@@ -65,5 +65,6 @@ class Visita extends Model
 
     protected $casts = [
         'fecha_programada' => 'datetime:Y-m-d H:i',
+        'fecha_realizada'  => 'datetime:Y-m-d H:i',  // ← agregar esta
     ];
 }

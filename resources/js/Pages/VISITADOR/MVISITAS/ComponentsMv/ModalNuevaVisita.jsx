@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
-import { FaXmark } from 'react-icons/fa6';
+import { FaXmark, FaLocationDot } from 'react-icons/fa6'; // Añadido FaLocationDot para diseño limpio
 
 const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,10 +50,15 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
     // Al cambiar fecha_programada, auto-completar fecha_realizada con el mismo valor
     const handleFechaProgramadaChange = (e) => {
         const val = e.target.value;
-        // Inertia's useForm requiere llamadas separadas
         logic.formNueva.setData('fecha_programada', val);
         logic.formNueva.setData('fecha_realizada', val);
     };
+
+    // Obtener los datos del médico seleccionado actualmente para mostrarlos en la UI
+    const medicoSeleccionado = useMemo(() => {
+        if (!logic.formNueva.data.medico_id) return null;
+        return (doctores || []).find(doc => doc.id == logic.formNueva.data.medico_id);
+    }, [logic.formNueva.data.medico_id, doctores]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -68,19 +73,6 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
 
     if (!logic.modalNuevoAbierto) return null;
 
-
-
-    // Después de declarar formNueva
-    const abrirModalNuevo = () => {
-        const fechaFormato = format(fechaSeleccionada, "yyyy-MM-dd") + 'T08:00';
-        formNueva.setData({
-            ...formNueva.data,
-            fecha_programada: fechaFormato,
-            fecha_realizada: fechaFormato,
-        });
-        setModalNuevoAbierto(true);
-    };
-
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div
@@ -92,7 +84,6 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                 onSubmit={handleSubmit}
                 className="relative bg-white w-full max-w-lg rounded-[35px] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto"
             >
-                {/* MODIFICACIÓN: Botón "X" absoluto en la esquina superior derecha para cerrar el modal */}
                 <button
                     type="button"
                     onClick={() => logic.setModalNuevoAbierto(false)}
@@ -127,6 +118,23 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                                 </option>
                             ))}
                         </select>
+
+                        {/* --- DETALLES DE GEOLOCALIZACIÓN Y DIRECCIÓN DEL MÉDICO SELECCIONADO --- */}
+                        {medicoSeleccionado && (medicoSeleccionado.direccion_detalles || medicoSeleccionado.geolocalizacion) && (
+                            <div className="mt-2 p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                {medicoSeleccionado.direccion_detalles && (
+                                    <p className="text-[11px] text-slate-600 font-medium">
+                                        <span className="font-bold text-slate-700">Dirección:</span> {medicoSeleccionado.direccion_detalles}
+                                    </p>
+                                )}
+                                {medicoSeleccionado.geolocalizacion && (
+                                    <p className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                                        <FaLocationDot className="text-[#5D8BF4] text-xs" />
+                                        <span>Ubicación base: {medicoSeleccionado.geolocalizacion}</span>
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Fechas */}
@@ -149,11 +157,10 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                                 Hora Final
                             </label>
                             <input
-                                type="time"   // ✅ solo muestra la hora
+                                type="time"
                                 className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 focus:ring-2 focus:ring-[#5D8BF4]"
                                 value={logic.formNueva.data.fecha_realizada?.slice(11, 16) || ''}
                                 onChange={e => {
-                                    // Toma la fecha de fecha_programada y le pega la hora nueva
                                     const fecha = logic.formNueva.data.fecha_programada?.slice(0, 10) || format(new Date(), 'yyyy-MM-dd');
                                     logic.formNueva.setData('fecha_realizada', `${fecha}T${e.target.value}`);
                                 }}
@@ -162,13 +169,13 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                     </div>
 
                     {/* Buscador de Productos */}
-
+                    {/* ... (Se mantiene igual) ... */}
 
                     {/* Detalle de Muestra */}
-
+                    {/* ... (Se mantiene igual) ... */}
 
                     {/* Comentarios */}
-
+                    {/* ... (Se mantiene igual) ... */}
 
                     {/* Errores */}
                     {Object.keys(logic.formNueva.errors).length > 0 && (
@@ -179,7 +186,7 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                         </div>
                     )}
 
-                    {/* MODIFICACIÓN: Fila flexible (flex gap-3) que añade el botón CANCELAR junto al de AGENDAR VISITA */}
+                    {/* Botones Acciones */}
                     <div className="flex gap-3">
                         <button
                             type="button"

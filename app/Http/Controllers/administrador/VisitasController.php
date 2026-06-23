@@ -17,11 +17,16 @@ class VisitasController extends Controller
     /**
      * Muestra la lista de visitas.
      */
-    public function index()
+ public function index()
     {
         return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
+            // Al traer la relación 'medico' en las visitas, por defecto se traen todos sus campos, 
+            // asegurando que las tarjetas y listas del Admin también tengan las coordenadas guardadas.
             'visitas' => Visita::with(['medico', 'visitador'])->orderBy('id', 'desc')->get(),
-            'medicos' => Medico::select('id', 'nombre','apellido', 'visitador_id')->get(),
+            
+            // Añadimos 'direccion_detalles' y 'geolocalizacion' al select para que los formularios de creación/edición del Admin accedan a ellas.
+            'medicos' => Medico::select('id', 'nombre', 'apellido', 'visitador_id', 'direccion_detalles', 'geolocalizacion')->get(),
+            
             'visitadores' => Visitador::select('id', 'nombre')->get(),
             'productos' => Productos::select('id', 'codigo', 'nombre')->orderBy('nombre', 'asc')->get(),
         ]);
