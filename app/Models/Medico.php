@@ -43,7 +43,6 @@ public $timestamps = false;
      */
     protected $casts = [
         'fecha_inicio_relacion' => 'date',
-        'documento' => 'integer',
         'visitador_id' => 'integer',
         'tipo_documento_id' => 'integer',
 

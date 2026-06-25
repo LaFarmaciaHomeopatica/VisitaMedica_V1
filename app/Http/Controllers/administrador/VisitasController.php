@@ -17,20 +17,27 @@ class VisitasController extends Controller
     /**
      * Muestra la lista de visitas.
      */
- public function index()
-    {
-        return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
-            // Al traer la relación 'medico' en las visitas, por defecto se traen todos sus campos, 
-            // asegurando que las tarjetas y listas del Admin también tengan las coordenadas guardadas.
-            'visitas' => Visita::with(['medico', 'visitador'])->orderBy('id', 'desc')->get(),
-            
-            // Añadimos 'direccion_detalles' y 'geolocalizacion' al select para que los formularios de creación/edición del Admin accedan a ellas.
-            'medicos' => Medico::select('id', 'nombre', 'apellido', 'visitador_id', 'direccion_detalles', 'geolocalizacion')->get(),
-            
-            'visitadores' => Visitador::select('id', 'nombre')->get(),
-            'productos' => Productos::select('id', 'codigo', 'nombre')->orderBy('nombre', 'asc')->get(),
-        ]);
-    }
+public function index()
+{
+    return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
+        // Trae la relación 'medico' con todos sus campos para las tarjetas y listas
+        'visitas' => Visita::with(['medico', 'visitador'])->orderBy('id', 'desc')->get(),
+        
+        // ✅ CORRECCIÓN: Agregamos 'documento' al select para que llegue al frontend
+        'medicos' => Medico::select(
+            'id', 
+            'nombre', 
+            'apellido', 
+            'documento', // <-- Columna clave añadida
+            'visitador_id', 
+            'direccion_detalles', 
+            'geolocalizacion'
+        )->get(),
+        
+        'visitadores' => Visitador::select('id', 'nombre')->get(),
+        'productos' => Productos::select('id', 'codigo', 'nombre')->orderBy('nombre', 'asc')->get(),
+    ]);
+}
 
     /**
      * Almacena una nueva visita con validación de relación y disponibilidad.

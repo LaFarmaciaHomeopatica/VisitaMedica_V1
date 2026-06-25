@@ -41,7 +41,7 @@ class Medico2Controller extends Controller
     {
         $validated = $request->validate([
             'categoria_id' => 'nullable|exists:categoria,id', // <--- Agregado antes de documento
-            'documento' => 'required|numeric|unique:medicos,documento',
+            'documento' => 'required|string|unique:medicos,documento',
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
             'tipo_documento_id' => 'required|integer',
@@ -55,7 +55,7 @@ class Medico2Controller extends Controller
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'unique'   => 'Este :attribute ya se encuentra registrado.',
-            'numeric'  => 'El campo :attribute debe ser numérico.',
+            'string'  => 'El campo :attribute debe ser una cadena de texto.',
             'exists'   => 'El :attribute seleccionado no existe.',
             'date'     => 'La :attribute no tiene un formato válido.',
         ], [
@@ -80,7 +80,7 @@ class Medico2Controller extends Controller
     {
         $validated = $request->validate([
             'categoria_id' => 'nullable|exists:categoria,id', // <--- Agregado antes de documento
-            'documento' => 'required|numeric|unique:medicos,documento,' . $medico->id,
+            'documento' => 'required|string|unique:medicos,documento,' . $medico->id,
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
             'tipo_documento_id' => 'required|integer',
@@ -94,7 +94,7 @@ class Medico2Controller extends Controller
         ], [
             'required' => 'El campo :attribute es necesario.',
             'unique'   => 'Este :attribute ya pertenece a otro médico.',
-            'numeric'  => 'El campo :attribute debe ser solo números.',
+            'string' => 'El campo :attribute debe ser una cadena de texto.',
         ], [
             'categoria_id' => 'Categoría', // <--- Nombre amigable
             'documento' => 'Número de Documento',
@@ -140,19 +140,16 @@ public function importar(Request $request)
 {
     $request->validate([
         'archivo' => 'required|mimes:xlsx,xls,csv'
-    ], [
-        'archivo.required' => 'Debes seleccionar un archivo Excel.',
-        'archivo.mimes'    => 'El archivo debe ser formato .xlsx, .xls o .csv'
     ]);
 
-    // Bajamos el tiempo a 30s; si el código es bueno, no necesita más.
-    set_time_limit(30); 
+    // ✅ Aumentar límites
+    set_time_limit(300);
+    ini_set('memory_limit', '612M');
 
     try {
         $file = $request->file('archivo');
         $extension = $file->getClientOriginalExtension();
 
-        // MAPEO DE FORMATO: Forzar el lector ahorra casi 1 segundo de detección automática
         $format = match(strtolower($extension)) {
             'csv'  => ExcelFormat::CSV,
             'xlsx' => ExcelFormat::XLSX,
@@ -160,11 +157,10 @@ public function importar(Request $request)
             default => ExcelFormat::XLSX,
         };
 
-        // 3. Procesamos con el formato forzado
         Excel::import(new MedicosImport, $file, null, $format);
         
         return Redirect::route('Gmedicos.index')
-            ->with('message', '¡Importación relámpago completada!');
+            ->with('message', '¡Importación completada!');
 
     } catch (\Exception $e) {
         \Log::error("Error en importación: " . $e->getMessage());
@@ -190,14 +186,20 @@ public function eliminarMasivo(Request $request)
 {
     $request->validate([
         'ids' => 'required|array',
-        'ids.*' => 'exists:medicos,id'
     ]);
 
-    Medico::whereIn('id', $request->ids)->delete();
+    $ids = array_filter($request->ids, 'is_numeric');
+
+    set_time_limit(0);
+
+    $chunks = array_chunk($ids, 500);
+
+    foreach ($chunks as $chunk) {
+        Medico::whereIn('id', $chunk)->delete();
+    }
 
     return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
 }
-
 public function show(Request $request, $id)
 {
     $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);

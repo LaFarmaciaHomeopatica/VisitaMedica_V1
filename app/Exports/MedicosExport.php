@@ -50,7 +50,9 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             $medico->geolocalizacion,
             $medico->direccion_detalles,
             $medico->horario_atencion,
-            $medico->visitador ? ($medico->visitador->nombre . ' ' . $medico->visitador->apellido) : 'Sin asignar',
+         $medico->visitador 
+    ? trim($medico->visitador->nombre) . ' ' . trim($medico->visitador->apellido) 
+    : 'Sin asignar',
             $medico->fecha_inicio_relacion,
         ];
     }

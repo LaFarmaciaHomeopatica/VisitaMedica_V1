@@ -28,84 +28,100 @@ export const useMedicosImport = (medicos, visitadores) => {
             .trim();
     };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setSelectedFile(file);
+ const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setSelectedFile(file);
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const wb = XLSX.read(evt.target.result, { type: 'binary' });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-            const headers = raw[0].map(h => {
-                if (!h) return '';
-                return h.toString().trim().toLowerCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/\s+/g, '_')
-                    .replace(/contacto$/, '_contacto');
+        const headers = raw[0].map(h => {
+            if (!h) return '';
+            return h.toString().trim().toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, '_');
+            // ✅ QUITAMOS el replace de contacto$ — lo manejamos abajo por key
+        });
+
+        const rows = raw.slice(1).map(row => {
+            let obj = {};
+            headers.forEach((h, i) => {
+                if (!h) return;
+                let key = h;
+                // Normalizamos aliases de teléfono
+                if (['telefono', 'celular', 'tel'].includes(h)) key = 'telefono_contacto';
+                // ✅ NUEVO: alias del campo telefono_contacto si viene con sufijo raro
+                if (h === 'telefono_contacto') key = 'telefono_contacto';
+                // Normalizamos aliases de dirección
+                if (['detalles_direccion', 'direccion', 'dir'].includes(h)) key = 'direccion_detalles';
+                // ✅ NUEVO: alias del visitador por si el header varía
+                if (['visitador', 'visitador_asignado', 'visitador_asignado_'].includes(h)) key = 'visitador_asignado';
+                obj[key] = row[i] !== undefined ? row[i] : null;
             });
+            return obj;
+        });
 
-            const rows = raw.slice(1).map(row => {
-                let obj = {};
-                headers.forEach((h, i) => {
-                    if (!h) return;
-                    let key = h;
-                    if (h === 'telefono' || h === 'celular') key = 'telefono_contacto';
-                    if (['detalles_direccion', 'direccion', 'dir'].includes(h)) key = 'direccion_detalles';
-                    obj[key] = row[i];
-                });
-                return obj;
-            });
+        const duplicados = [];
+        const filasParaProcesar = rows.map(row => {
+            const docValue = (row.documento || row.DOCUMENTO)?.toString().trim();
+            const original = medicos.find(m => m.documento?.toString().trim() === docValue);
+            const existe = !!original;
 
-            const duplicados = [];
-            const filasParaProcesar = rows.map(row => {
-                const docValue = (row.documento || row.DOCUMENTO)?.toString().trim();
-                const original = medicos.find(m => m.documento?.toString().trim() === docValue);
-                const existe = !!original;
+            if (existe) duplicados.push(row);
 
-                if (existe) duplicados.push(row);
+            // ✅ CORREGIDO: normalización robusta del nombre del visitador
+            const nombreVisitadorExcel = normalizar(row.visitador_asignado ?? '');
+            const esSinAsignar = !nombreVisitadorExcel || nombreVisitadorExcel === 'sin asignar';
 
-                // Resuelve nombre del visitador → ID
-                const nombreVisitadorExcel = normalizar(row.visitador_asignado || '');
-                const esSinAsignar = nombreVisitadorExcel === 'sin asignar' || nombreVisitadorExcel === '';
-                const visitadorResuelto = esSinAsignar ? null :
-                    visitadores?.find(v =>
-                        normalizar(v.nombre + ' ' + v.apellido) === nombreVisitadorExcel
-                    );
-                const visitadorIdResuelto = esSinAsignar ? null : (visitadorResuelto?.id ?? null);
-
-                // Normaliza categoría: "Sin Categoría" en Excel = sin categoría en BD
-                const catExcel = (row.categoria === 'Sin Categoría' || !row.categoria) ? '' : row.categoria;
-                const catBD = original?.categoria?.nombre ?? '';
-
-                const esModificado = existe && !(
-                    cmp(row.nombre, original.nombre) &&
-                    cmp(row.apellido, original.apellido) &&
-                    cmp(row.especialidad, original.especialidad) &&
-                    cmp(catExcel, catBD) &&
-                    cmp(row.telefono_contacto, original.telefono_contacto) &&
-                    cmp(row.geolocalizacion, original.geolocalizacion) &&
-                    cmp(row.direccion_detalles ?? '', original.direccion_detalles ?? '') &&
-                    cmp(row.horario_atencion, original.horario_atencion) &&
-                    String(visitadorIdResuelto ?? '') === String(original.visitador_id ?? '') &&
-                    normFecha(row.fecha_inicio_relacion) === normFecha(original.fecha_inicio_relacion)
+            const visitadorResuelto = esSinAsignar ? null :
+                visitadores?.find(v =>
+                    normalizar(v.nombre + ' ' + v.apellido) === nombreVisitadorExcel
                 );
 
-                return {
-                    ...row,
-                    _status: !existe ? 'nuevo' : (esModificado ? 'modificado' : 'sin_cambios'),
-                    _original: original,
-                };
-            });
+            const visitadorIdResuelto = esSinAsignar ? null : (visitadorResuelto?.id ?? null);
 
-            setDuplicatesFound(duplicados);
-            setPreviewData(filasParaProcesar);
-            setIsPreviewModalOpen(true);
-        };
-        reader.readAsBinaryString(file);
+            // ✅ NUEVO: log para debug (quitar después de confirmar que funciona)
+            if (nombreVisitadorExcel) {
+                console.log('Visitador Excel:', nombreVisitadorExcel);
+                console.log('Visitador encontrado:', visitadorResuelto);
+                console.log('ID resuelto:', visitadorIdResuelto);
+                console.log('Visitadores disponibles:', visitadores?.map(v => normalizar(v.nombre + ' ' + v.apellido)));
+            }
+
+            const catExcel = (row.categoria === 'Sin Categoría' || !row.categoria) ? '' : row.categoria;
+            const catBD = original?.categoria?.nombre ?? '';
+
+            const esModificado = existe && !(
+                cmp(row.nombre, original.nombre) &&
+                cmp(row.apellido, original.apellido) &&
+                cmp(row.especialidad, original.especialidad) &&
+                cmp(catExcel, catBD) &&
+                cmp(row.telefono_contacto, original.telefono_contacto) &&
+                cmp(row.geolocalizacion, original.geolocalizacion) &&
+                cmp(row.direccion_detalles ?? '', original.direccion_detalles ?? '') &&
+                cmp(row.horario_atencion, original.horario_atencion) &&
+                String(visitadorIdResuelto ?? '') === String(original.visitador_id ?? '') &&
+                normFecha(row.fecha_inicio_relacion) === normFecha(original.fecha_inicio_relacion)
+            );
+
+            return {
+                ...row,
+                visitador_id: visitadorIdResuelto, // ✅ guardamos el ID resuelto
+                _status: !existe ? 'nuevo' : (esModificado ? 'modificado' : 'sin_cambios'),
+                _original: original,
+            };
+        });
+
+        setDuplicatesFound(duplicados);
+        setPreviewData(filasParaProcesar);
+        setIsPreviewModalOpen(true);
     };
+    reader.readAsBinaryString(file);
+};
 
     const executeServerImport = () => {
         if (!selectedFile) return;

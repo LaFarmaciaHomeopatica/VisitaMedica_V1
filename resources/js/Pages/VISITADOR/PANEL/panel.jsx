@@ -18,9 +18,10 @@ const cumpleFiltroBusqueda = (medico, termino) => {
     }
     const nombre       = (medico.nombre       || '').toLowerCase();
     const apellido     = (medico.apellido     || '').toLowerCase();
-    const especialidad = (medico.especialidad || '').toLowerCase();
+    const specialty    = (medico.especialidad || '').toLowerCase();
+    const documento    = (medico.documento    || '').toLowerCase();
 
-    return nombre.includes(termino) || apellido.includes(termino) || especialidad.includes(termino);
+    return nombre.includes(termino) || apellido.includes(termino) || specialty.includes(termino) || documento.includes(termino);
 };
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,8 @@ const DashboardLFH = ({
     const termino = search.toLowerCase().trim();
 
     const visitasPendientesFiltradas = visitasPendientes.filter(visita => {
-        const medicoData = medicos.find(m => m.id === visita.medico_id) || visita.medico;
+        // ✅ CORRECCIÓN: Forzar conversión a String para evitar fallas si un ID viene como número y el otro como texto
+        const medicoData = medicos.find(m => String(m.id) === String(visita.medico_id)) || visita.medico;
         return cumpleFiltroBusqueda(medicoData, termino);
     });
 
@@ -62,9 +64,8 @@ const DashboardLFH = ({
         <div className="bg-[#E5F4FF] min-h-screen pb-20 font-sans text-gray-800">
             <Head title="Dashboard - LFH" />
 
-            {/* ── Header con buscador (Optimizado espacio vertical en móvil) ── */}
+            {/* ── Header con buscador ── */}
             <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20 rounded-b-[20px] md:rounded-b-[40px] border-b border-white/20">
-                {/* CAMBIO: Se redujo el padding en móvil de p-4 a py-2 px-4 */}
                 <div className="max-w-[1440px] mx-auto py-2.5 px-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">
                         <div className="hidden md:flex flex-col min-w-0">
@@ -77,7 +78,6 @@ const DashboardLFH = ({
                             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
                                 <FaMagnifyingGlass className="text-xs md:text-sm" />
                             </span>
-                            {/* CAMBIO: Se redujo ligeramente el padding vertical en móvil (py-2 md:py-3) */}
                             <input
                                 type="text"
                                 value={search}
@@ -104,8 +104,7 @@ const DashboardLFH = ({
                 totalPendientes={visitasPendientes.length}
             />
 
-            {/* ── Contenido dinámico (Optimizado mt-3 en móvil) ── */}
-            {/* CAMBIO: mt-3 en móvil, mt-6 en pantallas medianas/grandes */}
+            {/* ── Contenido dinámico ── */}
             <main className="max-w-5xl mx-auto px-4 mt-3 md:mt-6 space-y-3">
                 {tabActiva === 'pendientes' && (
                     <PendientesTab

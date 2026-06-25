@@ -7,7 +7,6 @@ const cmp = (a, b) => String(a || '').trim().toUpperCase()
     String(b || '').trim().toUpperCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-// ✅ Debe estar ANTES de calcCambios
 function normalizeFecha(val) {
     if (!val) return '';
     return val.toString().trim()
@@ -28,7 +27,13 @@ function calcCambios(row, original) {
         geolocalizacion: !cmp(row.geolocalizacion, original.geolocalizacion),
         direccion_detalles: !cmp(row.direccion_detalles, original.direccion_detalles),
         horario_atencion: !cmp(row.horario_atencion, original.horario_atencion),
-        visitador_id: !cmp(row.visitador_id, original.visitador?.id ?? original.visitador_id),
+        // ✅ CORREGIDO: compara nombre vs nombre
+        visitador_id: !cmp(
+            row.visitador_asignado,
+            original?.visitador
+                ? `${original.visitador.nombre} ${original.visitador.apellido}`
+                : ''
+        ),
         fecha_inicio_relacion: normalizeFecha(row.fecha_inicio_relacion) !== normalizeFecha(original.fecha_inicio_relacion),
     };
 }
@@ -115,7 +120,14 @@ export default function ImportPreviewModal({ isOpen, onClose, onConfirm, preview
                                         <CeldaCambio valor={row.geolocalizacion} cambio={c.geolocalizacion} actual={original?.geolocalizacion} />
                                         <CeldaCambio valor={row.direccion_detalles} cambio={c.direccion_detalles} actual={original?.direccion_detalles} />
                                         <CeldaCambio valor={row.horario_atencion} cambio={c.horario_atencion} actual={original?.horario_atencion} />
-                                        <CeldaCambio valor={String(row.visitador_id || '')} cambio={c.visitador_id} actual={original?.visitador?.nombre} />
+                                        {/* ✅ CORREGIDO: muestra el nombre del visitador desde el Excel */}
+                                        <CeldaCambio
+                                            valor={row.visitador_asignado || ''}
+                                            cambio={c.visitador_id}
+                                            actual={original?.visitador
+                                                ? `${original.visitador.nombre} ${original.visitador.apellido}`
+                                                : 'Sin asignar'}
+                                        />
                                         <CeldaCambio valor={String(row.fecha_inicio_relacion || '')} cambio={c.fecha_inicio_relacion} actual={original?.fecha_inicio_relacion} />
                                     </tr>
                                 );

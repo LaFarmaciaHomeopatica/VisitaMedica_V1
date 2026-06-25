@@ -29,9 +29,15 @@ export default function MedicoFormModal({
                                 <option value="" disabled>Tipo</option>
                                 {tiposDocumento.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                             </select>
-                            <input placeholder="Documento" type="number" value={data.documento} onChange={e => setData('documento', e.target.value)}
+                            <input placeholder="Documento" type="text" value={data.documento} onChange={e => setData('documento', e.target.value)}
                                 className="w-2/3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" required />
                         </div>
+                                                {/* Muestra el mensaje de error si el documento ya existe o falla otra regla */}
+                            {errors.documento && (
+                                <div className="text-red-500 text-[11px] w-full mt-1 font-bold pl-1">
+                                    {errors.documento}
+                                </div>
+                            )}
 
                         <div className="col-span-1 md:col-span-2">
                             <label className="text-[9px] font-black text-slate-500 uppercase block mb-1 tracking-widest">Categoría del Médico</label>
