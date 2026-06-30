@@ -8,10 +8,13 @@ import {
     FaBell,
     FaArrowUp,
     FaArrowDown,
-    FaMinus
+    FaMinus,
+    FaSpinner // Añadimos un icono de carga
 } from 'react-icons/fa6';
 
-const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
+const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
+    // Nota: cambiamos el valor por defecto de medicosAlertas a null para identificar la carga inicial
+    
     // ── Estados Locales ──
     const [search, setSearch] = useState('');
     const [mesFiltro, setMesFiltro] = useState(mesActual);
@@ -19,6 +22,11 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
     // Estado para controlar la altura exacta del header flotante
     const [headerHeight, setHeaderHeight] = useState(180);
     const headerRef = useRef(null);
+
+    // ── 1. Disparar la carga diferida de Inertia al montar el componente ──
+    useEffect(() => {
+        router.reload({ only: ['medicosAlertas'] });
+    }, [mesFiltro]); // Se vuelve a disparar si el mes del filtro cambia
 
     // ── Efecto para medir el Header dinámicamente ──
     useEffect(() => {
@@ -34,30 +42,34 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Filters doctors based on search query
-    const medicosFiltrados = medicosAlertas.filter(medico => 
-        medico.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        medico.especialidad.toLowerCase().includes(search.toLowerCase()) ||
-        medico.documento.includes(search)
-    );
+    // Evitamos fallos si medicosAlertas aún es null durante la carga inicial
+    const datosListos = medicosAlertas !== null;
+
+    const medicosFiltrados = datosListos 
+        ? medicosAlertas.filter(medico => 
+            medico.nombre.toLowerCase().includes(search.toLowerCase()) ||
+            medico.especialidad.toLowerCase().includes(search.toLowerCase()) ||
+            medico.documento.includes(search)
+          )
+        : [];
 
     const handleSearch = (e) => setSearch(e.target.value);
 
     const handleMesChange = (e) => {
         const newMes = e.target.value;
         setMesFiltro(newMes);
+        // Reseteamos a null para que se muestre el spinner/skeleton al cambiar de mes
         router.get('/visitador/alertas', { mes: newMes }, { preserveState: true });
     };
 
     const handleMedicoClick = (documento) => {
+        if (!datosListos) return;
         router.get(`/visitador/alertas/${documento}`, { mes: mesFiltro });
     };
 
-    // Helper component to render trend indicator badge/icon
     const RendimientoIndicador = ({ tendencia, diferencia }) => {
         const isUp = tendencia === 'subio';
         const isDown = tendencia === 'bajo';
-
         let colorClass = 'text-gray-400 bg-gray-50';
         let Icon = FaMinus;
         let sign = '';
@@ -79,16 +91,26 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
         );
     };
 
+    // Componente interno para simular la carga con efecto Shimmer (Skeleton)
+    const SkeletonCard = () => (
+        <div className="bg-white/50 backdrop-blur-md rounded-xl p-4 border border-white/40 animate-pulse flex justify-between h-20 items-center">
+            <div className="space-y-2 flex-1">
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-2 bg-gray-200 rounded w-1/4"></div>
+            </div>
+            <div className="w-[40%] h-full bg-gray-150/50 rounded-lg"></div>
+        </div>
+    );
+
     return (
         <>
             <Head title="Alertas de Rendimiento - LFH" />
 
-            {/* ── Header Flotante (Con referencia de medición) ── */}
+            {/* Header Flotante */}
             <header 
                 ref={headerRef}
                 className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20"
             >
-                {/* Fila 1: Regresar + Título + Búsqueda */}
                 <div className="max-w-[1440px] mx-auto p-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">
                         <Link
@@ -115,14 +137,14 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
                                 type="text"
                                 value={search}
                                 onChange={handleSearch}
-                                placeholder="Buscar médico por nombre, especialidad o documento..."
-                                className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700"
+                                disabled={!datosListos}
+                                placeholder={datosListos ? "Buscar médico por nombre, especialidad o documento..." : "Cargando listado de médicos..."}
+                                className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700 disabled:opacity-60"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Fila 2: Gradiente Corporativo con Selector de Mes */}
                 <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
                     <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
                         <div className="flex items-center justify-between">
@@ -136,44 +158,68 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
                                 />
                             </div>
                             <div className="hidden sm:flex items-center gap-1.5 text-white/95 text-[10px] font-black uppercase tracking-wider bg-white/15 px-3 py-1.5 rounded-full border border-white/10">
-                                <FaBell className="text-xs text-yellow-300 animate-bounce" />
-                                <span>Menor rendimiento primero</span>
+                                {datosListos ? (
+                                    <>
+                                        <FaBell className="text-xs text-yellow-300 animate-bounce" />
+                                        <span>Menor rendimiento primero</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FaSpinner className="text-xs text-white animate-spin" />
+                                        <span>Sincronizando con Odoo...</span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* ── Contenido Principal (Inyecta la altura exacta calculada) ── */}
+            {/* Contenido Principal */}
             <div 
                 className="bg-[#E5F4FF] min-h-screen pb-28 font-sans text-gray-800 transition-[padding-top] duration-200"
                 style={{ paddingTop: `${headerHeight}px` }}
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
+                    <div className="bg-blue-50/80 border border-blue-200 text-blue-700 text-[10px] font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider text-center max-w-md mx-auto">
+                        💡 La formulación no está registrada en Odoo (valores en 0)
+                    </div>
                     
-                    <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
-                        <FaBell className="text-sm text-[#02CFE3]" /> 
-                        Mostrando {medicosFiltrados.length} médicos ordenados por alertas críticas
-                    </h3>
-
-                    {/* ── Listado de Tarjetas en Sistema de Grilla (1 o 2 Columnas) ── */}
-                    {medicosFiltrados.length > 0 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {medicosFiltrados.map((medico) => {
-                                return (
+                    {/* ── MANEJO DE ESTADOS EN LA VISTA ── */}
+                    {!datosListos ? (
+                        // 1. Vista en estado "Cargando" de Odoo
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
+                                <FaSpinner className="text-sm text-[#02CFE3] animate-spin" /> 
+                                Consultando métricas en tiempo real...
+                            </h3>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <SkeletonCard />
+                                <SkeletonCard />
+                                <SkeletonCard />
+                                <SkeletonCard />
+                            </div>
+                        </div>
+                    ) : medicosFiltrados.length > 0 ? (
+                        // 2. Vista con datos cargados con éxito
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
+                                <FaBell className="text-sm text-[#02CFE3]" /> 
+                                Mostrando {medicosFiltrados.length} médicos ordenados por alertas críticas
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {medicosFiltrados.map((medico) => (
                                     <button
                                         key={medico.documento}
                                         onClick={() => handleMedicoClick(medico.documento)}
                                         className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden flex text-left w-full items-stretch"
                                     >
                                         <div className="flex flex-col md:flex-row items-stretch w-full relative">
-                                            {/* Acento lateral degradado */}
                                             <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
                                             
-                                            {/* Left Section: Doctor Name & Details */}
                                             <div className="flex-1 p-4 pl-5 flex flex-col justify-center bg-white/30 border-r border-gray-150">
                                                 <h4 className="font-bold text-gray-800 text-xs md:text-sm leading-tight mb-1 flex items-center gap-2">
-                                                    
                                                     {medico.nombre}
                                                 </h4>
                                                 <div className="flex flex-wrap gap-2 items-center text-[9px] text-gray-400 font-bold uppercase tracking-wider">
@@ -183,9 +229,8 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
                                                 </div>
                                             </div>
 
-                                            {/* Right Section: Table columns */}
                                             <div className="w-full md:w-[60%] shrink-0 grid grid-cols-2 text-center bg-gray-50/20">
-                                                {/* Formulado Sub-Table */}
+                                                {/* Tabla Formulado */}
                                                 <div className="border-r border-gray-150 flex flex-col">
                                                     <div className="py-1 px-2 text-[8px] font-black text-[#1C85E8] bg-blue-50/30 uppercase tracking-wider border-b border-gray-150">
                                                         Formulado
@@ -209,7 +254,7 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* Comprado Sub-Table */}
+                                                {/* Tabla Comprado */}
                                                 <div className="flex flex-col">
                                                     <div className="py-1 px-2 text-[8px] font-black text-green-600 bg-green-50/30 uppercase tracking-wider border-b border-gray-150">
                                                         Comprado
@@ -235,11 +280,11 @@ const Alerta = ({ medicosAlertas = [], mesActual = '' }) => {
                                             </div>
                                         </div>
                                     </button>
-                                );
-                            })}
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        /* State Vacío */
+                        // 3. Estado vacío definitivo
                         <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
                             <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
                             No se encontraron médicos con datos en este filtro.

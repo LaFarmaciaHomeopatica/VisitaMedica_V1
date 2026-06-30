@@ -22,7 +22,8 @@ import {
     FaHashtag,
     FaPhoneFlip,
     FaLocationDot,
-    FaBell, // ✅ añadido
+    FaBell,
+    FaSpinner, // ✅ Añadido para el indicador de carga
 } from 'react-icons/fa6';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
     return (
         <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[] to-[] text-white text-xs font-black px-3 py-1.5 rounded-2xl shadow-sm">
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] text-white text-xs font-black px-3 py-1.5 rounded-2xl shadow-sm">
                     {total}
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -376,15 +377,10 @@ const DetallesTop = ({
     medico,
     mesActual,
     periodoActivo = 'mes_actual',
-    totales = {},
     vistaAnterior = 'general',
     limitAnterior = 10,
     searchAnterior = '',
-    productosComprados = [],
-    productosFormulados = [],
-    laboratoriosComprados = [],
-    laboratoriosFormulados = [],
-    puestoReal = null,
+    odooDatosPesados = null, // 💡 Recibimos el objeto perezoso (Inertia::lazy)
 }) => {
     const [modo, setModo] = useState(vistaAnterior || 'general');
     const [busqueda, setBusqueda] = useState('');
@@ -394,6 +390,13 @@ const DetallesTop = ({
 
     const headerRef = useRef(null);
     const [headerHeight, setHeaderHeight] = useState(160);
+
+    // ── Disparador en segundo plano para Odoo ──
+    useEffect(() => {
+        if (!odooDatosPesados) {
+            router.reload({ only: ['odooDatosPesados'] });
+        }
+    }, [periodoActivo]); // Si cambia el periodo, también se refresca automáticamente
 
     useEffect(() => {
         if (!headerRef.current) return;
@@ -405,6 +408,14 @@ const DetallesTop = ({
         ro.observe(headerRef.current);
         return () => ro.disconnect();
     }, []);
+
+    // Mapeamos los datos desempaquetados del objeto perezoso
+    const totales = odooDatosPesados?.totales || {};
+    const productosComprados = odooDatosPesados?.productosComprados || [];
+    const productosFormulados = odooDatosPesados?.productosFormulados || [];
+    const laboratoriosComprados = odooDatosPesados?.laboratoriosComprados || [];
+    const laboratoriosFormulados = odooDatosPesados?.laboratoriosFormulados || [];
+    const puestoReal = odooDatosPesados?.puestoReal ?? null;
 
     const cfg = MODOS[modo] || MODOS.general;
 
@@ -508,8 +519,9 @@ const DetallesTop = ({
                             type="text"
                             placeholder="Buscar producto, código, laboratorio..."
                             value={busqueda}
+                            disabled={!odooDatosPesados}
                             onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
-                            className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700"
+                            className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700 disabled:opacity-50"
                         />
                         {busqueda && (
                             <button
@@ -557,102 +569,102 @@ const DetallesTop = ({
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4 mt-4">
 
-                    {/* ── Hero del médico ── */}
+                    {/* ── Hero del médico (Carga siempre al instante) ── */}
                     <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-6 rounded-[30px] shadow-lg text-white relative">
-    <div className="flex items-start gap-4">
+                        <div className="flex items-start gap-4">
 
-        {/* Avatar puesto ranking */}
-        {(() => {
-            let colorFondo = "bg-white/20";
-            if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
-            if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
-            if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
-            return (
-                <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
-                    {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
-                    <span className="text-base font-black text-white leading-none">
-                        {puestoReal ? `#${puestoReal}` : '—'}
-                    </span>
-                </div>
-            );
-        })()}
+                            {/* Avatar puesto ranking */}
+                            {(() => {
+                                let colorFondo = "bg-white/20";
+                                if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
+                                if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
+                                if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
+                                return (
+                                    <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
+                                        {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
+                                        <span className="text-base font-black text-white leading-none">
+                                            {!odooDatosPesados ? <FaSpinner className="animate-spin text-sm text-white/70" /> : puestoReal ? `#${puestoReal}` : '—'}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
 
-        {/* ✅ Nombre ocupa todo el ancho, botones + especialidad en fila inferior */}
-        <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-extrabold text-white leading-tight">
-                {medico?.nombre}
-            </h2>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full border border-white/20">
-                    {medico?.especialidad || 'General'}
-                </span>
-                <Link
-                    href={`/visitador/alertas/${medico.documento}?mes=${mesActual}`}
-                    className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center gap-1"
-                >
-                    <FaBell size={9} /> Alerta
-                </Link>
-                <button
-                    onClick={() => setMostrarDetalles(!mostrarDetalles)}
-                    className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95"
-                >
-                    {mostrarDetalles ? 'Cerrar' : 'Info'}
-                </button>
-            </div>
-        </div>
-    </div>
-
-    {/* Datos detallados — desplegable */}
-    {mostrarDetalles && (
-        <div className="bg-white/90 backdrop-blur-md rounded-[20px] border border-white/50 mt-5 p-5 text-slate-800 animate-in slide-in-from-top-2 duration-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                <div className="space-y-3">
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">
-                            {(medico?.tipo_documento?.nombre || '') + ' ' + (medico?.documento || 'N/A')}
-                        </p>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">ID Registro</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">#{medico?.id}</p>
-                    </div>
-                </div>
-
-                <div className="space-y-3 sm:border-l sm:pl-5 border-gray-100">
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-xs font-bold text-gray-700">{medico?.telefono_contacto || '---'}</p>
-                            {medico?.telefono_contacto && (
-                                <a href={`tel:${medico.telefono_contacto}`} className="text-[#24C765] hover:scale-110 transition-transform">
-                                    <FaPhoneFlip className="text-[11px]" />
-                                </a>
-                            )}
+                            <div className="flex-1 min-w-0">
+                                <h2 className="text-lg font-extrabold text-white leading-tight">
+                                    {medico?.nombre}
+                                </h2>
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <span className="text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full border border-white/20">
+                                        {medico?.especialidad || 'General'}
+                                    </span>
+                                    <Link
+                                        href={`/visitador/alertas/${medico.documento}?mes=${mesActual}`}
+                                        className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center gap-1"
+                                    >
+                                        <FaBell size={9} /> Alerta
+                                    </Link>
+                                    <button
+                                        onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                                        className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95"
+                                    >
+                                        {mostrarDetalles ? 'Cerrar' : 'Info'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Horario de Atención</p>
-                        <p className="text-xs font-bold text-gray-700 mt-0.5">{medico?.horario_atencion || 'No definido'}</p>
-                    </div>
-                </div>
 
-                <div className="sm:border-l sm:pl-5 border-gray-100 flex flex-col justify-center">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Dirección de Consultorio</p>
-                    <div className="flex items-start gap-2 mt-0.5">
-                        <p className="text-xs font-bold text-gray-700 leading-tight flex-1">
-                            {medico?.direccion_detalles || 'Sin dirección registrada'}
-                        </p>
-                        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-[#1C85E8] shrink-0 hover:scale-110 transition-transform mt-0.5">
-                            <FaLocationDot className="text-sm" />
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )}
-</section>
+                        {/* Datos detallados — desplegable */}
+                        {mostrarDetalles && (
+                            <div className="bg-white/90 backdrop-blur-md rounded-[20px] border border-white/50 mt-5 p-5 text-slate-800 animate-in slide-in-from-top-2 duration-200">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
+                                            <p className="text-xs font-bold text-gray-700 mt-0.5">
+                                                {(medico?.tipo_documento?.nombre || '') + ' ' + (medico?.documento || 'N/A')}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">ID Registro</p>
+                                            <p className="text-xs font-bold text-gray-700 mt-0.5">#{medico?.id}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 sm:border-l sm:pl-5 border-gray-100">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <p className="text-xs font-bold text-gray-700">{medico?.telefono_contacto || '---'}</p>
+                                                {medico?.telefono_contacto && (
+                                                    <a href={`tel:${medico.telefono_contacto}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                        <FaPhoneFlip className="text-[11px]" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Horario de Atención</p>
+                                            <p className="text-xs font-bold text-gray-700 mt-0.5">{medico?.horario_atencion || 'No definido'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="sm:border-l sm:pl-5 border-gray-100 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Dirección de Consultorio</p>
+                                        <div className="flex items-start gap-2 mt-0.5">
+                                            <p className="text-xs font-bold text-gray-700 leading-tight flex-1">
+                                                {medico?.direccion_detalles || 'Sin dirección registrada'}
+                                            </p>
+                                            <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
+                                                className="text-[#1C85E8] shrink-0 hover:scale-110 transition-transform mt-0.5">
+                                                <FaLocationDot className="text-sm" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </section>
+
                     {/* ── Selector de período ── */}
                     <div className="flex flex-wrap items-center gap-2 px-1">
                         <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mr-1">Período:</p>
@@ -678,79 +690,104 @@ const DetallesTop = ({
                         ))}
                     </div>
 
-                    {/* Resumen financiero */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {(modo === 'general' || modo === 'compradores') && (
-                            <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-baseline justify-between gap-2 w-full">
-                                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Total Comprado</p>
-                                        <p className="text-[10.5px] font-black text-[#24C765] leading-none shrink-0">
-                                            {formatNum(totales.unidades_compradas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
-                                        </p>
-                                    </div>
-                                    <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
-                                        {formatCOP(totales.total_comprado)}
-                                    </p>
-                                </div>
-                                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#24C765] flex items-center justify-center shadow-inner shrink-0">
-                                    <FaBagShopping size={15} />
-                                </div>
+                    {/* ── VALIDACIÓN DE CARGA DIFERIDA DE ODOO ── */}
+                    {!odooDatosPesados ? (
+                        /* INDICADOR DE CARGA SUTIL Y CORPORATIVO */
+                        <div className="bg-white/80 backdrop-blur-md border border-blue-100 rounded-[28px] py-16 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+                            <FaSpinner className="text-2xl text-[#1C85E8] animate-spin" />
+                            <div className="text-center">
+                                <p className="text-xs font-black text-gray-700 uppercase tracking-wider">
+                                    Sincronizando Odoo...
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                    Trayendo montos financieros, laboratorios y listado de productos.
+                                </p>
                             </div>
-                        )}
-
-                        {(modo === 'general' || modo === 'formuladores') && (
-                            <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-baseline justify-between gap-2 w-full">
-                                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Total Formulado</p>
-                                        <p className="text-[10.5px] font-black text-[#1C85E8] leading-none shrink-0">
-                                            {formatNum(totales.unidades_formuladas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
-                                        </p>
-                                    </div>
-                                    <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
-                                        {formatCOP(totales.total_formulado)}
-                                    </p>
-                                </div>
-                                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1C85E8] flex items-center justify-center shadow-inner shrink-0">
-                                    <FaStethoscope size={15} />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Acordeón Laboratorios */}
-                    <LaboratoriosAcordeon
-                        laboratoriosComprados={laboratoriosComprados}
-                        laboratoriosFormulados={laboratoriosFormulados}
-                        modo={modo}
-                    />
-
-                    {/* Label sección */}
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 flex items-center gap-2">
-                        {cfg.icon}
-                        {cfg.label} — {listaFiltrada.length} producto{listaFiltrada.length !== 1 ? 's' : ''}
-                        {busqueda && <span className="normal-case font-bold text-gray-300">· "{busqueda}"</span>}
-                    </p>
-
-                    {/* Lista de productos */}
-                    {listaVisible.length === 0 ? (
-                        <div className="text-center py-16 bg-white/50 rounded-[28px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
-                            {busqueda ? 'Sin resultados para esa búsqueda.' : 'Sin productos registrados en este modo.'}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            {listaVisible.map((item, idx) => {
-                                const rankGlobal = (pagina - 1) * porPagina + idx;
-                                return (
-                                    <ProductCard
-                                        key={item.codigo || item.nombre || idx}
-                                        item={item}
-                                        index={rankGlobal}
-                                        modo={modo}
-                                    />
-                                );
-                            })}
+                        /* VISTA COMPLETA CUANDO LLEGAN LOS DATOS */
+                        <div className="space-y-4 animate-in fade-in duration-300">
+                            {modo === 'formuladores' && (
+                                <div className="bg-blue-50/80 border border-blue-200 text-blue-700 text-[10px] font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider text-center max-w-md mx-auto">
+                                    💡 La formulación no está registrada en Odoo (valores en $0)
+                                </div>
+                            )}
+
+                            {/* Resumen financiero */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {(modo === 'general' || modo === 'compradores') && (
+                                    <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-baseline justify-between gap-2 w-full">
+                                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Total Comprado</p>
+                                                <p className="text-[10.5px] font-black text-[#24C765] leading-none shrink-0">
+                                                    {formatNum(totales.unidades_compradas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
+                                                </p>
+                                            </div>
+                                            <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
+                                                {formatCOP(totales.total_comprado)}
+                                            </p>
+                                        </div>
+                                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#24C765] flex items-center justify-center shadow-inner shrink-0">
+                                            <FaBagShopping size={15} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(modo === 'general' || modo === 'formuladores') && (
+                                    <div className="bg-white/80 backdrop-blur-md rounded-xl py-2.5 px-3.5 shadow-sm border border-white/40 flex items-center justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-baseline justify-between gap-2 w-full">
+                                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Total Formulado</p>
+                                                <p className="text-[10.5px] font-black text-[#1C85E8] leading-none shrink-0">
+                                                    {formatNum(totales.unidades_formuladas ?? 0)} <span className="text-[8.5px] font-bold text-gray-400/70">ud</span>
+                                                </p>
+                                            </div>
+                                            <p className="text-base font-black text-gray-800 mt-1.5 leading-none">
+                                                {formatCOP(totales.total_formulado)}
+                                            </p>
+                                        </div>
+                                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1C85E8] flex items-center justify-center shadow-inner shrink-0">
+                                            <FaStethoscope size={15} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Acordeón Laboratorios */}
+                            <LaboratoriosAcordeon
+                                laboratoriosComprados={laboratoriosComprados}
+                                laboratoriosFormulados={laboratoriosFormulados}
+                                modo={modo}
+                            />
+
+                            {/* Label sección */}
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 flex items-center gap-2">
+                                {cfg.icon}
+                                {cfg.label} — {listaFiltrada.length} producto{listaFiltrada.length !== 1 ? 's' : ''}
+                                {busqueda && <span className="normal-case font-bold text-gray-300">· "{busqueda}"</span>}
+                            </p>
+
+                            {/* Lista de productos */}
+                            {listaVisible.length === 0 ? (
+                                <div className="text-center py-16 bg-white/50 rounded-[28px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
+                                    {busqueda ? 'Sin resultados para esa búsqueda.' : 'Sin productos registrados en este modo.'}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    {listaVisible.map((item, idx) => {
+                                        const rankGlobal = (pagina - 1) * porPagina + idx;
+                                        return (
+                                            <ProductCard
+                                                key={item.codigo || item.nombre || idx}
+                                                item={item}
+                                                index={rankGlobal}
+                                                modo={modo}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
 

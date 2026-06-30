@@ -86,8 +86,10 @@ export default function MedicoDetalle({
     visitasStats, visitas, visitadoresAsignados,
 }) {
     const [tabActiva, setTabActiva] = useState('visitadores');
-    const [limLab, setLimLab]   = useState(50);
-    const [limProd, setLimProd] = useState(50);
+    const [limLab, setLimLab]       = useState(50);
+    const [limProd, setLimProd]     = useState(50);
+    const [busquedaProd, setBusquedaProd] = useState('');
+    const [ordenProd, setOrdenProd]       = useState('valor_desc'); // 'valor_desc' | 'valor_asc' | 'alfa'
 
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },
@@ -236,7 +238,7 @@ export default function MedicoDetalle({
                         {/* Tendencia valor */}
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Histórico</p>
-                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado vs formulado</p>
+                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado </p>
                             {tendenciaData.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin transacciones</div>
                             ) : (
@@ -244,12 +246,8 @@ export default function MedicoDetalle({
                                     <AreaChart data={tendenciaData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="gcM" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.25} />
+                                                <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.28} />
                                                 <stop offset="95%" stopColor="#4184F0" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="gfM" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.25} />
-                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -257,8 +255,7 @@ export default function MedicoDetalle({
                                         <YAxis tickFormatter={v => fmtM(v)} tick={{ fontSize: 8, fill: '#94a3b8' }} width={52} />
                                         <Tooltip content={<ChartTooltip />} />
                                         <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-                                        <Area type="monotone" dataKey="comprado"  name="Comprado"  stroke="#4184F0" fill="url(#gcM)" strokeWidth={2} dot={false} />
-                                        <Area type="monotone" dataKey="formulado" name="Formulado" stroke="#8b5cf6" fill="url(#gfM)" strokeWidth={2} dot={false} />
+                                        <Area type="monotone" dataKey="comprado" name="Comprado" stroke="#4184F0" fill="url(#gcM)" strokeWidth={2.5} dot={false} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             )}
@@ -448,53 +445,175 @@ export default function MedicoDetalle({
 
                                     {/* Tabla completa de productos */}
                                     <div>
-                                        <div className="flex items-center justify-between mb-3">
+                                        {/* ── Barra de herramientas ── */}
+                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Detalle por producto</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[9px] text-slate-400">Mostrar</span>
-                                                <select
-                                                    value={limProd}
-                                                    onChange={e => setLimProd(e.target.value === 'all' ? Infinity : Number(e.target.value))}
-                                                    className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                                >
-                                                    {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                                                    <option value="all">Todos</option>
-                                                </select>
+
+                                            <div className="flex flex-wrap items-center gap-2 ml-auto">
+                                                {/* Buscador */}
+                                                <div className="relative">
+                                                    <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                                                    </svg>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Buscar producto..."
+                                                        value={busquedaProd}
+                                                        onChange={e => { setBusquedaProd(e.target.value); setLimProd(50); }}
+                                                        className="pl-6 pr-3 py-1 text-[9px] font-semibold border border-slate-200 rounded-lg text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-44 placeholder:text-slate-300"
+                                                    />
+                                                    {busquedaProd && (
+                                                        <button
+                                                            onClick={() => setBusquedaProd('')}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition"
+                                                        >
+                                                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Botones de orden */}
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        onClick={() => setOrdenProd('valor_desc')}
+                                                        title="Mayor a menor valor comprado"
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                            ordenProd === 'valor_desc'
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        $ ↓ Mayor
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setOrdenProd('valor_asc')}
+                                                        title="Menor a mayor valor comprado"
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                            ordenProd === 'valor_asc'
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        $ ↑ Menor
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setOrdenProd('alfa')}
+                                                        title="Orden alfabético"
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                            ordenProd === 'alfa'
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        A → Z
+                                                    </button>
+                                                </div>
+
+                                                {/* Mostrar N */}
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9px] text-slate-400">Mostrar</span>
+                                                    <select
+                                                        value={limProd}
+                                                        onChange={e => setLimProd(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                                    >
+                                                        {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                                                        <option value="all">Todos</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse">
-                                                <thead>
-                                                    <tr className="bg-blue-600">
-                                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Producto</th>
-                                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Laboratorio</th>
-                                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Val. comprado</th>
-                                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Val. formulado</th>
-                                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-right">Unidades</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-50">
-                                                    {(todosProductos ?? []).slice(0, limProd).map((p, i) => (
-                                                        <tr key={i} className="hover:bg-blue-50/20 transition-colors">
-                                                            <td className="px-5 py-2.5 border-r border-slate-50">
-                                                                <p className="text-[10px] font-black text-slate-700 uppercase">{p.nombre}</p>
-                                                                <p className="text-[9px] text-slate-400">{p.codigo}</p>
-                                                            </td>
-                                                            <td className="px-5 py-2.5 border-r border-slate-50">
-                                                                <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md uppercase">{p.laboratorio}</span>
-                                                            </td>
-                                                            <td className="px-5 py-2.5 border-r border-slate-50 text-right">
-                                                                <span className="text-[10px] font-black text-indigo-600">{fmtM(p.valor_comprado)}</span>
-                                                            </td>
-                                                            <td className="px-5 py-2.5 border-r border-slate-50 text-right">
-                                                                <span className="text-[10px] font-black text-purple-500">{fmtM(p.valor_formulado)}</span>
-                                                            </td>
-                                                            <td className="px-5 py-2.5 text-right text-[10px] text-slate-500 font-bold">{fmt(p.unidades)}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+
+                                        {/* ── Tabla ── */}
+                                        {(() => {
+                                            const termino = busquedaProd.trim().toLowerCase();
+                                            const filtrados = (todosProductos ?? [])
+                                                .filter(p =>
+                                                    !termino ||
+                                                    (p.nombre ?? '').toLowerCase().includes(termino) ||
+                                                    (p.codigo ?? '').toLowerCase().includes(termino) ||
+                                                    (p.laboratorio ?? '').toLowerCase().includes(termino)
+                                                )
+                                                .slice()
+                                                .sort((a, b) =>
+                                                    ordenProd === 'alfa'
+                                                        ? (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es', { sensitivity: 'base' })
+                                                        : ordenProd === 'valor_asc'
+                                                            ? Number(a.valor_comprado) - Number(b.valor_comprado)
+                                                            : Number(b.valor_comprado) - Number(a.valor_comprado)
+                                                );
+
+                                            const visibles = filtrados.slice(0, limProd === Infinity ? filtrados.length : limProd);
+
+                                            return (
+                                                <>
+                                                    {termino && (
+                                                        <p className="text-[9px] text-slate-400 mb-2">
+                                                            {filtrados.length === 0
+                                                                ? 'Sin resultados para "' + busquedaProd + '"'
+                                                                : `${filtrados.length} resultado${filtrados.length !== 1 ? 's' : ''} para "${busquedaProd}"`
+                                                            }
+                                                        </p>
+                                                    )}
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-blue-600">
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">
+                                                                        Producto
+                                                                        {ordenProd === 'alfa' && <span className="ml-1 opacity-60">↑A-Z</span>}
+                                                                    </th>
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Laboratorio</th>
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">
+                                                                        Val. comprado
+                                                                        {ordenProd === 'valor' && <span className="ml-1 opacity-60">↓</span>}
+                                                                    </th>
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Val. formulado</th>
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-right">Unidades Compradas</th>
+                                                                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-right">Unidades Formuladas</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50">
+                                                                {visibles.length === 0 ? (
+                                                                    <tr>
+                                                                        <td colSpan={4} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">
+                                                                            Sin productos{termino ? ` que coincidan con "${busquedaProd}"` : ''}
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : visibles.map((p, i) => (
+                                                                    <tr key={i} className="hover:bg-blue-50/20 transition-colors">
+                                                                        <td className="px-5 py-2.5 border-r border-slate-50">
+                                                                            <p className="text-[10px] font-black text-slate-700 uppercase">{p.nombre}</p>
+                                                                            <p className="text-[9px] text-slate-400">{p.codigo}</p>
+                                                                        </td>
+                                                                        <td className="px-5 py-2.5 border-r border-slate-50">
+                                                                            <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
+                                                                                {p.laboratorio ?? '—'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-5 py-2.5 border-r border-slate-50 text-right">
+                                                                            <span className="text-[10px] font-black text-indigo-600">{fmtM(p.valor_comprado)}</span>
+                                                                        </td>
+                                                                        <td className="px-5 py-2.5 border-r border-slate-50 text-right">
+                                                                            <span className="text-[10px] font-black text-purple-500">{fmtM(p.valor_formulado)}</span>
+                                                                        </td>
+                                                                        <td className="px-5 py-2.5 text-right text-[10px] text-slate-500 font-bold">{fmt(p.unidades)}</td>
+                                                                        <td className="px-5 py-2.5 text-right text-[10px] text-slate-500 font-bold">{fmt(p.unidades_formuladas)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    {filtrados.length > visibles.length && (
+                                                        <p className="text-center text-[9px] text-slate-300 mt-3 font-bold">
+                                                            Mostrando {visibles.length} de {filtrados.length} productos
+                                                        </p>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
 
                                 </div>

@@ -5,10 +5,18 @@ import {
     FaArrowLeft,
     FaMagnifyingGlass,
     FaUserDoctor,
-    FaRankingStar
+    FaRankingStar,
+    FaSpinner // ✅ Añadido para el indicador de carga
 } from 'react-icons/fa6';
 
-const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
+const TopMedicos = ({ 
+    mesActual = '', 
+    filters = {},
+    odooDatosPesados = null // 💡 Recibimos el objeto diferido (Inertia::lazy) desde el controlador
+}) => {
+    // Extraemos de forma segura la lista que antes venía directa
+    const topMedicos = odooDatosPesados?.topMedicos || [];
+
     // ── Estados Locales ──
     const [search, setSearch] = useState(filters.search || '');
     const [mesFiltro, setMesFiltro] = useState(mesActual);
@@ -19,14 +27,20 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
     const [headerHeight, setHeaderHeight] = useState(180);
     const headerRef = useRef(null);
 
+    // ── Disparador en segundo plano para Odoo ──
+    useEffect(() => {
+        if (!odooDatosPesados) {
+            // Solicita la carga asíncrona de la propiedad diferida inmediatamente al montar la vista
+            router.reload({ only: ['odooDatosPesados'] });
+        }
+    }, [mesFiltro]); // Si cambia el mes, se vuelve a disparar de forma transparente
+
     // ── Efecto para medir el Header dinámicamente ──
     useEffect(() => {
         if (!headerRef.current) return;
 
-        // Medimos en tiempo real por si cambia el tamaño al rotar la tablet o redimensionar
         const resizeObserver = new ResizeObserver((entries) => {
             for (let entry of entries) {
-                // Le sumamos 16px extra de margen de cortesía para que respire el diseño
                 setHeaderHeight(entry.contentBoxSize[0].blockSize + 16);
             }
         });
@@ -36,6 +50,7 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
     }, []);
 
     // ── Procesamiento de Datos ──
+   // ── Procesamiento de Datos ──
     const medicosProcesados = [...topMedicos]
         .sort((a, b) => {
             if (vistaTipo === 'compradores') return b.total_comprado - a.total_comprado;
@@ -43,9 +58,10 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
             return (b.total_comprado + b.total_formulado) - (a.total_comprado + a.total_formulado);
         })
         .filter(medico => 
-            medico.nombre.toLowerCase().includes(search.toLowerCase()) ||
-            medico.especialidad.toLowerCase().includes(search.toLowerCase()) ||
-            medico.documento.includes(search)
+            (medico.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
+            (medico.especialidad || '').toLowerCase().includes(search.toLowerCase()) ||
+            // 🌟 CORRECCIÓN AQUÍ: Convertimos el documento a String de forma segura antes del .includes
+            String(medico.documento || '').includes(search)
         )
         .slice(0, topLimit);
 
@@ -74,7 +90,7 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                             <p className="text-[10px] font-black uppercase tracking-widest text-[#1C85E8]/70 leading-none mb-0.5">
                                 LFH Rendimiento
                             </p>
-                            <h1 className="text-xs md:text-sm font-black text-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
+                            <h1 className="text-xs md:text-sm font-black text-[#1C8-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
                                 Top Médicos del Mes
                             </h1>
                         </div>
@@ -87,8 +103,9 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                                 type="text"
                                 value={search}
                                 onChange={handleSearch}
-                                placeholder="Filtrar médico por nombre, especialidad o documento..."
-                                className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700"
+                                disabled={!odooDatosPesados} // Deshabilitado temporalmente hasta que carguen los datos
+                                placeholder={odooDatosPesados ? "Filtrar médico por nombre, especialidad o documento..." : "Cargando médicos..."}
+                                className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700 disabled:opacity-60"
                             />
                         </div>
                     </div>
@@ -108,43 +125,31 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                                         min="1"
                                         max="500"
                                         value={topLimit === 0 ? '' : topLimit}
+                                        disabled={!odooDatosPesados}
                                         onChange={(e) => {
                                             const val = e.target.value === '' ? 0 : Number(e.target.value);
                                             setTopLimit(val);
                                         }}
-                                        className="bg-white/20 border-none rounded-md py-0.5 px-2 text-xs font-black text-white outline-none w-14 text-center focus:ring-2 focus:ring-white/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="bg-white/20 border-none rounded-md py-0.5 px-2 text-xs font-black text-white outline-none w-14 text-center focus:ring-2 focus:ring-white/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-40"
                                         placeholder="N°"
                                     />
                                 </div>
                             </div>
-
                         </div>
 
                         <div className="bg-white/10 p-1 rounded-2xl flex gap-1 border border-white/10 max-w-md w-full">
-                            <button
-                                onClick={() => setVistaTipo('general')}
-                                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${
-                                    vistaTipo === 'general' ? 'bg-white text-gray-800 shadow-sm' : 'text-white hover:bg-white/10'
-                                }`}
-                            >
-                                General
-                            </button>
-                            <button
-                                onClick={() => setVistaTipo('compradores')}
-                                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${
-                                    vistaTipo === 'compradores' ? 'bg-white text-gray-800 shadow-sm' : 'text-white hover:bg-white/10'
-                                }`}
-                            >
-                                Compradores
-                            </button>
-                            <button
-                                onClick={() => setVistaTipo('formuladores')}
-                                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${
-                                    vistaTipo === 'formuladores' ? 'bg-white text-gray-800 shadow-sm' : 'text-white hover:bg-white/10'
-                                }`}
-                            >
-                                Formuladores
-                            </button>
+                            {['general', 'compradores', 'formuladores'].map((tipo) => (
+                                <button
+                                    key={tipo}
+                                    onClick={() => setVistaTipo(tipo)}
+                                    disabled={!odooDatosPesados}
+                                    className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all disabled:opacity-40 ${
+                                        vistaTipo === tipo ? 'bg-white text-gray-800 shadow-sm' : 'text-white hover:bg-white/10'
+                                    }`}
+                                >
+                                    {tipo === 'general' ? 'General' : tipo === 'compradores' ? 'Compradores' : 'Formuladores'}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -156,96 +161,113 @@ const TopMedicos = ({ topMedicos = [], mesActual = '', filters = {} }) => {
                 style={{ paddingTop: `${headerHeight}px` }}
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
+                    {vistaTipo === 'formuladores' && (
+                        <div className="bg-blue-50/80 border border-blue-200 text-blue-700 text-[10px] font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider text-center max-w-md mx-auto">
+                            💡 La formulación no está registrada en Odoo (valores en $0)
+                        </div>
+                    )}
                     
-                    <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
-                        <FaRankingStar className="text-sm text-[#02CFE3]" /> 
-                        Mostrando {medicosProcesados.length} médicos del Top {topLimit} ({vistaTipo})
-                    </h3>
-
-                    {/* ── Listado de Tarjetas en Sistema de Grilla (2 Columnas) ── */}
-                    {medicosProcesados.length > 0 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            {medicosProcesados.map((medico, index) => {
-                                const puesto = index + 1;
-
-                              return (
-    <Link
-    key={medico.documento}
-    href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search}`}
-    className="bg-white/80 backdrop-blur-md rounded-xl flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden text-left block w-full"
->
-    {/* Acento lateral (Ajustado a rounded-l-xl y fino) */}
-    <div className={`w-1 shrink-0 rounded-l-xl ${
-        vistaTipo === 'compradores' ? 'bg-[#24C765]' : vistaTipo === 'formuladores' ? 'bg-[#1C85E8]' : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]'
-    }`} />
-
-    {/* Puesto del Ranking (Más esbelto) */}
-    <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
-        <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
-        <span className={`text-xs font-black leading-none ${
-            puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-400'
-        }`}>
-            #{puesto}
-        </span>
-    </div>
-
-    {/* Contenedor Principal (py-2 para máxima finura y px-3.5 para consistencia) */}
-    <div className="flex-1 min-w-0 py-2 px-3.5 flex flex-col justify-between gap-1.5">
-        
-        {/* Fila Superior: Nombre del Médico solo (aprovecha todo el ancho horizontal) */}
-        <div className="w-full min-w-0">
-            <h4 className="font-bold text-gray-800 text-xs leading-tight truncate">
-                {medico.nombre}
-            </h4>
-        </div>
-
-        {/* Fila Inferior: Valores Financieros distribuidos y Especialidad a la derecha */}
-        <div className="flex items-center justify-between gap-3 w-full py-0.5 min-w-0">
-            
-            {/* Sección Financiera: Expandible mediante flex-1 para llenar el espacio central */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-                {(vistaTipo === 'general' || vistaTipo === 'compradores') && (
-                    <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
-                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Comprado</p>
-                        <p className="text-[10.5px] font-black text-gray-700 leading-none truncate">
-                            ${medico.total_comprado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
-                        </p>
-                    </div>
-                )}
-                
-                {vistaTipo === 'general' && <div className="w-px h-4.5 bg-gray-200/80 shrink-0 mx-0.5" />}
-                
-                {(vistaTipo === 'general' || vistaTipo === 'formuladores') && (
-                    <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
-                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Formulado</p>
-                        <p className="text-[10.5px] font-black text-[#1C85E8] leading-none truncate">
-                            ${medico.total_formulado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            {/* Especialidad: Perfectamente anclada a la derecha del todo como píldora minimalista */}
-            <div className="min-w-0 shrink-0 flex justify-end">
-                {medico.especialidad && (
-                    <p className="text-[8.5px] text-[#1C85E8] font-bold truncate uppercase tracking-tight bg-blue-50/60 border border-blue-100/40 px-1.5 py-0.5 rounded-md max-w-[100px]">
-                        <span className="truncate">{medico.especialidad}</span>
-                    </p>
-                )}
-            </div>
-            
-        </div>
-        
-    </div>
-</Link>
-);
-                            })}
+                    {/* ── VALIDACIÓN DEL ESTADO DE CARGA LAZY ── */}
+                    {!odooDatosPesados ? (
+                        /* Shimmer / Loader elegante para mitigar el tiempo de espera */
+                        <div className="bg-white/80 backdrop-blur-md border border-blue-100 rounded-[30px] py-20 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+                            <FaSpinner className="text-3xl text-[#1C85E8] animate-spin" />
+                            <div className="text-center">
+                                <p className="text-xs font-black text-gray-700 uppercase tracking-wider">
+                                    Consultando Ranking en Odoo...
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                    Esto puede tomar unos segundos debido al volumen de facturación.
+                                </p>
+                            </div>
                         </div>
                     ) : (
-                        /* State Vacío */
-                        <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
-                            <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
-                            No se encontraron médicos en este filtro o rango seleccionado.
+                        /* MUESTRA LA LISTA NORMAL CUANDO LLEGAN LOS DATOS */
+                        <div className="space-y-4 animate-in fade-in duration-300">
+                            <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
+                                <FaRankingStar className="text-sm text-[#02CFE3]" /> 
+                                Mostrando {medicosProcesados.length} médicos del Top {topLimit} ({vistaTipo})
+                            </h3>
+
+                            {/* ── Listado de Tarjetas en Sistema de Grilla (2 Columnas) ── */}
+                            {medicosProcesados.length > 0 ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    {medicosProcesados.map((medico, index) => {
+                                        const puesto = index + 1;
+
+                                        return (
+                                            <Link
+                                                key={medico.documento}
+                                                href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search}`}
+                                                className="bg-white/80 backdrop-blur-md rounded-xl flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden text-left block w-full"
+                                            >
+                                                {/* Acento lateral */}
+                                                <div className={`w-1 shrink-0 rounded-l-xl ${
+                                                    vistaTipo === 'compradores' ? 'bg-[#24C765]' : vistaTipo === 'formuladores' ? 'bg-[#1C85E8]' : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]'
+                                                }`} />
+
+                                                {/* Puesto del Ranking */}
+                                                <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
+                                                    <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
+                                                    <span className={`text-xs font-black leading-none ${
+                                                        puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-400'
+                                                    }`}>
+                                                        #{puesto}
+                                                    </span>
+                                                </div>
+
+                                                {/* Contenedor Principal */}
+                                                <div className="flex-1 min-w-0 py-2 px-3.5 flex flex-col justify-between gap-1.5">
+                                                    
+                                                    <div className="w-full min-w-0">
+                                                        <h4 className="font-bold text-gray-800 text-xs leading-tight truncate">
+                                                            {medico.nombre}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between gap-3 w-full py-0.5 min-w-0">
+                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                            {(vistaTipo === 'general' || vistaTipo === 'compradores') && (
+                                                                <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                                                                    <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Comprado</p>
+                                                                    <p className="text-[10.5px] font-black text-gray-700 leading-none truncate">
+                                                                        ${medico.total_comprado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {vistaTipo === 'general' && <div className="w-px h-4.5 bg-gray-200/80 shrink-0 mx-0.5" />}
+                                                            
+                                                            {(vistaTipo === 'general' || vistaTipo === 'formuladores') && (
+                                                                <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+                                                                    <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Formulado</p>
+                                                                    <p className="text-[10.5px] font-black text-[#1C85E8] leading-none truncate">
+                                                                        ${medico.total_formulado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="min-w-0 shrink-0 flex justify-end">
+                                                            {medico.especialidad && (
+                                                                <p className="text-[8.5px] text-[#1C85E8] font-bold truncate uppercase tracking-tight bg-blue-50/60 border border-blue-100/40 px-1.5 py-0.5 rounded-md max-w-[100px]">
+                                                                    <span className="truncate">{medico.especialidad}</span>
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                /* State Vacío */
+                                <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
+                                    <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
+                                    No se encontraron médicos en este filtro o rango seleccionado.
+                                </div>
+                            )}
                         </div>
                     )}
                 </main>

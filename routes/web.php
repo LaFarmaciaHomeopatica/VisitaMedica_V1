@@ -19,6 +19,7 @@ use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
 use App\Http\Controllers\api_odoo\OdooSyncController;
+use App\Http\Service\OdooServices;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -181,6 +182,10 @@ Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
             ->name('productos');
         Route::post('/productos/buscar', [OdooSyncController::class, 'buscarProductos'])
             ->name('productos.buscar');
+
+
+            Route::get('/Gmedicos/{id}/odoo-stats', [Medico2Controller::class, 'odooStats'])
+     ->name('Gmedicos.odooStats');
 
 
  

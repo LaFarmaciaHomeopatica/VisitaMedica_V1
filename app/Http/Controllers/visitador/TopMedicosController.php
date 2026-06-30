@@ -12,9 +12,17 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\OdooService;
 
 class TopMedicosController extends Controller
 {
+    private OdooService $odoo;
+
+    public function __construct(OdooService $odoo)
+    {
+        $this->odoo = $odoo;
+    }
+
     public function index(Request $request)
     {
         $visitador = Visitador::where('usuario_id', Auth::id())->first();
@@ -30,85 +38,50 @@ class TopMedicosController extends Controller
             ? Carbon::parse($metaActiva->fecha_meta)->format('Y-m')
             : Carbon::now()->format('Y-m');
 
-        $mes    = $request->input('mes', $mesDefault);
-        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
-        $fin    = $inicio->copy()->endOfMonth();
+        $mes = $request->input('mes', $mesDefault);
 
-        $medicos         = $visitador->medicos()->get();
-        $todosMedicosDoc = $medicos->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
-
-        $topMedicos = collect();
-
-        if ($todosMedicosDoc->isNotEmpty()) {
-
-            $totalesPorMedico = DB::table('transacciones')
-                ->select(
-                    'medico_documento',
-                    DB::raw('SUM(valor_comprado)  as total_comprado'),
-                    DB::raw('SUM(valor_formulado) as total_formulado')
-                )
-                ->whereIn('medico_documento', $todosMedicosDoc)
-                ->whereBetween('fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')])
-                ->groupBy('medico_documento')
-                ->get()
-                ->keyBy('medico_documento');
-
-            $productosMasComprados = DB::table('transacciones as t')
-                ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-                ->select(
-                    't.medico_documento',
-                    't.producto_codigo',
-                    'p.nombre as producto_nombre',
-                    'p.laboratorio as producto_laboratorio',
-                    DB::raw('SUM(t.unidades_compradas) as total_cantidad')
-                )
-                ->whereIn('t.medico_documento', $todosMedicosDoc)
-                ->whereBetween('t.fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')])
-                ->whereNotNull('t.producto_codigo')
-                ->where('t.unidades_compradas', '>', 0)
-                ->groupBy('t.medico_documento', 't.producto_codigo', 'p.nombre', 'p.laboratorio')
-                ->orderBy('t.medico_documento')->orderByDesc('total_cantidad')
-                ->get()->groupBy('medico_documento');
-
-            $productosMasFormulados = DB::table('transacciones as t')
-                ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-                ->select(
-                    't.medico_documento',
-                    't.producto_codigo',
-                    'p.nombre as producto_nombre',
-                    'p.laboratorio as producto_laboratorio',
-                    DB::raw('SUM(t.unidades_formuladas) as total_cantidad')
-                )
-                ->whereIn('t.medico_documento', $todosMedicosDoc)
-                ->whereBetween('t.fecha', [$inicio->format('Y-m-d'), $fin->format('Y-m-d')])
-                ->whereNotNull('t.producto_codigo')
-                ->where('t.unidades_formuladas', '>', 0)
-                ->groupBy('t.medico_documento', 't.producto_codigo', 'p.nombre', 'p.laboratorio')
-                ->orderBy('t.medico_documento')->orderByDesc('total_cantidad')
-                ->get()->groupBy('medico_documento');
-
-            $topMedicos = $totalesPorMedico->sortByDesc('total_comprado')
-                ->map(function ($fila) use ($medicos, $productosMasComprados, $productosMasFormulados) {
-                    $doc          = $fila->medico_documento;
-                    $medicoModel  = $medicos->firstWhere('documento', $doc);
-                    $topCompra    = $productosMasComprados->get($doc, collect())->first();
-                    $topFormula   = $productosMasFormulados->get($doc, collect())->first();
-
-                    return [
-                        'documento'              => $doc,
-                        'nombre'                 => $medicoModel ? $medicoModel->nombre . ' ' . $medicoModel->apellido : 'Médico No Registrado',
-                        'especialidad'           => $medicoModel?->especialidad ?? 'General',
-                        'total_comprado'         => (float) $fila->total_comprado,
-                        'total_formulado'        => (float) $fila->total_formulado,
-                        'producto_mas_comprado'  => $topCompra?->producto_nombre ?? $topCompra?->producto_codigo,
-                        'producto_mas_formulado' => $topFormula?->producto_nombre ?? $topFormula?->producto_codigo,
-                    ];
-                })->values();
-        }
-
+        // ── RETORNO INMEDIATO CON LAZY LOADING EN INERTIA ──
         return Inertia::render('VISITADOR/TOPMEDICOS/TopMedicos', [
-            'topMedicos' => $topMedicos,
-            'mesActual'  => $mes,
+            'mesActual' => $mes,
+            'filters'   => $request->only(['search']),
+            
+            // Metemos la consulta pesada dentro de Inertia::lazy()
+            'odooDatosPesados' => Inertia::lazy(function () use ($mes, $visitador) {
+                $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+                $fin    = $inicio->copy()->endOfMonth();
+
+                $medicos         = $visitador->medicos()->get();
+                $todosMedicosDoc = $medicos->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
+
+                $topMedicos = collect();
+
+                if ($todosMedicosDoc->isNotEmpty()) {
+                    // Obtener KPIs de Odoo de forma grupal para el mes seleccionado (Llamada pesada)
+                    $odooKpis = $this->odoo->getKpisGrupales(
+                        $todosMedicosDoc->toArray(),
+                        $inicio->format('Y-m-d'),
+                        $fin->format('Y-m-d')
+                    );
+
+                    // Mapeamos los resultados para construir la colección de topMedicos
+                    $topMedicos = collect($odooKpis)->map(function ($kpis, $doc) use ($medicos) {
+                        $medicoModel = $medicos->firstWhere('documento', $doc);
+                        return [
+                            'documento'              => $doc,
+                            'nombre'                 => $medicoModel ? $medicoModel->nombre . ' ' . $medicoModel->apellido : 'Médico No Registrado',
+                            'especialidad'           => $medicoModel->especialidad ?? 'General',
+                            'total_comprado'         => (float) ($kpis['total_comprado'] ?? 0),
+                            'total_formulado'        => 0.0,
+                            'producto_mas_comprado'  => $kpis['producto_mas_comprado'] ?? '—',
+                            'producto_mas_formulado' => null,
+                        ];
+                    })->sortByDesc('total_comprado')->values();
+                }
+
+                return [
+                    'topMedicos' => $topMedicos,
+                ];
+            })
         ]);
     }
 
@@ -117,123 +90,14 @@ class TopMedicosController extends Controller
         $visitador = Visitador::where('usuario_id', Auth::id())->firstOrFail();
         $medico    = $visitador->medicos()->with('tipoDocumento')->where('documento', $documento)->firstOrFail();
 
-        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
-        $fin    = Carbon::parse($mes . '-01')->endOfMonth();
-
+        $mes     = $request->input('mes', Carbon::now()->format('Y-m'));
         $periodo = $request->input('periodo', 'mes_actual');
-        $inicio = match($periodo) {
-            '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
-            '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
-            '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
-            '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
-            'all' => null,
-            default => Carbon::parse($mes . '-01')->startOfMonth(), // 'mes_actual'
-        };
+        
+        $vistaParam    = $request->input('vista', 'general');
+        $limitAnterior = (int) $request->input('limit',  10);
+        $searchAnterior = $request->input('search', '');
 
-        // Query base reutilizable
-        $base = DB::table('transacciones as t')
-            ->where('t.medico_documento', $medico->documento)
-            ->where('t.fecha', '<=', $fin->format('Y-m-d'))
-            ->when($inicio, fn($q) => $q->where('t.fecha', '>=', $inicio->format('Y-m-d')));
-
-        // ── Totales ──────────────────────────────────────────────────────────
-        $totales = (clone $base)
-            ->select(
-                DB::raw('COALESCE(SUM(t.valor_comprado), 0)    as total_comprado'),
-                DB::raw('COALESCE(SUM(t.valor_formulado), 0)   as total_formulado'),
-                DB::raw('COALESCE(SUM(t.unidades_compradas), 0) as unidades_compradas'),
-                DB::raw('COALESCE(SUM(t.unidades_formuladas), 0) as unidades_formuladas'),
-                DB::raw('COUNT(*) as transacciones')
-            )->first();
-
-        // ── Productos comprados ───────────────────────────────────────────────
-        $productosComprados = (clone $base)
-            ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-            ->select(
-                't.producto_codigo                              as codigo',
-                DB::raw('COALESCE(p.nombre, t.producto_codigo) as nombre'),
-                DB::raw("COALESCE(p.laboratorio, '')           as laboratorio"),
-                DB::raw('SUM(t.unidades_compradas)             as cantidad_comprada'),
-                DB::raw('SUM(t.valor_comprado)                 as valor_comprado')
-            )
-            ->where('t.unidades_compradas', '>', 0)
-            ->groupBy('t.producto_codigo', 'p.nombre', 'p.laboratorio')
-            ->orderByDesc('cantidad_comprada')
-            ->get();
-
-        // ── Productos formulados ──────────────────────────────────────────────
-        $productosFormulados = (clone $base)
-            ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-            ->select(
-                't.producto_codigo                              as codigo',
-                DB::raw('COALESCE(p.nombre, t.producto_codigo) as nombre'),
-                DB::raw("COALESCE(p.laboratorio, '')           as laboratorio"),
-                DB::raw('SUM(t.unidades_formuladas)            as cantidad_formulada'),
-                DB::raw('SUM(t.valor_formulado)                as valor_formulado')
-            )
-            ->where('t.unidades_formuladas', '>', 0)
-            ->groupBy('t.producto_codigo', 'p.nombre', 'p.laboratorio')
-            ->orderByDesc('cantidad_formulada')
-            ->get();
-
-        // ── Laboratorios comprados ────────────────────────────────────────────
-        $laboratoriosComprados = (clone $base)
-            ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-            ->select(
-                DB::raw("COALESCE(p.laboratorio, 'Sin laboratorio') as laboratorio"),
-                DB::raw('SUM(t.unidades_compradas)                  as cantidad_comprada'),
-                DB::raw('SUM(t.valor_comprado)                      as valor_comprado'),
-                DB::raw('COUNT(DISTINCT t.producto_codigo)          as productos')
-            )
-            ->where('t.unidades_compradas', '>', 0)
-            ->groupBy('p.laboratorio')
-            ->orderByDesc('cantidad_comprada')
-            ->get();
-
-        // ── Laboratorios formulados ───────────────────────────────────────────
-        $laboratoriosFormulados = (clone $base)
-            ->leftJoin('productos as p', 't.producto_codigo', '=', 'p.codigo')
-            ->select(
-                DB::raw("COALESCE(p.laboratorio, 'Sin laboratorio') as laboratorio"),
-                DB::raw('SUM(t.unidades_formuladas)                 as cantidad_formulada'),
-                DB::raw('SUM(t.valor_formulado)                     as valor_formulado'),
-                DB::raw('COUNT(DISTINCT t.producto_codigo)          as productos')
-            )
-            ->where('t.unidades_formuladas', '>', 0)
-            ->groupBy('p.laboratorio')
-            ->orderByDesc('cantidad_formulada')
-            ->get();
-
-        // ── Puesto real del médico en el ranking según modo ──────────────────
-        $vistaParam = $request->input('vista', 'general');
-
-        $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string)$d)->values();
-
-        $rankingGlobal = DB::table('transacciones')
-            ->select(
-                'medico_documento',
-                DB::raw('SUM(valor_comprado)  as total_comprado'),
-                DB::raw('SUM(valor_formulado) as total_formulado')
-            )
-            ->whereIn('medico_documento', $todosLosDocs)
-            ->where('fecha', '<=', $fin->format('Y-m-d'))
-            ->when($inicio, fn($q) => $q->where('fecha', '>=', $inicio->format('Y-m-d')))
-            ->groupBy('medico_documento')
-            ->get()
-            ->map(fn($r) => [
-                'documento' => $r->medico_documento,
-                'suma'      => match($vistaParam) {
-                    'compradores'  => (float)$r->total_comprado,
-                    'formuladores' => (float)$r->total_formulado,
-                    default        => (float)$r->total_comprado + (float)$r->total_formulado,
-                },
-            ])
-            ->sortByDesc('suma')
-            ->values();
-
-        $puestoReal = $rankingGlobal->search(fn($r) => (string)$r['documento'] === (string)$medico->documento);
-        $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
-
+        // ── RETORNO INMEDIATO CON LAZY LOADING EN INERTIA ──
         return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
             'medico' => [
                 'id'                 => $medico->id,
@@ -248,23 +112,80 @@ class TopMedicosController extends Controller
                     'nombre' => $medico->tipoDocumento->nombre
                 ] : null,
             ],
-            'mesActual'              => $mes,
-            'periodoActivo'          => $periodo,
-            'totales'                => [
-                'total_comprado'      => (float) ($totales->total_comprado      ?? 0),
-                'total_formulado'     => (float) ($totales->total_formulado     ?? 0),
-                'unidades_compradas'  => (int)   ($totales->unidades_compradas  ?? 0),
-                'unidades_formuladas' => (int)   ($totales->unidades_formuladas ?? 0),
-                'transacciones'       => (int)   ($totales->transacciones       ?? 0),
-            ],
-            'productosComprados'     => $productosComprados,
-            'productosFormulados'    => $productosFormulados,
-            'laboratoriosComprados'  => $laboratoriosComprados,
-            'laboratoriosFormulados' => $laboratoriosFormulados,
-            'vistaAnterior'          => $vistaParam,
-            'limitAnterior'          => (int) $request->input('limit',  10),
-            'searchAnterior'         => $request->input('search', ''),
-            'puestoReal'             => $puestoReal,
+            'mesActual'      => $mes,
+            'periodoActivo'  => $periodo,
+            'vistaAnterior'  => $vistaParam,
+            'limitAnterior'  => $limitAnterior,
+            'searchAnterior' => $searchAnterior,
+
+            'odooDatosPesados' => Inertia::lazy(function () use ($medico, $mes, $periodo, $visitador) {
+                $fin = Carbon::parse($mes . '-01')->endOfMonth();
+                $inicio = match($periodo) {
+                    '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
+                    '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
+                    '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
+                    '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
+                    'all' => null,
+                    default => Carbon::parse($mes . '-01')->startOfMonth(),
+                };
+
+                $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
+
+                // 1. Datos del médico
+                $odooData = $this->odoo->getKpisPorDocumento($medico->documento, $fechaDesde);
+
+                // 2. Ranking Global
+                $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string)$d)->values();
+                $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();
+                $mesFin    = Carbon::parse($mes . '-01')->endOfMonth();
+                
+                $kpisGrupales = $this->odoo->getKpisGrupales(
+                    $todosLosDocs->toArray(),
+                    $mesInicio->format('Y-m-d'),
+                    $mesFin->format('Y-m-d')
+                );
+
+                $rankingGlobal = collect($kpisGrupales)->map(fn($k, $doc) => [
+                    'documento' => $doc,
+                    'suma'      => (float)($k['total_comprado'] ?? 0),
+                ])->sortByDesc('suma')->values();
+
+                $puestoReal = $rankingGlobal->search(fn($r) => (string)$r['documento'] === (string)$medico->documento);
+                $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
+
+                // Agrupaciones de productos y laboratorios
+                $productosComprados = collect($odooData['todos_productos'] ?? [])->map(fn($p) => [
+                    'codigo'            => $p['codigo'],
+                    'nombre'            => $p['nombre'],
+                    'laboratorio'       => $p['laboratorio'] ?? '—',
+                    'cantidad_comprada' => (float)$p['unidades'],
+                    'valor_comprado'    => (float)$p['valor_comprado'],
+                ])->values();
+
+                $laboratoriosComprados = collect($odooData['todos_productos'] ?? [])
+                    ->groupBy(fn($p) => $p['laboratorio'] ?: 'Sin laboratorio')
+                    ->map(fn($group, $lab) => [
+                        'laboratorio'       => $lab,
+                        'cantidad_comprada' => $group->sum('unidades'),
+                        'valor_comprado'    => $group->sum('valor_comprado'),
+                        'productos'         => $group->unique('codigo')->count(),
+                    ])
+                    ->sortByDesc('cantidad_comprada')
+                    ->values();
+
+                return [
+                    'totales' => [
+                        'total_comprado'      => (float) ($odooData['total_valor_comprado']      ?? 0),
+                        'total_formulado'     => 0.0,
+                        'unidades_compradas'  => (int)   ($odooData['total_unidades_compradas']  ?? 0),
+                        'unidades_formuladas' => 0,
+                        'transacciones'       => (int)   ($odooData['total_transacciones']       ?? 0),
+                    ],
+                    'productosComprados'    => $productosComprados,
+                    'laboratoriosComprados' => $laboratoriosComprados,
+                    'puestoReal'            => $puestoReal,
+                ];
+            })
         ]);
     }
 }

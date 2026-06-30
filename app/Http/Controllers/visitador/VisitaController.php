@@ -58,6 +58,7 @@ class VisitaController extends Controller
                 'required',
                 Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)),
             ],
+           
             'fecha_programada'   => 'required|date',
             'fecha_realizada'    => 'nullable|date',
             'estado'             => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',

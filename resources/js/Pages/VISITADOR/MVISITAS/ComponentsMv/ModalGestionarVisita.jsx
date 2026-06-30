@@ -286,21 +286,18 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                     )}
 
                     {/* Hora Final programada  */}
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                            Hora Final
-                        </label>
-                        <input
-                            type="time"
-                            disabled={esEfectiva}
-                            className="w-full bg-gray-50 border-none rounded-2xl p-4 text-xs font-bold mt-1 focus:ring-2 focus:ring-[#5D8BF4]"
-                            value={logic.formReporte.data.fecha_realizada?.slice(11, 16) || ''}
-                            onChange={e => {
-                                const fecha = logic.formReporte.data.fecha_programada?.slice(0, 10) || format(new Date(), 'yyyy-MM-dd');
-                                logic.formReporte.setData('fecha_realizada', `${fecha}T${e.target.value}`);
-                            }}
-                        />
-                    </div>
+<div>
+    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+        Hora Final
+    </label>
+    <input
+        type="time"
+        readOnly // 👈 Esto evita que el usuario lo edite, pero mantiene el diseño limpio
+        className="w-full bg-gray-100 border-none rounded-2xl p-4 text-xs font-bold mt-1 cursor-not-allowed text-gray-500" // Cambiado bg-gray-50 por bg-gray-100 y añadido estilos visuales de bloqueo
+        value={logic.formReporte.data.fecha_realizada?.slice(11, 16) || ''}
+        // 👈 Quitamos el onChange porque un campo no editable no debe disparar eventos de cambio
+    />
+</div>
                     {/* ── HORA DE CIERRE REAL (Condicional) ── */}
 {(logic.formReporte.data.estado === 'efectiva' || esEfectiva) && (
     <div className="animate-fade-in">
