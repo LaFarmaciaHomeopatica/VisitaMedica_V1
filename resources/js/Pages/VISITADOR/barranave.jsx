@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import {
     FaHouse,
     FaUserDoctor,
@@ -9,11 +9,13 @@ import {
     FaPowerOff, // Icono de apagado / cerrar sesión
     FaRankingStar, // Icono de ranking (puedes cambiarlo por otro si prefieres)
     FaBell, // Icono de alertas
+    FaArrowsRotate, // Icono de actualizar
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
     const { url } = usePage();
     const [isOpen, setIsOpen] = useState(false);
+    const [actualizando, setActualizando] = useState(false);
 
     const navIcons = [
     { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
@@ -31,6 +33,21 @@ const BottomNavigation = () => {
     };
 
     const toggleMenu = () => setIsOpen(!isOpen);
+
+    // ── Actualización masiva: borra la caché de Odoo del visitador ──
+    // Cada página (Top Médicos / Detalle) recalculará sola cuando se visite,
+    // gracias al mismo mecanismo de carga perezosa (lazy) que ya usan.
+    const handleActualizarTodo = () => {
+        if (actualizando) return;
+
+        setActualizando(true);
+        router.post('/visitador/refrescar-todo', {}, {
+            preserveScroll: true,
+            preserveState: false, // fuerza que la página actual vuelva a pedir sus props (incluyendo las lazy)
+            onFinish: () => setActualizando(false),
+            onSuccess: () => setIsOpen(false),
+        });
+    };
 
     return (
         
@@ -54,6 +71,21 @@ const BottomNavigation = () => {
             <div className="text-xl">{logoutAction.icon}</div>
             <span className="text-xs font-bold pr-2">{logoutAction.label}</span>
         </Link>
+
+        {/* Botón de Actualizar Datos (masivo, borra caché de Odoo) */}
+        <button
+            type="button"
+            onClick={handleActualizarTodo}
+            disabled={actualizando}
+            className="flex items-center gap-3 p-3 rounded-2xl shadow-xl bg-white/90 backdrop-blur-md border border-amber-100 text-amber-600 active:bg-amber-50 disabled:opacity-60"
+        >
+            <div className={`text-xl ${actualizando ? 'animate-spin' : ''}`}>
+                <FaArrowsRotate />
+            </div>
+            <span className="text-xs font-bold pr-2">
+                {actualizando ? 'Actualizando...' : 'Actualizar datos'}
+            </span>
+        </button>
 
         {/* Enlaces del menú */}
         {navIcons.map((nav, index) => {
@@ -126,6 +158,24 @@ const BottomNavigation = () => {
                             </Link>
                         );
                     })}
+
+                    {/* Separador visual antes del botón de actualizar/salir en Desktop */}
+                    <div className="h-6 w-[1px] bg-white/20 self-center mx-1" />
+
+                    {/* Botón de Actualizar Datos en Desktop */}
+                    <button
+                        type="button"
+                        onClick={handleActualizarTodo}
+                        disabled={actualizando}
+                        className="relative flex flex-col items-center gap-1 p-2 min-w-[70px] transition-all duration-300 group hover:scale-105 text-white/60 hover:text-white disabled:opacity-60"
+                    >
+                        <div className={`text-xl transition-all duration-300 ${actualizando ? 'animate-spin' : ''}`}>
+                            <FaArrowsRotate />
+                        </div>
+                        <span className="text-[10px] font-bold transition-all duration-300 text-center">
+                            {actualizando ? 'Actualizando' : 'Actualizar'}
+                        </span>
+                    </button>
 
                     {/* Separador visual antes del botón de salir en Desktop */}
                     <div className="h-6 w-[1px] bg-white/20 self-center mx-1" />

@@ -229,6 +229,22 @@ Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'
         Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
         Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
 
+        Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
+Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+
+Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+
+// ── Botón "Actualizar período actual" (fuerza consulta fresca a Odoo) ──
+Route::post('/visitador/top-medicos/refrescar', [TopMedicosController::class, 'refrescarIndex'])
+    ->name('visitador.top-medicos.refrescar');
+Route::post('/visitador/top-medicos/{documento}/refrescar', [TopMedicosController::class, 'refrescarDetalle'])
+    ->name('visitador.top-medicos.detalle.refrescar');
+
+Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
+
+Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])
+    ->name('visitador.refrescar-todo');
+
 
     });
 

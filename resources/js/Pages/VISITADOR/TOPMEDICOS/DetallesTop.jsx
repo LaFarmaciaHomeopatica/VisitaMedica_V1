@@ -67,6 +67,34 @@ const MODOS = {
 // ─── Paginador ────────────────────────────────────────────────────────────────
 const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
     const totalPaginas = Math.max(1, Math.ceil(total / (porPagina || 1)));
+
+    // Estado local del texto del input, independiente de porPagina,
+    // para poder borrar libremente sin que React lo "regrese" al valor anterior.
+    const [inputValue, setInputValue] = useState(String(porPagina));
+
+    // Si porPagina cambia desde afuera (ej: al cambiar de página), sincronizamos.
+    useEffect(() => {
+        setInputValue(String(porPagina));
+    }, [porPagina]);
+
+    const handleChange = (e) => {
+        const raw = e.target.value;
+        setInputValue(raw); // permite dejarlo vacío mientras se escribe
+
+        const v = parseInt(raw, 10);
+        if (!isNaN(v) && v >= 1) {
+            onPorPagina(v);
+        }
+    };
+
+    const handleBlur = () => {
+        // Si al salir del campo quedó vacío o inválido, regresamos al último valor válido
+        const v = parseInt(inputValue, 10);
+        if (isNaN(v) || v < 1) {
+            setInputValue(String(porPagina));
+        }
+    };
+
     return (
         <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -81,11 +109,9 @@ const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
                         type="number"
                         min={1}
                         max={total}
-                        value={porPagina}
-                        onChange={(e) => {
-                            const v = parseInt(e.target.value, 10);
-                            if (!isNaN(v) && v >= 1) onPorPagina(v);
-                        }}
+                        value={inputValue}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
                         className="w-14 text-center text-xs font-black text-white bg-white/20 border border-white/30 rounded-xl py-1.5 px-2 outline-none focus:ring-2 focus:ring-white/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                 </div>
@@ -118,7 +144,6 @@ const Paginador = ({ total, porPagina, pagina, onPagina, onPorPagina }) => {
         </div>
     );
 };
-
 // ─── Tarjeta de producto ──────────────────────────────────────────────────────
 const ProductCard = ({ item, index, modo }) => {
     const isCompra = modo === 'compradores';
