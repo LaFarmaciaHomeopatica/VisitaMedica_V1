@@ -80,11 +80,11 @@ const PERIODOS = [
 ];
 
 export default function MedicoDetalle({
-    auth, medico, periodoActivo = 'all',
+    auth, medico, periodoActivo = 'all', esTemporal = false, documentoBase,
     txStats, tendencia, topProductos,
     porLaboratorio, todosProductos,
     visitasStats, visitas, visitadoresAsignados,
-}) {
+})  {
     const [tabActiva, setTabActiva] = useState('visitadores');
     const [limLab, setLimLab]       = useState(50);
     const [limProd, setLimProd]     = useState(50);
@@ -151,12 +151,16 @@ export default function MedicoDetalle({
                                     {medico.categoria.nombre}
                                 </span>
                             )}
-                            <Link
-    href={route('Gmedicos.alertas', medico.id)}
-    className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
->
-    <FaFlask className="text-xs" /> Analizar Alertas
-</Link>
+
+                            {!esTemporal && (
+    <Link
+        href={route('Gmedicos.alertas', medico.id)}
+        className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+    >
+        <FaFlask className="text-xs" /> Analizar Alertas
+    </Link>
+)}
+      
                             {medico.visitador && (
                                 <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 uppercase">
                                     Visitador: {medico.visitador.nombre} {medico.visitador.apellido}
@@ -201,11 +205,11 @@ export default function MedicoDetalle({
                         {PERIODOS.map(p => (
                             <button
                                 key={p.key}
-                                onClick={() => router.get(
-                                    route('Gmedicos.show', medico.id),
-                                    p.key !== 'all' ? { periodo: p.key } : {},
-                                    { preserveScroll: true }
-                                )}
+                               onClick={() => router.get(
+    route('Gmedicos.showPorDocumento', documentoBase),
+    p.key !== 'all' ? { periodo: p.key } : {},
+    { preserveScroll: true }
+)}  
                                 className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
                                     periodoActivo === p.key
                                         ? 'bg-blue-600 text-white shadow-sm'

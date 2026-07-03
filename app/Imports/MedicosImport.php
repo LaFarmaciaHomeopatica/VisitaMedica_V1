@@ -6,6 +6,7 @@ use App\Models\TipoDocumento;
 use App\Models\Visitador;
 use App\Models\Categoria;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\OnEachRow;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -19,6 +20,7 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
     private $visitadores;
     private $categorias;
     private $insertData = [];
+    private $insertDataTemporal = [];
     private $batchSize  = 500;
 
     public function __construct()
@@ -46,25 +48,63 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
     {
         $row = $row->toArray();
 
-        // ✅ LOG 1: sin documento o nombre
-        if (empty($row['documento'] ?? null) || empty($row['nombre'] ?? null)) {
-            \Log::warning('MÉDICO SALTADO - sin documento o nombre', [
-                'documento' => $row['documento'] ?? 'VACÍO',
-                'nombre'    => $row['nombre'] ?? 'VACÍO',
-            ]);
+        $documentoRaw = $row['documento'] ?? null;
+        $nombreRaw    = trim($row['nombre'] ?? '');
+        $apellidoRaw  = trim($row['apellido'] ?? '');
+
+        $documentoLimpio = $documentoRaw !== null
+            ? preg_replace('/[^0-9-]/', '', (string) $documentoRaw)
+            : '';
+
+        $tieneDocumento = !empty($documentoLimpio);
+        $tieneNombre    = !empty($nombreRaw) || !empty($apellidoRaw);
+
+        // ── CASO 1: fila totalmente vacía → se descarta ──
+        if (!$tieneDocumento && !$tieneNombre) {
+            \Log::warning('MÉDICO SALTADO - fila vacía (sin documento y sin nombre/apellido)');
             return;
         }
 
-       $documentoLimpio = preg_replace('/[^0-9-]/', '', (string)$row['documento']);
+        // ── CASO 2: hay documento pero falta nombre/apellido → medico temporal ──
+        if ($tieneDocumento && !$tieneNombre) {
+            \Log::info('MÉDICO A MEDIAS - va a medicos_temporales (sin nombre)', [
+                'documento' => $documentoLimpio,
+            ]);
 
-// ✅ LOG 2: documento vacío tras la limpieza
-if (empty($documentoLimpio)) {
-    \Log::warning('MÉDICO SALTADO - documento sin caracteres válidos', [
-        'documento_raw' => $row['documento'] ?? 'VACÍO',
-        'nombre'        => $row['nombre'] ?? 'VACÍO',
-    ]);
-    return;
+            $this->insertDataTemporal[] = [
+                'documento'         => $documentoLimpio,
+                'nombre_referencia' => null,
+                'origen_datos'      => 'sin_nombre',
+            ];
+
+            if (count($this->insertDataTemporal) >= $this->batchSize) {
+                $this->flushTemporal();
+            }
+            return;
         }
+
+        // ── CASO 3: hay nombre/apellido pero falta documento → medico temporal (CORREGIDO DE RAÍZ) ──
+        if (!$tieneDocumento && $tieneNombre) {
+            $nombreReferencia = trim($nombreRaw . ' ' . $apellidoRaw);
+            $origenPlaceholder = 'TEMP-' . Str::uuid();
+
+            \Log::info('MÉDICO A MEDIAS - va a medicos_temporales (sin documento)', [
+                'nombre_referencia' => $nombreReferencia,
+            ]);
+
+            $this->insertDataTemporal[] = [
+                'documento'         => null,               // El documento queda vacío en la base de datos
+                'nombre_referencia' => $nombreReferencia,
+                'origen_datos'      => $origenPlaceholder, // El código TEMP se almacena aquí de forma limpia
+            ];
+
+            if (count($this->insertDataTemporal) >= $this->batchSize) {
+                $this->flushTemporal();
+            }
+            return;
+        }
+
+        // ── CASO 4: documento y nombre completos → flujo normal (medicos) ──
 
         // 1. DIRECCIÓN Y TELÉFONO
         $direccionFinal = $row['direccion_detalles']
@@ -88,7 +128,7 @@ if (empty($documentoLimpio)) {
                    ?? $this->tiposDoc[strtolower($tipoDocRaw)]
                    ?? 1;
 
-        $visitadorNombreExcel = strtolower(preg_replace('/\s+/', ' ', trim($row['visitador_asignado'] ?? '')));
+        $visitadorNombreExcel = strtolower(preg_replace('/\s+/', ' ', trim($row['visitador_assigned'] ?? $row['visitador_asignado'] ?? '')));
         $visitadorId          = $this->visitadores[$visitadorNombreExcel] ?? null;
 
         // Fallback invertido
@@ -107,11 +147,7 @@ if (empty($documentoLimpio)) {
             }
         }
 
-        // 3. NOMBRE Y APELLIDO
-        $nombreRaw   = trim($row['nombre'] ?? '');
-        $apellidoRaw = trim($row['apellido'] ?? '');
-
-        // Si apellido viene vacío, intenta separar del nombre completo
+        // 3. NOMBRE Y APELLIDO (conservamos el fallback de separación si el apellido viene vacío)
         if (empty($apellidoRaw) && str_word_count($nombreRaw) > 1) {
             $partes      = explode(' ', $nombreRaw, 2);
             $nombreRaw   = $partes[0];
@@ -160,6 +196,7 @@ if (empty($documentoLimpio)) {
     public function __destruct()
     {
         $this->flush();
+        $this->flushTemporal();
     }
 
     private function flush(): void
@@ -174,5 +211,14 @@ if (empty($documentoLimpio)) {
         ]);
 
         $this->insertData = [];
+    }
+
+    private function flushTemporal(): void
+    {
+        if (empty($this->insertDataTemporal)) return;
+
+        DB::table('medicos_temporales')->insert($this->insertDataTemporal);
+
+        $this->insertDataTemporal = [];
     }
 }

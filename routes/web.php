@@ -120,6 +120,13 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
     Route::delete('/GmedicosTemporales/{id}', [MedicoTemporalController::class, 'destroy'])->name('GmedicosTemporales.destroy');
     Route::delete('/GmedicosTemporales', [MedicoTemporalController::class, 'destroyMultiple'])->name('GmedicosTemporales.destroyMultiple');
 
+    Route::get('/medicos/documento/{documento}/detalle', [Medico2Controller::class, 'showPorDocumento'])
+    ->name('Gmedicos.showPorDocumento');
+
+    // Cambia el ->name(...) para que coincida con tu estructura actual
+Route::post('/medicos-temporales/importar', [MedicoTemporalController::class, 'importar'])
+    ->name('GmedicosTemporales.importar');
+
    // Ejemplo de cómo deberían estar tus rutas
 Route::get('/Gtransacciones/exportar',  [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
 Route::get('/Gtransacciones/plantilla', [TransaccionesController::class, 'plantilla'])->name('Gtransacciones.plantilla');
@@ -133,6 +140,10 @@ Route::get('administrador/medicos/{id}/alertas-productos', [
 
 Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'exportar'])
     ->name('GmedicosTemporales.exportar');
+
+
+    Route::get('/GmedicosTemporales/plantilla', [MedicoTemporalController::class, 'descargarPlantilla'])
+    ->name('GmedicosTemporales.plantilla');
 
 
  });
@@ -187,6 +198,7 @@ Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
             Route::get('/Gmedicos/{id}/odoo-stats', [Medico2Controller::class, 'odooStats'])
      ->name('Gmedicos.odooStats');
 
+     
 
  
 });
@@ -244,6 +256,8 @@ Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visi
 
 Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])
     ->name('visitador.refrescar-todo');
+
+
 
 
     });

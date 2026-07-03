@@ -17,6 +17,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\Categoria;
 use Carbon\Carbon;
+use App\Models\MedicoTemporal;
 use App\Services\OdooService;  // ← Service nuevo
 
 class Medico2Controller extends Controller
@@ -294,6 +295,130 @@ class Medico2Controller extends Controller
             'visitadoresAsignados' => $visitadoresAsignados,
             // Bandera para que la vista sepa si Odoo respondió
             'odooConectado'        => $odooData !== null,
+        ]);
+    }
+
+public function showPorDocumento(Request $request, $documento)
+    {
+        $medicoReal = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
+            ->where('documento', $documento)
+            ->first();
+
+        $esTemporal    = $medicoReal === null;
+        $medicoIdLocal = $medicoReal?->id;
+
+        if ($medicoReal) {
+            $medico = $medicoReal;
+        } else {
+            $temporal = MedicoTemporal::where('documento', $documento)->first();
+
+            $medico = (object) [
+                'id'                 => $temporal->id ?? null,
+                'nombre'             => $temporal->nombre_referencia ?? 'Sin registrar',
+                'apellido'           => '',
+                'documento'          => $documento,
+                'especialidad'       => null,
+                'tipo_documento'     => null,
+                'categoria'          => null,
+                'visitador'          => null,
+                'telefono_contacto'  => null,
+                'horario_atencion'   => null,
+                'direccion_detalles' => null,
+                'geolocalizacion'    => null,
+            ];
+        }
+
+        $periodo    = $request->input('periodo', 'all');
+        $fechaDesde = match($periodo) {
+            'mes' => Carbon::now()->startOfMonth()->format('Y-m-d'),
+            '3m'  => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
+            '6m'  => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
+            '1y'  => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
+            '2y'  => Carbon::now()->subMonths(24)->startOfMonth()->format('Y-m-d'),
+            default => null,
+        };
+
+        $odooData = $this->odoo->getKpisPorDocumento($documento, $fechaDesde);
+
+        $txStats = $odooData
+            ? (object) [
+                'total_transacciones'       => $odooData['total_transacciones'],
+                'total_valor_comprado'      => $odooData['total_valor_comprado'],
+                'total_valor_formulado'     => 0,
+                'total_unidades'            => $odooData['total_unidades'],
+                'total_unidades_compradas'  => $odooData['total_unidades_compradas'],
+                'total_unidades_formuladas' => 0,
+                'total_productos'           => $odooData['total_productos'],
+                'meses_activo'              => $odooData['meses_activo'],
+            ]
+            : $this->txStatsVacios();
+
+        $tendencia      = $odooData['tendencia']       ?? [];
+        $topProductos   = $odooData['top_productos']   ?? [];
+        $todosProductos = $odooData['todos_productos'] ?? [];
+
+        if ($medicoIdLocal) {
+            $visitaBase = fn() => DB::table('visitas')
+                ->where('medico_id', $medicoIdLocal)
+                ->when($fechaDesde, fn($q) => $q->where('fecha_programada', '>=', $fechaDesde));
+
+            $visitasStats = $visitaBase()->select(
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN estado = 'efectiva'      THEN 1 ELSE 0 END) as efectivas"),
+                DB::raw("SUM(CASE WHEN estado = 'programada'    THEN 1 ELSE 0 END) as programadas"),
+                DB::raw("SUM(CASE WHEN estado = 'cancelada'     THEN 1 ELSE 0 END) as canceladas"),
+                DB::raw("SUM(CASE WHEN estado = 'reprogramada'  THEN 1 ELSE 0 END) as reprogramadas"),
+                DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
+            )->first();
+
+            $visitas = $visitaBase()
+                ->leftJoin('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
+                ->select(
+                    'visitas.id',
+                    'visitas.estado',
+                    'visitas.fecha_programada',
+                    'visitas.fecha_realizada',
+                    'visitas.comentarios',
+                    DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre_visitador")
+                )
+                ->orderByDesc('visitas.fecha_programada')
+                ->take(50)->get();
+
+            $visitadoresAsignados = DB::table('visitas')
+                ->where('visitas.medico_id', $medicoIdLocal)
+                ->join('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
+                ->select(
+                    'visitadores.id',
+                    DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre"),
+                    DB::raw('COUNT(visitas.id) as total_visitas'),
+                    DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
+                    DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
+                )
+                ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
+                ->orderByDesc('total_visitas')->get();
+        } else {
+            $visitasStats = (object) [
+                'total' => 0, 'efectivas' => 0, 'programadas' => 0,
+                'canceladas' => 0, 'reprogramadas' => 0, 'no_contactados' => 0,
+            ];
+            $visitas = [];
+            $visitadoresAsignados = [];
+        }
+
+        return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
+            'medico'               => $medico,
+            'periodoActivo'        => $periodo,
+            'txStats'              => $txStats,
+            'tendencia'            => $tendencia,
+            'topProductos'         => $topProductos,
+            'porLaboratorio'       => [],
+            'todosProductos'       => $todosProductos,
+            'visitasStats'         => $visitasStats,
+            'visitas'              => $visitas,
+            'visitadoresAsignados' => $visitadoresAsignados,
+            'odooConectado'        => $odooData !== null,
+            'esTemporal'           => $esTemporal,
+            'documentoBase'        => $documento,
         ]);
     }
 

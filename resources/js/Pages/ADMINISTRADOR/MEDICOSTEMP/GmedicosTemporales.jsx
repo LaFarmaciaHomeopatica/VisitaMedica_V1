@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react'; // <-- Usamos el router que ya tienes importado
 import PanelAdmin from '../PanelAdmin';
 
 import { useMedicosTempFilter }    from './HooksM/useMedicosTempFilter';
@@ -37,15 +37,34 @@ const GmedicosTemporales = ({
         });
     };
 
-const handleExport = (ids = []) => {
-    console.log('ids recibidos en handleExport:', ids);
-    const base = route('GmedicosTemporales.exportar');
-    const params = ids.length > 0
-        ? '?ids[]=' + ids.join('&ids[]=')
-        : '';
-    console.log('URL final:', base + params);
-    window.location.href = base + params;
-};
+    const handleExport = (ids = []) => {
+        console.log('ids recibidos en handleExport:', ids);
+        const base = route('GmedicosTemporales.exportar');
+        const params = ids.length > 0
+            ? '?ids[]=' + ids.join('&ids[]=')
+            : '';
+        console.log('URL final:', base + params);
+        window.location.href = base + params;
+    };
+
+    /**
+     * ACCIÓN NUEVA: Maneja la subida del archivo Excel/CSV hacia Laravel
+     */
+    const handleImport = (file) => {
+        // Ejecutamos el post usando la ruta que apunta a tu controlador modificado
+        router.post(route('GmedicosTemporales.importar'), {
+            file: file
+        }, {
+            forceFormData: true, // Forzar Multipart para que viaje el archivo binario
+            onSuccess: () => {
+                // Puedes cambiar este alert por tu sistema de notificaciones preferido
+                alert('¡Médicos temporales importados/actualizados correctamente!');
+            },
+            onError: (errors) => {
+                alert('Hubo un error al importar: ' + (errors.file || 'Verifica el contenido de tu archivo.'));
+            }
+        });
+    };
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -69,8 +88,10 @@ const handleExport = (ids = []) => {
                     onDelete={handleDeleteSelected}
                     onExport={handleExport}
                     onNew={() => console.log('Nueva Gestión')}
-
-                />
+                    onImport={handleImport} // <-- Pasamos la función al Toolbar
+                
+    onTemplate={() => window.location.href = route('GmedicosTemporales.plantilla')}
+/>
 
                 <MedicosTempTable
                     currentItems={filter.currentItems}
@@ -89,7 +110,7 @@ const handleExport = (ids = []) => {
 
             <MedicoTempPromoteModal
                 isOpen={form.isModalOpen}
-                onClose={form.closeModal}              // ← cierra + reset limpio
+                onClose={form.closeModal}
                 onSubmit={form.handlePromote}
                 data={form.data}
                 setData={form.setData}

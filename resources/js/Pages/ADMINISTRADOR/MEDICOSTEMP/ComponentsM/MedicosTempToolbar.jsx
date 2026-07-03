@@ -1,14 +1,27 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { FaCircleExclamation } from 'react-icons/fa6';
 
 export default function MedicosTempToolbar({
     searchTerm, onSearchChange,
     selectedIds = [],
     onDelete, onExport, onNew,
+    onTemplate, // <-- NUEVO
+    onImport, // <-- Nueva prop para manejar la importación desde el componente padre
     currentItems = [], onSelectAll,
     itemsPerPage, onItemsPerPageChange,
     currentPage, onPageChange, totalPages
 }) {
+    // Referencia para activar el explorador de archivos oculto
+    const fileInputRef = useRef(null);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file && onImport) {
+            onImport(file); // Le pasamos el archivo seleccionado al padre
+            e.target.value = ''; // Limpiamos el input para permitir subir el mismo archivo consecutivamente
+        }
+    };
+
     return (
         <div className="fixed top-20 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
             <div className="flex items-center justify-between gap-2 overflow-x-auto lg:overflow-visible">
@@ -100,6 +113,7 @@ export default function MedicosTempToolbar({
                         </span>
                     </div>
 
+                    {/* Botón Borrar */}
                     <button
                         onClick={onDelete}
                         disabled={selectedIds.length === 0}
@@ -109,11 +123,38 @@ export default function MedicosTempToolbar({
                         {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} BORRAR
                     </button>
 
-            
-                    <button onClick={() => {
-    console.log('selectedIds al click:', selectedIds);
-    onExport(selectedIds);
-}}
+                    {/* Botón Plantilla */}
+<button
+    onClick={onTemplate}
+    className="px-3 py-2 rounded-lg font-bold text-[10px] uppercase border border-transparent text-slate-500 hover:bg-slate-50 transition-all flex items-center gap-1.5"
+>
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H8a2 2 0 01-2-2V5a2 2 0 012-2h6l6 6v11a2 2 0 01-2 2z" />
+    </svg>
+    PLANTILLA
+</button>
+
+                    {/* BOTÓN NUEVO: IMPORTAR */}
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        accept=".xlsx,.xls,.csv" 
+                        className="hidden" 
+                    />
+                    <button 
+                        onClick={() => fileInputRef.current.click()}
+                        className="px-3 py-2 rounded-lg font-bold text-[10px] uppercase border border-transparent text-indigo-600 hover:bg-indigo-50 transition-all flex items-center gap-1.5"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        IMPORTAR
+                    </button>
+
+                    {/* Botón Exportar */}
+                    <button 
+                        onClick={() => onExport(selectedIds)}
                         className={`px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-all flex items-center gap-1.5 border ${
                             selectedIds.length > 0
                                 ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
@@ -125,8 +166,6 @@ export default function MedicosTempToolbar({
                         </svg>
                         {selectedIds.length > 0 ? `(${selectedIds.length}) EXPORTAR` : 'EXPORTAR'}
                     </button>
-
-                    
                 </div>
 
             </div>

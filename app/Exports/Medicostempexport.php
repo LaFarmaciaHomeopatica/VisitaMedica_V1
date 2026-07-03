@@ -37,11 +37,7 @@ class MedicosTempExport implements FromQuery, WithHeadings, WithMapping, ShouldA
             'Documento',
             'Nombre Referencia',
             'Origen Datos',
-            'Total Transacciones',
-            'Total Unidades Compradas',
-            'Total Unidades Formuladas',
-            'Total Valor Comprado',
-            'Total Valor Formulado',
+            
         ];
     }
 
@@ -53,11 +49,7 @@ class MedicosTempExport implements FromQuery, WithHeadings, WithMapping, ShouldA
             $medico->documento,
             $medico->nombre_referencia,
             $medico->origen_datos,
-            $transacciones->count(),
-            $transacciones->sum('unidades_compradas'),
-            $transacciones->sum('unidades_formuladas'),
-            $transacciones->sum('valor_comprado'),
-            $transacciones->sum('valor_formulado'),
+
         ];
     }
 }

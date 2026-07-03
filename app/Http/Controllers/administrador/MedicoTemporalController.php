@@ -7,12 +7,14 @@ use App\Models\MedicoTemporal;
 use App\Models\Medico;
 use App\Models\Categoria;
 use App\Models\TipoDocumento;
-use App\Models\Visitador; // Cambiado de User a Visitador
+use App\Models\Visitador; 
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\Medicostempexport;
+use App\Imports\MedicosTempImport; // <-- 1. Importamos tu nueva clase Import
 use Illuminate\Support\Facades\DB;
+use Exception; // <-- Para capturar errores limpiamente
 
 class MedicoTemporalController extends Controller
 {
@@ -22,7 +24,6 @@ class MedicoTemporalController extends Controller
             'medicosTemporales' => MedicoTemporal::all(),
             'categorias'        => Categoria::all(),
             'tiposDocumento'    => TipoDocumento::all(),
-            // Consultamos directamente a la tabla visitadores con sus campos correspondientes
             'visitadores'       => Visitador::all(['id', 'nombre', 'apellido']),
         ]);
     }
@@ -42,7 +43,6 @@ class MedicoTemporalController extends Controller
             'direccion_detalles'    => 'nullable|string|max:500',
             'geolocalizacion'       => 'nullable|string|max:255',
             'categoria_id'          => 'nullable|exists:categoria,id',
-            // Corregido: Ahora valida que el ID exista en la tabla 'visitadores'
             'visitador_id'          => 'nullable|exists:visitadores,id', 
             'fecha_inicio_relacion' => 'nullable|date',
         ]);
@@ -124,12 +124,33 @@ class MedicoTemporalController extends Controller
         return redirect()->back()->with('success', 'Registros eliminados.');
     }
 
+    public function exportar(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        \Log::debug('IDs recibidos:', $ids);
+        return Excel::download(new MedicosTempExport($ids), 'medicos_temporales.xlsx');
+    }
 
+    public function descargarPlantilla()
+    {
+        return Excel::download(new \App\Exports\MedicoTempPlantillaExport, 'plantilla_medicos_temporales.xlsx');
+    }
 
-public function exportar(Request $request)
-{
-    $ids = $request->input('ids', []);
-    \Log::debug('IDs recibidos:', $ids);
-    return Excel::download(new MedicosTempExport($ids), 'medicos_temporales.xlsx');
-}
+    /**
+     * MÉTODONUEVO: Procesa la importación del archivo de médicos
+     */
+    public function importar(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+        ]);
+
+        try {
+            Excel::import(new MedicosTempImport, $request->file('file'));
+
+            return redirect()->back()->with('success', 'Médicos temporales importados/actualizados con éxito.');
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', 'Error al importar el archivo: ' . $e->getMessage());
+        }
+    }
 }
