@@ -66,7 +66,7 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             'Tipo Documento',
             'Documento',
             'Nombre',
-            
+            'Apellido',
             'Especialidad',
             'Categoría', // <--- Agregado después de Especialidad
             'Teléfono',

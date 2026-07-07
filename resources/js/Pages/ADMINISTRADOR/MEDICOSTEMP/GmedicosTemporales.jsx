@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Head, router } from '@inertiajs/react'; // <-- Usamos el router que ya tienes importado
+import { Head, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 
 import { useMedicosTempFilter }    from './HooksM/useMedicosTempFilter';
 import { useMedicoTempForm }       from './HooksM/useMedicoTempForm';
 import { useMedicosTempSelection } from './HooksM/useMedicosTempSelection';
+import ImportTempConfirmModal from './ComponentsM/ImportTempConfirmModal';
 
 import MedicosTempToolbar    from './ComponentsM/MedicosTempToolbar';
 import MedicosTempTable      from './ComponentsM/MedicosTempTable';
 import MedicoTempPromoteModal from './ComponentsM/MedicoTempPromoteModal';
 import MedicoTempStatsPanel  from './ComponentsM/MedicoTempStatsPanel';
+import ExportTempConfirmModal from './ComponentsM/ExportTempConfirmModal';
 
 const GmedicosTemporales = ({
     auth,
@@ -22,6 +24,10 @@ const GmedicosTemporales = ({
     const form      = useMedicoTempForm();
     const selection = useMedicosTempSelection();
     const [statsmedico, setStatsmedico] = useState(null);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+const [archivoSeleccionado, setArchivoSeleccionado] = useState(null);
+const [importando, setImportando] = useState(false);
 
     const handleDeleteOne = (id) => {
         if (!confirm('¿Eliminar este médico temporal?')) return;
@@ -37,34 +43,42 @@ const GmedicosTemporales = ({
         });
     };
 
+    // ✅ Ahora solo dispara la descarga real; la validación y confirmación las maneja el modal
     const handleExport = (ids = []) => {
-        console.log('ids recibidos en handleExport:', ids);
         const base = route('GmedicosTemporales.exportar');
         const params = ids.length > 0
             ? '?ids[]=' + ids.join('&ids[]=')
             : '';
-        console.log('URL final:', base + params);
         window.location.href = base + params;
     };
 
-    /**
-     * ACCIÓN NUEVA: Maneja la subida del archivo Excel/CSV hacia Laravel
-     */
-    const handleImport = (file) => {
-        // Ejecutamos el post usando la ruta que apunta a tu controlador modificado
-        router.post(route('GmedicosTemporales.importar'), {
-            file: file
-        }, {
-            forceFormData: true, // Forzar Multipart para que viaje el archivo binario
-            onSuccess: () => {
-                // Puedes cambiar este alert por tu sistema de notificaciones preferido
-                alert('¡Médicos temporales importados/actualizados correctamente!');
-            },
-            onError: (errors) => {
-                alert('Hubo un error al importar: ' + (errors.file || 'Verifica el contenido de tu archivo.'));
-            }
-        });
-    };
+   const handleFileSelected = (file) => {
+    setArchivoSeleccionado(file);
+    setIsImportModalOpen(true);
+};
+
+// Se llama cuando el usuario confirma dentro del modal — ahí sí sube el archivo
+const handleConfirmImport = () => {
+    if (!archivoSeleccionado) return;
+
+    setImportando(true);
+    router.post(route('GmedicosTemporales.importar'), {
+        file: archivoSeleccionado
+    }, {
+        forceFormData: true,
+        onSuccess: () => {
+            alert('¡Médicos temporales importados/actualizados correctamente!');
+        },
+        onError: (errors) => {
+            alert('Hubo un error al importar: ' + (errors.file || 'Verifica el contenido de tu archivo.'));
+        },
+        onFinish: () => {
+            setImportando(false);
+            setIsImportModalOpen(false);
+            setArchivoSeleccionado(null);
+        },
+    });
+};
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -86,12 +100,11 @@ const GmedicosTemporales = ({
                     onItemsPerPageChange={filter.setItemsPerPage}
 
                     onDelete={handleDeleteSelected}
-                    onExport={handleExport}
+                    onExport={() => setIsExportModalOpen(true)}
                     onNew={() => console.log('Nueva Gestión')}
-                    onImport={handleImport} // <-- Pasamos la función al Toolbar
-                
-    onTemplate={() => window.location.href = route('GmedicosTemporales.plantilla')}
-/>
+                    onImport={handleFileSelected}
+                    onTemplate={() => window.location.href = route('GmedicosTemporales.plantilla')}
+                />
 
                 <MedicosTempTable
                     currentItems={filter.currentItems}
@@ -120,6 +133,26 @@ const GmedicosTemporales = ({
                 visitadores={visitadores}
                 tiposDocumento={tiposDocumento}
             />
+
+            <ExportTempConfirmModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                onConfirm={() => handleExport(selection.selectedIds)}
+                selectedIds={selection.selectedIds}
+            />
+
+            <ImportTempConfirmModal
+    isOpen={isImportModalOpen}
+    onClose={() => {
+        if (!importando) {
+            setIsImportModalOpen(false);
+            setArchivoSeleccionado(null);
+        }
+    }}
+    onConfirm={handleConfirmImport}
+    file={archivoSeleccionado}
+    importando={importando}
+/>
         </PanelAdmin>
     );
 };
