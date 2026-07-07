@@ -152,14 +152,12 @@ export default function MedicoDetalle({
                                 </span>
                             )}
 
-                            {!esTemporal && (
-    <Link
-        href={route('Gmedicos.alertas', medico.id)}
-        className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
-    >
-        <FaFlask className="text-xs" /> Analizar Alertas
-    </Link>
-)}
+<Link
+    href={route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento)}
+    className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+>
+    <FaFlask className="text-xs" /> Analizar Alertas
+</Link>
       
                             {medico.visitador && (
                                 <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 uppercase">
@@ -205,11 +203,11 @@ export default function MedicoDetalle({
                         {PERIODOS.map(p => (
                             <button
                                 key={p.key}
-                               onClick={() => router.get(
-    route('Gmedicos.showPorDocumento', documentoBase),
+onClick={() => router.get(
+    route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
     p.key !== 'all' ? { periodo: p.key } : {},
     { preserveScroll: true }
-)}  
+)} 
                                 className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
                                     periodoActivo === p.key
                                         ? 'bg-blue-600 text-white shadow-sm'

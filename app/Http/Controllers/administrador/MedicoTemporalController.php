@@ -36,7 +36,6 @@ class MedicoTemporalController extends Controller
             'tipo_documento_id'     => 'required|exists:tipo_documento,id',
             'documento'             => 'required|string|unique:medicos,documento',
             'nombre'                => 'required|string|max:255',
-            'apellido'              => 'required|string|max:255',
             'especialidad'          => 'nullable|string|max:255',
             'telefono_contacto'     => 'nullable|string|max:50',
             'horario_atencion'      => 'nullable|string|max:255',

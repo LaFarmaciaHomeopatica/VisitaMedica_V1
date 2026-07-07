@@ -43,7 +43,7 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             $medico->tipoDocumento->nombre ?? 'N/A',
             $medico->documento,
             $medico->nombre,
-            $medico->apellido,
+           
             $medico->especialidad,
             $medico->categoria->nombre ?? 'Sin Categoría', // <--- Agregado después de especialidad
             $medico->telefono_contacto,
@@ -66,7 +66,7 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
             'Tipo Documento',
             'Documento',
             'Nombre',
-            'Apellido',
+            
             'Especialidad',
             'Categoría', // <--- Agregado después de Especialidad
             'Teléfono',

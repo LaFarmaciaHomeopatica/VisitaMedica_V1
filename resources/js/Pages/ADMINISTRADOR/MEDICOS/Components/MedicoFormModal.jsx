@@ -18,10 +18,8 @@ export default function MedicoFormModal({
                         {isEditing ? 'Editar' : 'Nuevo'} Médico
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input placeholder="Nombre" value={data.nombre} onChange={e => setData('nombre', e.target.value)}
-                            className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
-                        <input placeholder="Apellido" value={data.apellido} onChange={e => setData('apellido', e.target.value)}
-                            className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
+                        <input placeholder="Nombre Completo" value={data.nombre} onChange={e => setData('nombre', e.target.value)}
+                            className="col-span-1 md:col-span-2 w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
 
                         <div className="flex gap-2">
                             <select value={data.tipo_documento_id} onChange={e => setData('tipo_documento_id', e.target.value)}

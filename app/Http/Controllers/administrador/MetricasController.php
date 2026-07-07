@@ -89,7 +89,7 @@ class MetricasController extends Controller
             ->leftJoin('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
             ->select(
                 'transacciones.medico_documento',
-                DB::raw("COALESCE(CONCAT(medicos.nombre, ' ', medicos.apellido), transacciones.medico_documento) as nombre_medico"),
+                DB::raw("COALESCE(medicos.nombre, transacciones.medico_documento) as nombre_medico"),
                 'transacciones.producto_codigo',
                 DB::raw('COALESCE(productos.nombre, transacciones.producto_codigo) as nombre_producto'),
                 DB::raw('SUM(transacciones.unidades_compradas)  as compradas'),
@@ -143,10 +143,10 @@ class MetricasController extends Controller
             ]);
 
         // --- Lista de médicos para el filtro ---
-        $medicosLista = Medico::select('documento', 'nombre', 'apellido')
+        $medicosLista = Medico::select('documento', 'nombre')
             ->get()->map(fn($m) => [
                 'documento' => $m->documento ?? '',
-                'nombre'    => trim(($m->nombre ?? '') . ' ' . ($m->apellido ?? '')),
+                'nombre'    => trim($m->nombre ?? ''),
                 'tipo'      => 'registrado',
             ]);
 

@@ -16,19 +16,57 @@ function normalizeFecha(val) {
         .trim();
 }
 
+// Reconoce variantes de "sin visitador asignado"
+const SIN_ASIGNAR_VALORES = ['sin asignar', 'sin visitador', 'no asignado', 'ninguno', '-', '--', '---', ''];
+
+const normalizarTexto = (str) => String(str || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+function visitadorCoincide(nombreExcel, nombreOriginal) {
+    const a = normalizarTexto(nombreExcel);
+    const b = normalizarTexto(nombreOriginal);
+
+    const aEsVacio = SIN_ASIGNAR_VALORES.includes(a.toLowerCase());
+    const bEsVacio = !nombreOriginal || SIN_ASIGNAR_VALORES.includes(b.toLowerCase());
+
+    if (aEsVacio && bEsVacio) return true;
+    if (aEsVacio !== bEsVacio) return false;
+
+    // Comparación por palabras ordenadas (mismo criterio que nombre/apellido)
+    const limpiar = (s) => s.replace(/[^A-Z0-9 ]/g, '').split(/\s+/).filter(Boolean).sort().join(' ');
+    return limpiar(a) === limpiar(b);
+}
+
 function calcCambios(row, original) {
     if (!original) return {};
+
+    // 1. Helper interno para normalizar y ordenar alfabéticamente las palabras de los nombres
+    const obtenerPalabrasClave = (nom, ape) => {
+        const completo = `${nom || ''} ${ape || ''}`.trim().toUpperCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Quita acentos
+        // Remover caracteres especiales, dejar solo letras, números y espacios
+        const limpio = completo.replace(/[^A-Z0-9 ]/g, '');
+        // Separar por espacios, ordenar alfabéticamente y volver a unir
+        return limpio.split(/\s+/).filter(Boolean).sort().join(' ');
+    };
+
+    // 2. Unificamos el bloque completo del Excel y de la Base de datos
+    const identidadExcel = obtenerPalabrasClave(row.nombre, row.apellido);
+    const identidadBD = obtenerPalabrasClave(original.nombre, original.apellido);
+
+    // 3. Si la identidad global coincide, para el frontend "nombre" NO cambió
+    const nombresCoinciden = identidadExcel === identidadBD;
+
     return {
-        nombre: !cmp(row.nombre, original.nombre),
-        apellido: !cmp(row.apellido, original.apellido),
+        nombre: !nombresCoinciden,
         especialidad: !cmp(row.especialidad, original.especialidad),
         categoria: !cmp(row.categoria, original.categoria?.nombre),
         telefono_contacto: !cmp(row.telefono_contacto, original.telefono_contacto),
         geolocalizacion: !cmp(row.geolocalizacion, original.geolocalizacion),
         direccion_detalles: !cmp(row.direccion_detalles, original.direccion_detalles),
         horario_atencion: !cmp(row.horario_atencion, original.horario_atencion),
-        // ✅ CORREGIDO: compara nombre vs nombre
-        visitador_id: !cmp(
+        // ✅ CORREGIDO: reconoce "sin visitador"/"sin asignar" y nombres en cualquier orden
+        visitador_id: !visitadorCoincide(
             row.visitador_asignado,
             original?.visitador
                 ? `${original.visitador.nombre} ${original.visitador.apellido}`
@@ -87,7 +125,7 @@ export default function ImportPreviewModal({ isOpen, onClose, onConfirm, preview
                     <table className="w-full text-[10px] text-left border-collapse bg-white rounded-lg shadow-sm">
                         <thead className="sticky top-0 bg-slate-100 uppercase z-20 shadow-sm">
                             <tr>
-                                {['Estado', 'Documento', 'Nombre', 'Apellido', 'Especialidad', 'Categoría', 'Teléfono',
+                                {['Estado', 'Documento', 'Nombre', 'Especialidad', 'Categoría', 'Teléfono',
                                     'Geolocalización', 'Dirección Detalles', 'Horario Atención', 'Visitador', 'Fecha Inicio'].map(h => (
                                         <th key={h} className="px-3 py-2 font-bold text-slate-600 border-b">{h}</th>
                                     ))}
@@ -113,7 +151,6 @@ export default function ImportPreviewModal({ isOpen, onClose, onConfirm, preview
                                         </td>
                                         <td className="px-3 py-2 font-mono text-slate-500">{docExcel}</td>
                                         <CeldaCambio valor={row.nombre} cambio={c.nombre} actual={original?.nombre} />
-                                        <CeldaCambio valor={row.apellido} cambio={c.apellido} actual={original?.apellido} />
                                         <CeldaCambio valor={row.especialidad} cambio={c.especialidad} actual={original?.especialidad} />
                                         <CeldaCambio valor={row.categoria} cambio={c.categoria} actual={original?.categoria?.nombre} />
                                         <CeldaCambio valor={row.telefono_contacto} cambio={c.telefono_contacto} actual={original?.telefono_contacto} />

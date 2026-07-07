@@ -147,12 +147,8 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
             }
         }
 
-        // 3. NOMBRE Y APELLIDO (conservamos el fallback de separación si el apellido viene vacío)
-        if (empty($apellidoRaw) && str_word_count($nombreRaw) > 1) {
-            $partes      = explode(' ', $nombreRaw, 2);
-            $nombreRaw   = $partes[0];
-            $apellidoRaw = $partes[1] ?? '';
-        }
+        // 3. NOMBRE COMPLETO
+        $nombreCompleto = trim($nombreRaw . ' ' . $apellidoRaw);
 
         // 4. FECHA
         $fechaRaw   = $row['fecha_inicio_relacion'] ?? null;
@@ -175,8 +171,7 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
         $this->insertData[] = [
             'documento'             => $documentoLimpio,
             'tipo_documento_id'     => $tipoDocId,
-            'nombre'                => $nombreRaw,
-            'apellido'              => $apellidoRaw ?: null,
+            'nombre'                => $nombreCompleto,
             'especialidad'          => $row['especialidad'] ?? 'General',
             'categoria_id'          => $categoriaId,
             'geolocalizacion'       => $row['geolocalizacion'] ?? null,
@@ -204,7 +199,7 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
         if (empty($this->insertData)) return;
 
         DB::table('medicos')->upsert($this->insertData, ['documento'], [
-            'nombre', 'apellido', 'especialidad', 'categoria_id',
+            'nombre', 'especialidad', 'categoria_id',
             'tipo_documento_id', 'visitador_id', 'telefono_contacto',
             'geolocalizacion', 'direccion_detalles', 'horario_atencion',
             'fecha_inicio_relacion',

@@ -84,7 +84,7 @@ class TopMedicosController extends Controller
             'medico' => [
                 'id'                 => $medico->id,
                 'documento'          => $medico->documento,
-                'nombre'             => trim($medico->nombre . ' ' . $medico->apellido),
+                'nombre'             => trim($medico->nombre),
                 'especialidad'       => $medico->especialidad ?? 'General',
                 'direccion_detalles' => $medico->direccion_detalles,
                 'telefono_contacto'  => $medico->telefono_contacto,
@@ -163,7 +163,7 @@ class TopMedicosController extends Controller
                 $medicoModel = $medicos->firstWhere('documento', $doc);
                 return [
                     'documento'              => $doc,
-                    'nombre'                 => $medicoModel ? $medicoModel->nombre . ' ' . $medicoModel->apellido : 'Médico No Registrado',
+                    'nombre'                 => $medicoModel ? $medicoModel->nombre : 'Médico No Registrado',
                     'especialidad'           => $medicoModel->especialidad ?? 'General',
                     'total_comprado'         => (float) ($kpis['total_comprado'] ?? 0),
                     'total_formulado'        => 0.0,

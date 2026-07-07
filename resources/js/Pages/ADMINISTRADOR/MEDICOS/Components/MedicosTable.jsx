@@ -45,7 +45,7 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                                 {/* ... resto de tus celdas ... */}
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className="text-[11px] font-bold text-slate-700 uppercase leading-none">
-                                        {m.nombre} {m.apellido}
+                                        {m.nombre}
                                     </span>
                                 </td>
                                 <td className="px-6 py-2 border-r border-slate-50">

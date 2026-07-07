@@ -21,7 +21,7 @@ class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, Shoul
     public function query()
     {
         $query = Transaccion::query()->with([
-            'medico:documento,nombre,apellido', 
+            'medico:documento,nombre', 
             'producto:codigo,nombre'
         ]);
 
@@ -53,7 +53,7 @@ class TransaccionesExport implements FromQuery, WithHeadings, WithMapping, Shoul
         return [
             $transaccion->medico_documento,
             $transaccion->medico 
-                ? ($transaccion->medico->nombre . ' ' . $transaccion->medico->apellido) 
+                ? $transaccion->medico->nombre 
                 : 'N/A',
             $transaccion->producto_codigo,
             $transaccion->producto ? $transaccion->producto->nombre : 'N/A',

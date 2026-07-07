@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 
 const initialState = {
-    id: '', nombre: '', apellido: '', documento: '',
+    id: '', nombre: '', documento: '',
     especialidad: '', geolocalizacion: '', direccion_detalles: '',
     telefono_contacto: '', horario_atencion: '', visitador_id: '',
     fecha_inicio_relacion: '', tipo_documento_id: '', categoria_id: '',
@@ -36,7 +36,6 @@ export const useMedicoForm = (visitadores) => {
         setData({
             id: medico.id,
             nombre: medico.nombre,
-            apellido: medico.apellido,
             documento: medico.documento,
             especialidad: medico.especialidad || '',
             geolocalizacion: medico.geolocalizacion || '',

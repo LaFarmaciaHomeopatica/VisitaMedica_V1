@@ -21,7 +21,7 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, medicos
                 <div className="mt-6 max-h-[200px] overflow-y-auto space-y-2 mb-4 pr-2">
                     {medicosSeleccionados.map(medico => (
                         <div key={medico.id} className="flex flex-col p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                            <span className="text-xs font-bold text-slate-700">{medico.nombre} {medico.apellido}</span>
+                            <span className="text-xs font-bold text-slate-700">{medico.nombre}</span>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Visitador:</span>
                                 {medico.visitador ? (

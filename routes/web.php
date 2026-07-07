@@ -145,6 +145,13 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
     Route::get('/GmedicosTemporales/plantilla', [MedicoTemporalController::class, 'descargarPlantilla'])
     ->name('GmedicosTemporales.plantilla');
 
+    Route::get('/medicos/documento/{documento}/alertas', [Medico2Controller::class, 'alertasPorDocumento'])
+    ->name('Gmedicos.alertasPorDocumento');
+
+    // Ejemplo en routes/web.php
+Route::post('/medicos/previsualizar', [Medico2Controller::class, 'previsualizarImportacion'])
+    ->name('Gmedicos.previsualizar');
+
 
  });
 

@@ -26,7 +26,7 @@ class VisitaController extends Controller
         $visitador = $this->getVisitador();
         if (!$visitador) return redirect()->route('login');
 
-        $medicosDisponibles = $visitador->medicos()->get(['id', 'visitador_id', 'nombre', 'apellido', 'geolocalizacion', 'direccion_detalles']);
+        $medicosDisponibles = $visitador->medicos()->get(['id', 'visitador_id', 'nombre', 'geolocalizacion', 'direccion_detalles']);
 
         return Inertia::render('VISITADOR/MVISITAS/MisVisitas', [
             'visitas' => Visita::with('medico')
@@ -79,7 +79,7 @@ class VisitaController extends Controller
             ->first();
 
         if ($cruce) {
-            $nombreConflicto = $cruce->medico->nombre . ' ' . $cruce->medico->apellido;
+            $nombreConflicto = $cruce->medico->nombre;
             $horaConflicto = date('g:i A', strtotime($cruce->fecha_programada));
             
             return back()->withErrors([

@@ -22,7 +22,7 @@ class TransaccionesController extends Controller
         $tempNombres = MedicoTemporal::pluck('nombre_referencia', 'documento');
 
         $transacciones = Transaccion::with([
-            'medico:documento,nombre,apellido',
+            'medico:documento,nombre',
             'producto:codigo,nombre'
         ])->latest('updated_at')->get()->map(function ($t) use ($tempNombres) {
             if (!$t->medico) {
@@ -47,7 +47,7 @@ class TransaccionesController extends Controller
 
         return Inertia::render('ADMINISTRADOR/TRANSACCIONES/Gtransacciones', [
             'transacciones' => $transacciones,
-            'medicos'       => Medico::select('nombre', 'apellido', 'documento')->get(),
+            'medicos'       => Medico::select('nombre', 'documento')->get(),
             'productos'     => Productos::select('nombre', 'codigo')->get(),
             'calendarData'  => $calendarData,
         ]);

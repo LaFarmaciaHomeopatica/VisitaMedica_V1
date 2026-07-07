@@ -71,7 +71,7 @@ class AlertaController extends Controller
 
                     $medicosAlertas[] = [
                         'documento'    => $doc,
-                        'nombre'       => trim($medico->nombre . ' ' . $medico->apellido),
+                        'nombre'       => trim($medico->nombre),
                         'especialidad' => $medico->especialidad ?? 'General',
                         'totales'      => $medAlert['totales'],
                         'productos'    => $medAlert['productos'],
@@ -113,7 +113,7 @@ class AlertaController extends Controller
         'medico'     => [
             'id'                 => $medico->id,
             'documento'          => $medico->documento,
-            'nombre'             => trim($medico->nombre . ' ' . $medico->apellido),
+            'nombre'             => trim($medico->nombre),
             'especialidad'       => $medico->especialidad ?? 'General',
             'telefono_contacto'  => $medico->telefono_contacto,
             'direccion_detalles' => $medico->direccion_detalles,

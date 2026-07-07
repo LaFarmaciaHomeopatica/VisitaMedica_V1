@@ -42,7 +42,7 @@ export default function ReviewSelectionModal({ isOpen, onClose, onConfirm, medic
                                         )}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-slate-700">{medico.nombre} {medico.apellido}</p>
+                                        <p className="text-sm font-bold text-slate-700">{medico.nombre}</p>
                                         {medico.visitador_id ? (
                                             <p className="text-[9px] font-black text-amber-600 uppercase">
                                                 Vínculo actual: {medico.visitador?.nombre} {medico.visitador?.apellido}

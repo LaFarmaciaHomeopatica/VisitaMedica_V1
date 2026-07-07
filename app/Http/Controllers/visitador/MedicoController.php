@@ -24,7 +24,6 @@ class MedicoController extends Controller
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
                 $q->where('nombre', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('apellido', 'like', '%' . $searchTerm . '%')
                   ->orWhere('especialidad', 'like', '%' . $searchTerm . '%')
                   ->orWhere('documento', 'like', '%' . $searchTerm . '%');
             });

@@ -27,7 +27,6 @@ public function index()
         'medicos' => Medico::select(
             'id', 
             'nombre', 
-            'apellido', 
             'documento', // <-- Columna clave añadida
             'visitador_id', 
             'direccion_detalles', 

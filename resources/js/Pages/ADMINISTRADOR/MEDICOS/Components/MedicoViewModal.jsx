@@ -23,7 +23,7 @@ const MedicoViewModal = ({ isOpen, onClose, medico }) => {
                         <div>
                             <span className="text-[10px] font-black bg-white/20 px-3 py-1 rounded-full uppercase tracking-tighter">Ficha Médica Digital</span>
                             <h3 className="text-2xl font-black uppercase mt-2 leading-none">
-                                {medico.nombre || ''} {medico.apellido || ''}
+                                {medico.nombre || ''}
                             </h3>
                         </div>
                         <button onClick={onClose} className="bg-white/10 p-2 rounded-full hover:bg-white/20 transition-all">

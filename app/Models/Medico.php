@@ -33,7 +33,6 @@ public $timestamps = false;
         'fecha_inicio_relacion',
         'tipo_documento_id',
         'nombre',
-        'apellido',
     ];
 
     /**
@@ -61,7 +60,7 @@ public $timestamps = false;
      */
     public function getNombreCompletoAttribute(): string
     {
-        return "{$this->nombre} {$this->apellido}";
+        return "{$this->nombre}";
     }
 
     public function tipoDocumento()

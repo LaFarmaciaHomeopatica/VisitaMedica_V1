@@ -87,7 +87,7 @@ class ProductosController extends Controller
             ->when($productoFiltro, fn($q) => $q->where('transacciones.producto_codigo', $productoFiltro))
             ->select(
                 'transacciones.medico_documento',
-                DB::raw("MIN(COALESCE(CONCAT(medicos.nombre,' ',medicos.apellido), medicos_temporales.nombre_referencia, transacciones.medico_documento)) as nombre_medico"),
+                DB::raw("MIN(COALESCE(medicos.nombre, medicos_temporales.nombre_referencia, transacciones.medico_documento)) as nombre_medico"),
                 DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado'),
                 DB::raw('SUM(transacciones.valor_formulado)     as valor_formulado'),
                 DB::raw('SUM(transacciones.unidades_compradas)  as unidades_compradas'),

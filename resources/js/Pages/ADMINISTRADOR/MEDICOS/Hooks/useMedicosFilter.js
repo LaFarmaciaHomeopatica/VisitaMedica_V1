@@ -9,7 +9,7 @@ export const useMedicosFilter = (medicos) => {
         const term = searchTerm.toLowerCase();
         return medicos.filter(m => {
             const categoria = m.categoria?.nombre?.toLowerCase() || 'sin categoria';
-            const nombreCompleto = `${m.nombre} ${m.apellido}`.toLowerCase();
+            const nombreCompleto = (m.nombre || '').toLowerCase();
             const documento = m.documento?.toString().toLowerCase() || '';
             const especialidad = (m.especialidad || 'general').toLowerCase();
             const nombreVisitador = m.visitador

@@ -133,13 +133,13 @@ class DvisitadoresController extends Controller
             ->select(
                 'medicos.id',
                 'medicos.documento',
-                DB::raw("CONCAT(medicos.nombre, ' ', medicos.apellido) as nombre"),
+                'medicos.nombre as nombre',
                 'medicos.especialidad',
                 DB::raw('COUNT(visitas.id) as total_visitas'),
                 DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
                 DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
             )
-            ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.apellido', 'medicos.especialidad')
+            ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.especialidad')
             ->orderByDesc('total_visitas')
             ->get();
 
@@ -189,7 +189,7 @@ class DvisitadoresController extends Controller
                 'visitas.fecha_programada',
                 'visitas.fecha_realizada',
                 'visitas.comentarios',
-                DB::raw("CONCAT(medicos.nombre, ' ', medicos.apellido) as nombre_medico"),
+                'medicos.nombre as nombre_medico',
                 'medicos.especialidad'
             )
             ->orderByDesc('visitas.fecha_programada')

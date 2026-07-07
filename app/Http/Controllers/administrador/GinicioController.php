@@ -66,12 +66,12 @@ class GinicioController extends Controller
             ->leftJoin('medicos_temporales as mt', 'transacciones.medico_documento', '=', 'mt.documento')
             ->select(
                 'transacciones.medico_documento as documento',
-                DB::raw("TRIM(COALESCE(CONCAT(m.nombre, ' ', m.apellido), mt.nombre_referencia, transacciones.medico_documento)) as nombre"),
+                DB::raw("TRIM(COALESCE(m.nombre, mt.nombre_referencia, transacciones.medico_documento)) as nombre"),
                 DB::raw('SUM(transacciones.unidades_compradas)  as compradas'),
                 DB::raw('SUM(transacciones.unidades_formuladas) as formuladas'),
                 DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado')
             )
-            ->groupBy('transacciones.medico_documento', 'm.nombre', 'm.apellido', 'mt.nombre_referencia')
+            ->groupBy('transacciones.medico_documento', 'm.nombre', 'mt.nombre_referencia')
             ->orderByDesc('compradas')
             ->take(10)->get()
             ->map(fn($m) => [
@@ -185,7 +185,7 @@ class GinicioController extends Controller
         // --- Lista de médicos para el filtro ---
         $medicosLista = (clone $base)
             ->join('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
-            ->select('m.documento', DB::raw("TRIM(CONCAT(m.nombre, ' ', m.apellido)) as nombre"))
+            ->select('m.documento', DB::raw("TRIM(m.nombre) as nombre"))
             ->distinct()
             ->orderBy('nombre')
             ->get();

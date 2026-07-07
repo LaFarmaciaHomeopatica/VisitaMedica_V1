@@ -49,7 +49,6 @@ class Medico2Controller extends Controller
             'categoria_id'         => 'nullable|exists:categoria,id',
             'documento'            => 'required|string|unique:medicos,documento',
             'nombre'               => 'required|string|max:100',
-            'apellido'             => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
             'especialidad'         => 'nullable|string|max:100',
             'geolocalizacion'      => 'nullable|string|max:300',
@@ -68,7 +67,7 @@ class Medico2Controller extends Controller
             'categoria_id'      => 'Categoría',
             'documento'         => 'Número de Documento',
             'nombre'            => 'Nombre',
-            'apellido'          => 'Apellido',
+            
             'tipo_documento_id' => 'Tipo de Documento',
             'visitador_id'      => 'Visitador Asignado',
             'fecha_inicio_relacion' => 'Fecha de Inicio',
@@ -85,7 +84,6 @@ class Medico2Controller extends Controller
             'categoria_id'         => 'nullable|exists:categoria,id',
             'documento'            => 'required|string|unique:medicos,documento,' . $medico->id,
             'nombre'               => 'required|string|max:100',
-            'apellido'             => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
             'especialidad'         => 'nullable|string|max:100',
             'geolocalizacion'      => 'nullable|string|max:300',
@@ -102,7 +100,7 @@ class Medico2Controller extends Controller
             'categoria_id'      => 'Categoría',
             'documento'         => 'Número de Documento',
             'nombre'            => 'Nombre',
-            'apellido'          => 'Apellido',
+            
             'tipo_documento_id' => 'Tipo de Documento',
         ]);
 
@@ -315,7 +313,6 @@ public function showPorDocumento(Request $request, $documento)
             $medico = (object) [
                 'id'                 => $temporal->id ?? null,
                 'nombre'             => $temporal->nombre_referencia ?? 'Sin registrar',
-                'apellido'           => '',
                 'documento'          => $documento,
                 'especialidad'       => null,
                 'tipo_documento'     => null,
@@ -502,6 +499,84 @@ public function showPorDocumento(Request $request, $documento)
             'puestoReal'           => $puestoReal,
             // Bandera para que la vista pueda mostrar aviso si Odoo no respondió
             'odooConectado'        => $odooResult['encontrado'],
+        ]);
+    }
+
+    public function alertasPorDocumento(Request $request, $documento)
+    {
+        $medicoReal = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
+            ->where('documento', $documento)
+            ->first();
+
+        if ($medicoReal) {
+            $medico = $medicoReal;
+        } else {
+            $temporal = MedicoTemporal::where('documento', $documento)->first();
+
+            $medico = (object) [
+                'id'           => $temporal->id ?? null,
+                'nombre'       => $temporal->nombre_referencia ?? 'Sin registrar',
+                'documento'    => $documento,
+                'categoria_id' => null,
+            ];
+        }
+
+        $hoyReal         = Carbon::now();
+        $inicioMesActual = $hoyReal->copy()->startOfMonth()->format('Y-m-d');
+        $finMesActual    = $hoyReal->copy()->endOfMonth()->format('Y-m-d');
+        $mesActualLabel  = ucfirst($hoyReal->locale('es')->isoFormat('MMMM YYYY'));
+
+        $mesQuery = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
+
+        try {
+            $mesSeleccionado = Carbon::createFromFormat('Y-m', $mesQuery);
+        } catch (\Exception $e) {
+            $mesSeleccionado = Carbon::now()->subMonth();
+            $mesQuery        = $mesSeleccionado->format('Y-m');
+        }
+
+        $inicioMesSeleccionado = $mesSeleccionado->copy()->startOfMonth()->format('Y-m-d');
+        $finMesSeleccionado    = $mesSeleccionado->copy()->endOfMonth()->format('Y-m-d');
+        $mesSeleccionadoLabel  = ucfirst($mesSeleccionado->locale('es')->isoFormat('MMMM YYYY'));
+
+        $odooResult = $this->odoo->getProductosComparativo(
+            $documento,
+            ['desde' => $inicioMesSeleccionado, 'hasta' => $finMesSeleccionado],
+            ['desde' => $inicioMesActual,        'hasta' => $finMesActual]
+        );
+
+        if (!$odooResult['encontrado']) {
+            Log::warning('[Medico2Controller] alertasPorDocumento: ' . ($odooResult['mensaje'] ?? 'Sin datos Odoo'));
+            $productosAlertas = [];
+        } else {
+            $productosAlertas = collect($odooResult['productos'])->map(function ($p) {
+                return [
+                    'codigo'                     => $p['codigo'],
+                    'nombre'                     => $p['nombre'],
+                    'laboratorio'                => $p['laboratorio'] ?? '—',
+                    'formulado_mes_seleccionado' => 0,
+                    'comprado_mes_seleccionado'  => (int) $p['comp_a'],
+                    'formulado_mes_actual'       => 0,
+                    'comprado_mes_actual'        => (int) $p['comp_b'],
+                    'formulado_diferencia'       => 0,
+                    'formulado_tendencia'        => 'igual',
+                    'comprado_diferencia'        => (int) $p['diferencia'],
+                    'comprado_tendencia'         => $p['tendencia'],
+                ];
+            })->all();
+        }
+
+        $puestoReal = ($medico->categoria_id ?? null) == 1 ? 1 : null;
+
+        return Inertia::render('ADMINISTRADOR/MEDICOS/ProductosAlertaAdmin', [
+            'medico'               => $medico,
+            'productosAlertas'     => $productosAlertas,
+            'mesActualLabel'       => $mesActualLabel,
+            'mesSeleccionadoLabel' => $mesSeleccionadoLabel,
+            'mesQuery'             => $mesQuery,
+            'puestoReal'           => $puestoReal,
+            'odooConectado'        => $odooResult['encontrado'],
+            'documentoBase'        => $documento,
         ]);
     }
 

@@ -7,6 +7,8 @@ import {
     FaPhone, FaClock, FaLocationDot, FaCalendarDays
 } from 'react-icons/fa6';
 
+
+
 const fmt = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
 
 function RendimientoBadge({ tendencia, diferencia }) {
@@ -38,11 +40,12 @@ export default function ProductosAlertaAdmin({
     auth, 
     medico = {}, 
     productosAlertas = [], 
-    mesActualLabel = '',       // Recibido del backend (Mes Real de Hoy)
-    mesSeleccionadoLabel = '', // Recibido del backend (Mes elegido en el Input)
-    mesQuery = '',             // Formato YYYY-MM para mantener el estado del input
-    puestoReal = null 
-}) {
+    mesActualLabel = '',
+    mesSeleccionadoLabel = '',
+    mesQuery = '',
+    puestoReal = null,
+    documentoBase, // <-- NUEVO
+})  {
     const [search, setSearch] = useState('');
 
     const productosFiltrados = productosAlertas.filter(prod => 
@@ -51,16 +54,16 @@ export default function ProductosAlertaAdmin({
         (prod.codigo || '').includes(search)
     );
 
-    const handleMesChange = (e) => {
-        const nuevoMes = e.target.value; // Formato "YYYY-MM"
-        if (!nuevoMes) return;
+  const handleMesChange = (e) => {
+    const nuevoMes = e.target.value;
+    if (!nuevoMes) return;
 
-        router.get(
-            route('Gmedicos.alertas', medico.id),
-            { mes: nuevoMes },
-            { preserveState: true, replace: true }
-        );
-    };
+    router.get(
+        route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento),
+        { mes: nuevoMes },
+        { preserveState: true, replace: true }
+    );
+};
 
     const geoCoords = (() => {
         if (!medico?.geolocalizacion) return null;
@@ -77,10 +80,10 @@ export default function ProductosAlertaAdmin({
 
                 {/* ── HEADER ADMINISTRATIVO ──────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">
-                    <Link href={route('Gmedicos.show', medico?.id || 1)}
-                          className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition mb-3">
-                        <FaArrowLeft className="text-[8px]" /> Volver al Perfil del Médico
-                    </Link>
+                    <Link href={route('Gmedicos.showPorDocumento', documentoBase ?? medico?.documento)}
+      className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition mb-3">
+    <FaArrowLeft className="text-[8px]" /> Volver al Perfil del Médico
+</Link>
                     
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div>
