@@ -186,67 +186,69 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
             {/* ── Contenido ── */}
             <div className="bg-[#E5F4FF] min-h-screen pb-28 font-sans text-gray-800 pt-36 md:pt-32">
 
-                <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-3">
+                <main className="max-w-5xl mx-auto px-4 md:px-6">
 
                     <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest mb-4">
                         Directorio de Médicos ({meta.total ?? 0})
                     </h3>
 
                     {medicos.length > 0 ? (
-                        medicos.map((medico) => {
-                            const nombreCompleto = `${medico.nombre || ''} ${medico.apellido || ''}`.trim();
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {medicos.map((medico) => {
+                                const nombreCompleto = `${medico.nombre || ''} ${medico.apellido || ''}`.trim();
 
-                            return (
-                                <div
-                                    key={medico.id}
-                                    className="bg-white/80 backdrop-blur-md rounded-[24px] flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md transition-shadow duration-300 overflow-hidden"
-                                >
-                                    {/* Acento lateral con gradiente — igual al hero del panel */}
-                                    <div className="w-1.5 shrink-0 bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-l-[24px]" />
-
-                                    {/* Ícono especialidad */}
-                                    <div className="flex items-center justify-center px-3.5 shrink-0">
-                                        
-                                    </div>
-
-                                    {/* Info principal — clickeable a detalle */}
-                                    <Link
-                                        href={`/visitador/top-medicos/${medico.documento}?origen=listado`}
-                                        className="flex-1 min-w-0 py-4 pr-2 active:scale-[0.98] transition-transform"
+                                return (
+                                    <div
+                                        key={medico.id}
+                                        className="bg-white/80 backdrop-blur-md rounded-[24px] flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md transition-shadow duration-300 overflow-hidden"
                                     >
-                                         <h4 className="font-bold text-gray-800 text-sm leading-tight truncate">
-                                            {nombreCompleto || 'Médico sin nombre'}
-                                        </h4>
-                                        <p className="text-xs text-[#1C85E8] font-bold uppercase tracking-tight mt-0.5">
-                                            {medico.especialidad || 'General'}
-                                        </p>
-                                        <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-1 truncate">
-                                            <FaLocationDot className="text-slate-300 shrink-0" />
-                                            {medico.direccion_detalles || medico.direccion || 'Dirección no registrada'}
-                                        </p>
-                                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                            <span className="bg-gradient-to-r from-[#1C85E8]/10 to-[#02CFE3]/10 text-[#1C85E8] text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight border border-[#1C85E8]/10">
-                                                {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
-                                            </span>
-                                            <span className="text-[11px] font-bold text-gray-400">
-                                                {medico.telefono_contacto || medico.telefono_contactos || '---'}
-                                            </span>
-                                        </div>
-                                    </Link>
+                                        {/* Acento lateral con gradiente — igual al hero del panel */}
+                                        <div className="w-1.5 shrink-0 bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-l-[24px]" />
 
-                                    {/* Acciones */}
-                                    <div className="flex items-center gap-2 shrink-0 pr-4">
+                                        {/* Ícono especialidad */}
+                                        <div className="flex items-center justify-center px-3.5 shrink-0">
+                                            
+                                        </div>
+
+                                        {/* Info principal — clickeable a detalle */}
                                         <Link
-                                            href={`/MisVisitas?medico_id=${medico.id}`}
-                                            className="bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] hover:from-[#156DBF] hover:to-[#02B2C4] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm shadow-blue-100 hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                                            href={`/visitador/top-medicos/${medico.documento}?origen=listado`}
+                                            className="flex-1 min-w-0 py-4 pr-2 active:scale-[0.98] transition-transform"
                                         >
-                                            <FaCalendarDays className="text-[10px]" />
-                                            <span className="hidden sm:inline">Agendar</span>
+                                             <h4 className="font-bold text-gray-800 text-sm leading-tight truncate">
+                                                {nombreCompleto || 'Médico sin nombre'}
+                                            </h4>
+                                            <p className="text-xs text-[#1C85E8] font-bold uppercase tracking-tight mt-0.5">
+                                                {medico.especialidad || 'General'}
+                                            </p>
+                                            <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-1 truncate">
+                                                <FaLocationDot className="text-slate-300 shrink-0" />
+                                                {medico.direccion_detalles || medico.direccion || 'Dirección no registrada'}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                <span className="bg-gradient-to-r from-[#1C85E8]/10 to-[#02CFE3]/10 text-[#1C85E8] text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight border border-[#1C85E8]/10">
+                                                    {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
+                                                </span>
+                                                <span className="text-[11px] font-bold text-gray-400">
+                                                    {medico.telefono_contacto || medico.telefono_contactos || '---'}
+                                                </span>
+                                            </div>
                                         </Link>
+
+                                        {/* Acciones */}
+                                        <div className="flex items-center gap-2 shrink-0 pr-4">
+                                            <Link
+                                                href={`/MisVisitas?medico_id=${medico.id}`}
+                                                className="bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] hover:from-[#156DBF] hover:to-[#02B2C4] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm shadow-blue-100 hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                                            >
+                                                <FaCalendarDays className="text-[10px]" />
+                                                <span className="hidden sm:inline">Agendar</span>
+                                            </Link>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
                             <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
@@ -261,4 +263,4 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
     );
 };
 
-export default ListadoMedicos; 
+export default ListadoMedicos;

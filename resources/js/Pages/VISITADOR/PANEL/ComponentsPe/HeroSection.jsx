@@ -22,19 +22,17 @@ const HeroSection = ({
 
     return (
         <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-3 rounded-b-[40px] w-full md:max-w-none shadow-lg relative text-white border-none">
-            <div className="flex items-center gap-4 mb-6">
-                <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/80 leading-none mb-1">
-                        LFH Portal
-                    </p>
-                    <h1 className="text-2xl font-bold text-white leading-tight">
-                        Bienvenido, <br />
-                        <span className="text-white font-extrabold capitalize drop-shadow-sm">
-                            {auth?.user?.nombre} {auth?.user?.apellido}
-                        </span>
-                    </h1>
-                </div>
-            </div>
+         <div className="flex items-center gap-4 mb-6">
+    <div>
+        <h1 className="text-2xl font-bold text-white leading-tight">
+            Bienvenido,{' '}
+            <br className="md:hidden" />
+            <span className="text-white font-extrabold capitalize drop-shadow-sm">
+                {auth?.user?.nombre} {auth?.user?.apellido}
+            </span>
+        </h1>
+    </div>
+</div>
 
             <MetricasCard
                 porcentaje={porcentaje}

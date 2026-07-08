@@ -65,10 +65,13 @@ const DashboardLFH = ({
             <Head title="Dashboard - LFH" />
 
             {/* ── Header con buscador ── */}
-            <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20 rounded-b-[20px] md:rounded-b-[40px] border-b border-white/20">
+            <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20 border-b border-white/20">
                 <div className="max-w-[1440px] mx-auto py-2.5 px-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">
                         <div className="hidden md:flex flex-col min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1C85E8]/70 leading-none mb-0.5">
+                                LFH Portal
+                            </p>
                             <h1 className="text-xs md:text-sm font-black text-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
                                 Panel de Control
                             </h1>

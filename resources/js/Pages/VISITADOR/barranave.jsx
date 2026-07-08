@@ -133,8 +133,7 @@ const BottomNavigation = () => {
 
             {/* --- DESKTOP: BARRA HORIZONTAL --- */}
             <div className="hidden sm:flex fixed bottom-6 left-0 right-0 justify-center z-50 px-4 pointer-events-none">
-                <nav className="bg-[#5D8BF4]/90 backdrop-blur-lg border border-white/20 p-2 px-6 flex justify-around items-center gap-4 rounded-[35px] shadow-[0_15px_35px_rgba(0,0,0,0.2)] max-w-fit transition-all duration-300 pointer-events-auto">
-                    {navIcons.map((nav, index) => {
+<nav className="bg-[#1C85E8]/90 backdrop-blur-lg border border-white/20 p-2 px-6 flex justify-around items-center gap-4 rounded-[35px] shadow-[0_15px_35px_rgba(0,0,0,0.2)] max-w-fit transition-all duration-300 pointer-events-auto">                    {navIcons.map((nav, index) => {
                         const isActive = url === nav.route || url.startsWith(`${nav.route}/`);
                         return (
                             <Link

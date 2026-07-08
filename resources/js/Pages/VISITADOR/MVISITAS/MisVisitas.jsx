@@ -24,12 +24,15 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
 
                         <Link
                             href="/panel"
-                            className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-blue-500 hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
+                            className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-[#1C85E8] hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
                         >
                             <FaArrowLeft className="text-xs" />
                         </Link>
 
                         <div className="hidden md:flex flex-col min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1C85E8]/70 leading-none mb-0.5">
+                                LFH Portal
+                            </p>
                             <h1 className="text-xs md:text-sm font-black text-[#1C85E8] uppercase tracking-wider whitespace-nowrap">
                                 Mi Agenda
                             </h1>
@@ -61,6 +64,18 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
 
                     </div>
                 </div>
+
+                {/* Fila 2: franja "Mis Visitas" — con gradiente del sistema, pegada a la fila superior */}
+                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px]">
+                    <div className="max-w-[1440px] mx-auto px-5 py-2.5 flex items-center gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/80">LFH · Agenda</p>
+                        <span className="text-white/40">|</span>
+                        <h2 className="text-sm font-bold text-white leading-tight flex items-center gap-2">
+                            <FaCalendarCheck className="opacity-80 text-xs" />
+                            Mis Visitas
+                        </h2>
+                    </div>
+                </div>
             </header>
 
             {/* FAB */}
@@ -77,23 +92,9 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
             <ModalNuevaVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
 
             
-            <div className={`bg-[#E5F4FF] min-h-screen pb-32 font-sans text-gray-800 ${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : ''} transition-all duration-500`}>
+            <div className={`bg-[#E5F4FF] min-h-screen pb-32 font-sans text-gray-800 pt-32 md:pt-36 ${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : ''} transition-all duration-500`}>
 
-                {/* Hero */}
-                <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] pt-20 pb-1 px-8 rounded-b-[40px] max-w-5xl mx-auto shadow-lg text-white">
-                    <div className="flex items-center gap-4 mb-5">
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white/80 leading-none mb-1">LFH · Agenda</p>
-                            <h2 className="text-2xl font-bold text-white leading-tight flex items-center gap-3">
-                                <FaCalendarCheck className="opacity-80" />
-                                Mis Visitas
-                            </h2>
-                        </div>
-                    </div>
-                   
-                </section>
-
-                <main className="px-4 md:px-6 mt-6 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <main className="px-4 md:px-6 mt-4 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <VisitasList logic={logic} />
                     <CalendarSection logic={logic} />
                 </main>
