@@ -213,8 +213,10 @@ class Medico2Controller extends Controller
         };
 
         // ── Datos Odoo ────────────────────────────────────────────────────────
-        // getKpisPorDocumento retorna null si el médico no existe en Odoo o falla la conexión.
-        // En ese caso la vista mostrará los KPIs en cero (misma UX que antes).
+        // getKpisPorDocumento retorna un array PLANO (no anidado bajo 'tx_stats')
+        // con las claves: total_valor_comprado, total_unidades, tendencia,
+        // top_productos, todos_productos, etc. Retorna null si el médico no
+        // existe en Odoo o falla la conexión.
         $odooData = $this->odoo->getKpisPorDocumento($doc, $fechaDesde);
 
         $txStats = $odooData
@@ -230,13 +232,48 @@ class Medico2Controller extends Controller
             ]
             : $this->txStatsVacios();
 
-        $tendencia      = $odooData['tendencia']       ?? [];
-        $topProductos   = $odooData['top_productos']   ?? [];
-        $todosProductos = $odooData['todos_productos'] ?? [];
+        $tendencia         = $odooData['tendencia']       ?? [];
+        $topProductos      = $odooData['top_productos']   ?? [];
+        $todosProductosRaw = collect($odooData['todos_productos'] ?? [])->values()->all();
 
-        // porLaboratorio no viene de Odoo (no hay campo laboratorio en sale.order.line).
-        // Se envía vacío; puedes ocultarlo en la vista con una condición.
-        $porLaboratorio = [];
+        // 1. Extraer laboratorios de la DB Local
+        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
+        $laboratoriosLocales = DB::table('productos')
+            ->whereIn('codigo', $codigosProductos)
+            ->pluck('laboratorio', 'codigo')
+            ->toArray();
+
+        // 2. Construir el listado de productos inyectando el laboratorio
+        $todosProductos = collect($todosProductosRaw)->map(function($prod) use ($laboratoriosLocales) {
+            $nuevoProd = [
+                'codigo'         => $prod['codigo'] ?? null,
+                'nombre'         => $prod['nombre'] ?? 'Sin nombre',
+                'valor_comprado' => (float) ($prod['valor_comprado'] ?? 0),
+                'valor_formulado'=> (float) ($prod['valor_formulado'] ?? 0),
+                'unidades'       => (int) ($prod['unidades'] ?? 0),
+            ];
+            $nuevoProd['laboratorio'] = $laboratoriosLocales[$nuevoProd['codigo']] ?? '—';
+            return (object) $nuevoProd;
+        })->values()->all();
+
+        // 3. Agrupar por laboratorio para la tarjeta lateral (filtrando vacíos)
+        $porLaboratorio = collect($todosProductos)
+            ->filter(function($item) {
+                return !empty($item->laboratorio) && $item->laboratorio !== '—';
+            })
+            ->groupBy('laboratorio')
+            ->map(function($items, $lab) {
+                return [
+                    'laboratorio'     => $lab,
+                    'valor_comprado'  => (float) $items->sum('valor_comprado'),
+                    'valor_formulado' => (float) $items->sum('valor_formulado'),
+                    'unidades'        => (int) $items->sum('unidades'),
+                    'total_productos' => (int) $items->unique('codigo')->count(),
+                ];
+            })
+            ->sortByDesc('valor_comprado')
+            ->values()
+            ->all();
 
         // ── Visitas (siguen desde DB local) ───────────────────────────────────
         $visitaBase = fn() => DB::table('visitas')
@@ -296,7 +333,7 @@ class Medico2Controller extends Controller
         ]);
     }
 
-public function showPorDocumento(Request $request, $documento)
+    public function showPorDocumento(Request $request, $documento)
     {
         $medicoReal = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
             ->where('documento', $documento)
@@ -350,9 +387,41 @@ public function showPorDocumento(Request $request, $documento)
             ]
             : $this->txStatsVacios();
 
-        $tendencia      = $odooData['tendencia']       ?? [];
-        $topProductos   = $odooData['top_productos']   ?? [];
-        $todosProductos = $odooData['todos_productos'] ?? [];
+        $tendencia         = $odooData['tendencia']       ?? [];
+        $topProductos      = $odooData['top_productos']   ?? [];
+        $todosProductosRaw = $odooData['todos_productos'] ?? [];
+
+        // 1. Mapeamos y extraemos los laboratorios locales para cada código de producto
+        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
+        $laboratoriosLocales = DB::table('productos')
+            ->whereIn('codigo', $codigosProductos)
+            ->pluck('laboratorio', 'codigo')
+            ->toArray();
+
+        $todosProductos = collect($todosProductosRaw)->map(function($prod) use ($laboratoriosLocales) {
+            $prod = (object) $prod;
+            $prod->laboratorio = $laboratoriosLocales[$prod->codigo] ?? '—';
+            return $prod;
+        })->all();
+
+        // 2. Agrupamos por el laboratorio local y filtramos los vacíos o guiones
+        $porLaboratorio = collect($todosProductos)
+            ->filter(function($item) {
+                return !empty($item->laboratorio) && $item->laboratorio !== '—';
+            })
+            ->groupBy('laboratorio')
+            ->map(function($items, $lab) {
+                return [
+                    'laboratorio'     => $lab,
+                    'valor_comprado'  => (float) $items->sum('valor_comprado'),
+                    'valor_formulado' => (float) $items->sum('valor_formulado'),
+                    'unidades'        => (int) $items->sum('unidades'),
+                    'total_productos' => (int) $items->unique('codigo')->count(),
+                ];
+            })
+            ->sortByDesc('valor_comprado') // Los laboratorios que más venden primero
+            ->values()
+            ->all();
 
         if ($medicoIdLocal) {
             $visitaBase = fn() => DB::table('visitas')
@@ -408,7 +477,7 @@ public function showPorDocumento(Request $request, $documento)
             'txStats'              => $txStats,
             'tendencia'            => $tendencia,
             'topProductos'         => $topProductos,
-            'porLaboratorio'       => [],
+            'porLaboratorio'       => $porLaboratorio,
             'todosProductos'       => $todosProductos,
             'visitasStats'         => $visitasStats,
             'visitas'              => $visitas,

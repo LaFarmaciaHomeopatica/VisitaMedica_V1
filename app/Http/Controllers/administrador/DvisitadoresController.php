@@ -118,30 +118,42 @@ class DvisitadoresController extends Controller
         // --- Todos los médicos históricos del visitador (sin filtro de mes) ---
         // Se usa para transacciones y tendencia, ya que un médico puede comprar
         // en meses donde el visitador no le hizo visita ese mes específico.
-        $todosMedicosDoc = DB::table('visitas')
-            ->where('visitas.visitador_id', $id)
-            ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
-            ->pluck('medicos.documento')
-            ->unique()
-            ->values();
+       // --- Todos los médicos históricos del visitador (sin filtro de mes) ---
+// --- Todos los médicos históricos del visitador (sin filtro de mes) ---
+// 1. Primero definimos la variable
+$todosMedicosDoc = DB::table('visitas')
+    ->where('visitas.visitador_id', $id)
+    ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
+    ->pluck('medicos.documento')
+    ->unique()
+    ->values();
+
+// 2. Después la contamos (Justo debajo)
+// Cambia la forma de calcular el total de médicos asignados:
+$totalMedicosAsignados = DB::table('medicos')
+    ->where('visitador_id', $id)
+    ->count();
 
         // --- Médicos visitados en el mes seleccionado (para KPI y tabla) ---
-        $medicos = DB::table('visitas')
-            ->where('visitas.visitador_id', $id)
-            ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin])
-            ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
-            ->select(
-                'medicos.id',
-                'medicos.documento',
-                'medicos.nombre as nombre',
-                'medicos.especialidad',
-                DB::raw('COUNT(visitas.id) as total_visitas'),
-                DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
-                DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
-            )
-            ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.especialidad')
-            ->orderByDesc('total_visitas')
-            ->get();
+       // --- Todos los médicos asignados al visitador (Muestra todos siempre, calculando visitas del mes seleccionado) ---
+$medicos = DB::table('medicos')
+    ->where('medicos.visitador_id', $id) // Filtra de raíz por los médicos que pertenecen a este visitador
+    ->leftJoin('visitas', function($join) use ($mesInicio, $mesFin) {
+        $join->on('medicos.id', '=', 'visitas.medico_id')
+             ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin]); // El filtro del mes se evalúa aquí adentro
+    })
+    ->select(
+        'medicos.id',
+        'medicos.documento',
+        'medicos.nombre as nombre',
+        'medicos.especialidad',
+        DB::raw('COUNT(visitas.id) as total_visitas'), // Dará 0 si no hay visitas este mes
+        DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"), // Dará 0 si no hay efectivas este mes
+        DB::raw('MAX(visitas.fecha_programada) as ultima_visita') // Traerá la última fecha del mes (o null)
+    )
+    ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.especialidad')
+    ->orderByDesc('total_visitas') // Los que tengan más visitas en el mes saldrán primero
+    ->get();
 
         // --- Transacciones del mes seleccionado usando TODOS los médicos históricos ---
         $txStats = DB::table('transacciones')
@@ -223,6 +235,7 @@ class DvisitadoresController extends Controller
             'visitador'    => $visitador,
             'visitasStats' => $visitasStats,
             'medicos'      => $medicos,
+            'totalMedicosAsignados' => $totalMedicosAsignados,
             'txStats'      => $txStats,
             'topProductos' => $topProductos,
             'tendencia'    => $tendencia,

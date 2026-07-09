@@ -77,7 +77,7 @@ const PERIODOS = [
     { key: '3m',  label: '3 meses' },
     { key: 'mes', label: 'Mes Actual' },
 
-];
+]; // Se puede agregar más períodos según sea necesario
 
 export default function MedicoDetalle({
     auth, medico, periodoActivo = 'all', esTemporal = false, documentoBase,
