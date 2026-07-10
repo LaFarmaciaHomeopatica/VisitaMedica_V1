@@ -90,7 +90,7 @@ class AlertaController extends Controller
     ]);
 }
 
-    public function detalle(Request $request, string $documento)
+ public function detalle(Request $request, string $documento)
 {
     $visitador = Visitador::where('usuario_id', Auth::id())->first();
     if (!$visitador) {
@@ -132,10 +132,21 @@ class AlertaController extends Controller
 
             $productosAlertas = [];
             if ($odooResult['encontrado']) {
+                
+                // 🌟 1. Extraemos los códigos únicos retornados por Odoo
+                $codigosProductos = collect($odooResult['productos'])->pluck('codigo')->filter()->unique()->toArray();
+
+                // 🌟 2. Consultamos los laboratorios en la tabla local de MySQL
+                $laboratoriosLocales = DB::table('productos')
+                    ->whereIn('codigo', $codigosProductos)
+                    ->pluck('laboratorio', 'codigo')
+                    ->toArray();
+
+                // 🌟 3. Estructuramos e inyectamos el laboratorio real cruzado por código
                 $productosAlertas = collect($odooResult['productos'])->map(fn($p) => [
                     'codigo'                 => $p['codigo'],
                     'nombre'                 => $p['nombre'],
-                    'laboratorio'            => $p['laboratorio'] ?? '—',
+                    'laboratorio'            => $laboratoriosLocales[$p['codigo']] ?? '—', // 👈 ¡Cruce local exitoso!
                     'comprado_mes_anterior'  => (int) $p['comp_a'],
                     'comprado_mes_actual'    => (int) $p['comp_b'],
                     'comprado_diferencia'    => (int) $p['diferencia'],

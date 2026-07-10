@@ -12,13 +12,16 @@ import {
     FaPhoneFlip,
     FaLocationDot,
     FaCalendarDays,
-    FaSpinner // Añadimos el icono de carga
+    FaSpinner 
 } from 'react-icons/fa6';
 
 const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '', puestoReal = null }) => {
     // ── Estados Locales ──
     const [search, setSearch] = useState('');
     const [mostrarDetalles, setMostrarDetalles] = useState(false); 
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPageInput, setItemsPerPageInput] = useState('10');
 
     // Estado para controlar la altura exacta del header flotante
     const [headerHeight, setHeaderHeight] = useState(180);
@@ -48,13 +51,38 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
 
     const handleMesChange = (e) => {
         const nuevoMes = e.target.value;
-        // Al redirigir, la vista se mostrará instantáneamente y pondrá productosAlertas en null mientras recarga
         router.get(
             '/visitador/alertas/' + medico.documento, 
             { mes: nuevoMes }, 
             { preserveState: true, replace: true }
         );
     };
+
+
+    const handleItemsPerPageChange = (e) => {
+    const val = e.target.value; // Capturamos lo que escribe el usuario como string
+    
+    // 1. Permitir que el usuario lo deje vacío para que escriba libremente
+    setItemsPerPageInput(val);
+
+    // 2. Si está vacío o es un 0, mantenemos 10 registros por detrás temporalmente para evitar divisiones por cero
+    if (val === '' || parseInt(val, 10) <= 0) {
+        setItemsPerPage(10);
+        return;
+    }
+
+    // 3. Si es un número válido, actualizamos el paginador real y volvemos a la página 1
+    setItemsPerPage(Number(val));
+    setCurrentPage(1);
+};
+
+// Asegurar que si el input queda vacío al perder el foco (onBlur), se rellene con el valor real mínimo
+const handleItemsPerPageBlur = () => {
+    if (itemsPerPageInput === '' || parseInt(itemsPerPageInput, 10) <= 0) {
+        setItemsPerPageInput('10');
+        setItemsPerPage(10);
+    }
+};
 
     const formatMesLabel = (mesString) => {
         if (!mesString) return '';
@@ -88,7 +116,26 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
           )
         : [];
 
-    const handleSearch = (e) => setSearch(e.target.value);
+    // 🌟 CÁLCULOS MATEMÁTICOS PARA LA PAGINACIÓN LOCAL
+    const totalItems = productosFiltrados.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+    // Ajuste por si el filtro reduce las páginas drásticamente
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [productosFiltrados, totalPages, currentPage]);
+
+    // Segmentación de los productos correspondientes a la página actual
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const productosPaginados = productosFiltrados.slice(indexOfFirstItem, indexOfLastItem);
+
+    const handleSearch = (e) => {
+        setSearch(e.target.value);
+        setCurrentPage(1); // Resetea a la primera página al buscar
+    };
 
     const RendimientoIndicador = ({ tendencia, diferencia }) => {
         const isUp = tendencia === 'subio';
@@ -116,13 +163,11 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
 
     const telefonoMedico = medico?.telefono || medico?.telefono_contacto || '';
     const direccionMedico = medico?.direccion || medico?.direccion_detalles || '';
-    const horarioMedico = medico?.horario || medico?.horario_atencion || '';
 
     const googleMapsUrl = medico?.geolocalizacion
         ? `https://maps.google.com/?q=${encodeURIComponent(medico.geolocalizacion)}`
         : `https://maps.google.com/?q=${encodeURIComponent(direccionMedico || medico?.nombre || '')}`;
 
-    // Componente Skeleton para simular carga de las tarjetas de producto
     const SkeletonProductCard = () => (
         <div className="bg-white/50 backdrop-blur-md rounded-xl p-4 border border-white/40 animate-pulse flex justify-between h-20 items-center">
             <div className="space-y-2 flex-1">
@@ -137,12 +182,13 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
         <>
             <Head title={`Productos Alerta - ${medico?.nombre || 'Médico'} - LFH`} />
 
-            {/* Header Flotante */}
+            {/* Header Flotante Unificado */}
             <header 
                 ref={headerRef}
-                className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20"
+                className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20 overflow-hidden"
             >
-                <div className="max-w-[1440px] mx-auto p-4 md:p-6 space-y-4">
+                {/* Contenedor Superior: Buscador y Filtros */}
+                <div className="max-w-[1440px] mx-auto p-4 md:p-6 pb-2 md:pb-3 space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
                         
                         <div className="flex items-center gap-3 shrink-0">
@@ -209,6 +255,68 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
 
                     </div>
                 </div>
+
+                {/* 🌟 BARRA DE PAGINACIÓN PEGAJOSA Y ADHERIDA AL HEADER (FUSIONADA AL BLANCO) */}
+                {datosListos && productosFiltrados.length > 0 && (
+                    <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] px-6 py-2 flex items-center justify-between text-white text-[10px] md:text-[11px] font-black uppercase tracking-wider select-none border-t border-white/10">
+                        
+                        {/* Izquierda */}
+                        <div className="flex items-center gap-1">
+                            <span>{totalItems}</span>
+                            <span className="opacity-90 font-bold">productos</span>
+                        </div>
+
+                        {/* Centro */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                className="w-5 h-5 rounded-full flex items-center justify-center bg-white/20 hover:bg-white/30 active:scale-90 transition-all disabled:opacity-40"
+                            >
+                                <FaArrowLeft className="text-[7px]" />
+                            </button>
+
+                            <div className="flex items-center gap-1 font-bold">
+                                <span className="opacity-80 text-[9px]">PÁG.</span>
+                                <div className="bg-white/20 px-2.5 py-0.5 rounded font-black min-w-[28px] text-center text-white">
+                                    {currentPage}
+                                </div>
+                                <span className="opacity-80 text-[9px]">/ {totalPages}</span>
+                            </div>
+
+                            <button
+                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                className="w-5 h-5 rounded-full flex items-center justify-center bg-white/20 hover:bg-white/30 active:scale-90 transition-all disabled:opacity-40"
+                            >
+                                <FaArrowLeft className="text-[7px] rotate-180" />
+                            </button>
+                        </div>
+
+                        {/* Derecha */}
+                        <div className="flex items-center gap-1.5 font-bold">
+                            <span className="opacity-80 text-[9px]">VER</span>
+                           {/* Derecha */}
+<div className="flex items-center gap-1.5 font-bold">
+    <span className="opacity-80 text-[9px]">VER</span>
+    
+    {/* 🌟 NUEVO INPUT NUMÉRICO DINÁMICO */}
+    <input
+        type="number"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={itemsPerPageInput}
+        onChange={handleItemsPerPageChange}
+        onBlur={handleItemsPerPageBlur}
+        className="bg-white/20 text-white font-black text-[11px] rounded w-12 py-0.5 border-none focus:ring-0 outline-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+    
+    <span className="opacity-80 text-[9px]">/ pág.</span>
+</div>
+                            <span className="opacity-80 text-[9px]">/ pág.</span>
+                        </div>
+                    </div>
+                )}
             </header>
 
             {/* Contenido Principal */}
@@ -222,7 +330,7 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
                     <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-6 rounded-[30px] shadow-lg text-white relative">
                         <div className="flex items-start gap-4">
                             
-                            {/* Avatar del Puesto Ranking (Muestra esqueleto animado si está calculando) */}
+                            {/* Avatar del Puesto Ranking */}
                             {puestoReal === null ? (
                                 <div className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 bg-white/10 backdrop-blur-md animate-pulse">
                                     <FaSpinner className="text-white text-xs animate-spin" />
@@ -307,7 +415,6 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
 
                     {/* ── SECCIONES SEGÚN ESTADO DE CARGA ── */}
                     {!datosListos ? (
-                        // 1. Estado cargando datos de Odoo
                         <div className="space-y-4">
                             <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2 mt-4 text-left">
                                 <FaSpinner className="text-sm text-[#02CFE3] animate-spin" /> 
@@ -321,52 +428,48 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
                             </div>
                         </div>
                     ) : productosFiltrados.length > 0 ? (
-                        // 2. Datos cargados con éxito
                         <div className="space-y-4">
-                            <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2 mt-4 text-left">
-                                <FaFileMedical className="text-sm text-[#02CFE3]" /> 
-                                Mostrando {productosFiltrados.length} productos ordenados por alertas críticas
-                            </h3>
-
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {productosFiltrados.map((prod) => (
+                                {/* 🌟 RECORRIDO DE PRODUCTOS USANDO LA VARIABLE CORRECTA DE LA PAGINACIÓN */}
+                                {productosPaginados.map((prod) => (
                                     <div
                                         key={prod.codigo}
-                                        className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/40 hover:shadow-md transition-all duration-200 overflow-hidden flex text-left w-full items-stretch"
+                                        className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 hover:shadow-md transition-all duration-200 overflow-hidden flex text-left w-full relative"
                                     >
-                                        <div className="flex flex-col md:flex-row items-stretch w-full relative">
-                                            <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
-                                            
-                                            <div className="flex-1 p-4 pl-5 flex flex-col justify-center bg-white/30 border-r border-gray-150">
-                                                <h4 className="font-bold text-gray-800 text-xs md:text-sm leading-tight mb-1 truncate">
+                                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
+                                        
+                                        <div className="flex flex-col w-full">
+                                            <div className="p-4 pl-5 bg-white/40 border-b border-gray-150/60">
+                                                <h4 className="font-black text-gray-800 text-xs md:text-sm uppercase tracking-tight leading-snug">
                                                     {prod.nombre}
                                                 </h4>
-                                                <div className="flex flex-wrap gap-2 items-center text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                                                    <span>Cod: {prod.codigo}</span>
+                                                <div className="flex flex-wrap gap-2 items-center text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1.5">
+                                                    <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-md">
+                                                        COD: {prod.codigo}
+                                                    </span>
                                                     <span>•</span>
-                                                    <span className="text-[#1C85E8] bg-blue-50/60 px-1.5 py-0.5 rounded-md truncate max-w-[120px]">
+                                                    <span className="text-[#1C85E8] bg-blue-50/70 px-2 py-0.5 rounded-md font-black">
                                                         {prod.laboratorio}
                                                     </span>
                                                 </div>
                                             </div>
 
-                                            <div className="w-full md:w-[60%] shrink-0 grid grid-cols-2 text-center bg-gray-50/20">
-                                                {/* Formulado */}
-                                                <div className="border-r border-gray-150 flex flex-col">
-                                                    <div className="py-1 px-2 text-[8px] font-black text-[#1C85E8] bg-blue-50/30 uppercase tracking-wider border-b border-gray-150">
+                                            <div className="grid grid-cols-2 text-center bg-gray-50/30">
+                                                <div className="border-r border-gray-150/60 flex flex-col justify-between">
+                                                    <div className="py-1.5 px-2 text-[9px] font-black text-[#1C85E8] bg-blue-50/40 uppercase tracking-widest border-b border-gray-150/60">
                                                         Formulado
                                                     </div>
-                                                    <div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
-                                                        <div className="py-2.5">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
-                                                            <strong className="text-gray-700">{prod.formulado_mes_anterior}</strong>
+                                                    <div className="grid grid-cols-3 divide-x divide-gray-150/40 text-[10px] items-center py-2">
+                                                        <div>
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Ant</span>
+                                                            <strong className="text-gray-700 font-bold">{prod.formulado_mes_anterior}</strong>
                                                         </div>
-                                                        <div className="py-2.5">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
-                                                            <strong className="text-gray-700">{prod.formulado_mes_actual}</strong>
+                                                        <div>
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Act</span>
+                                                            <strong className="text-gray-700 font-bold">{prod.formulado_mes_actual}</strong>
                                                         </div>
-                                                        <div className="py-2.5 flex flex-col items-center justify-center">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
+                                                        <div className="flex flex-col items-center justify-center px-0.5">
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
                                                             <RendimientoIndicador 
                                                                 tendencia={prod.formulado_tendencia} 
                                                                 diferencia={prod.formulado_diferencia} 
@@ -375,22 +478,21 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
                                                     </div>
                                                 </div>
 
-                                                {/* Comprado */}
-                                                <div className="flex flex-col">
-                                                    <div className="py-1 px-2 text-[8px] font-black text-green-600 bg-green-50/30 uppercase tracking-wider border-b border-gray-150">
+                                                <div className="flex flex-col justify-between">
+                                                    <div className="py-1.5 px-2 text-[9px] font-black text-green-600 bg-green-50/40 uppercase tracking-widest border-b border-gray-150/60">
                                                         Comprado
                                                     </div>
-                                                    <div className="grid grid-cols-3 flex-grow divide-x divide-gray-150/40 text-[9px] md:text-[10px] items-center">
-                                                        <div className="py-2.5">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Ant</span>
-                                                            <strong className="text-gray-700">{prod.comprado_mes_anterior}</strong>
+                                                    <div className="grid grid-cols-3 divide-x divide-gray-150/40 text-[10px] items-center py-2">
+                                                        <div>
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Ant</span>
+                                                            <strong className="text-gray-700 font-bold">{prod.comprado_mes_anterior}</strong>
                                                         </div>
-                                                        <div className="py-2.5">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">Act</span>
-                                                            <strong className="text-gray-700">{prod.comprado_mes_actual}</strong>
+                                                        <div>
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Act</span>
+                                                            <strong className="text-gray-700 font-bold">{prod.comprado_mes_actual}</strong>
                                                         </div>
-                                                        <div className="py-2.5 flex flex-col items-center justify-center">
-                                                            <span className="block text-[6.5px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
+                                                        <div className="flex flex-col items-center justify-center px-0.5">
+                                                            <span className="block text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Dif</span>
                                                             <RendimientoIndicador 
                                                                 tendencia={prod.comprado_tendencia} 
                                                                 diferencia={prod.comprado_diferencia} 
@@ -405,7 +507,6 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
                             </div>
                         </div>
                     ) : (
-                        // 3. Estado vacío
                         <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
                             <FaFileMedical className="text-4xl text-gray-200 mb-3 mx-auto block" />
                             No se encontraron productos con transacciones para este médico en este filtro.

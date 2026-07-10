@@ -211,28 +211,50 @@ class TopMedicosController extends Controller
             'documento' => $doc,
             'suma'      => (float) ($k['total_comprado'] ?? 0),
         ])->sortByDesc('suma')->values();
-
-        $puestoReal = $rankingGlobal->search(fn($r) => (string) $r['documento'] === (string) $medico->documento);
+$puestoReal = $rankingGlobal->search(fn($r) => (string) $r['documento'] === (string) $medico->documento);
         $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
 
-        $productosComprados = collect($odooData['todos_productos'] ?? [])->map(fn($p) => [
-            'codigo'            => $p['codigo'],
-            'nombre'            => $p['nombre'],
-            'laboratorio'       => $p['laboratorio'] ?? '—',
-            'cantidad_comprada' => (float) $p['unidades'],
-            'valor_comprado'    => (float) $p['valor_comprado'],
-        ])->values();
+        // 🌟 1. Forzamos array plano secuencial quitando los índices asociativos de Odoo
+        $todosProductosRaw = collect($odooData['todos_productos'] ?? [])->values()->all();
 
-        $laboratoriosComprados = collect($odooData['todos_productos'] ?? [])
-            ->groupBy(fn($p) => $p['laboratorio'] ?: 'Sin laboratorio')
-            ->map(fn($group, $lab) => [
-                'laboratorio'       => $lab,
-                'cantidad_comprada' => $group->sum('unidades'),
-                'valor_comprado'    => $group->sum('valor_comprado'),
-                'productos'         => $group->unique('codigo')->count(),
-            ])
-            ->sortByDesc('cantidad_comprada')
-            ->values();
+        // 🌟 2. Extraemos los códigos únicos y consultamos las marcas/laboratorios en tu base de datos local
+        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
+        $laboratoriosLocales = DB::table('productos')
+            ->whereIn('codigo', $codigosProductos)
+            ->pluck('laboratorio', 'codigo')
+            ->toArray();
+
+        // 🌟 3. Construimos el listado inyectando el laboratorio real de MySQL
+        $productosComprados = collect($todosProductosRaw)->map(function($p) use ($laboratoriosLocales) {
+            $codigo = $p['codigo'] ?? null;
+            return [
+                'codigo'            => $codigo,
+                'nombre'            => $p['nombre'] ?? 'Sin nombre',
+                'laboratorio'       => $laboratoriosLocales[$codigo] ?? '—', // 👈 Cruce local exitoso
+                'cantidad_comprada' => (float) ($p['unidades'] ?? 0),
+                'valor_comprado'    => (float) ($p['valor_comprado'] ?? 0),
+            ];
+        })->values()->all();
+
+        // 🌟 4. Consolidamos y agrupamos por el laboratorio real para el Visitador
+       // 🌟 4. Consolidamos y agrupamos por el laboratorio real para el Visitador
+        $laboratoriosComprados = collect($productosComprados)
+            ->filter(function($item) {
+                // 🌟 CORREGIDO: Se cambia $item->laboratorio por $item['laboratorio']
+                return !empty($item['laboratorio']) && $item['laboratorio'] !== '—';
+            })
+            ->groupBy('laboratorio')
+            ->map(function($group, $lab) {
+                return [
+                    'laboratorio'       => $lab,
+                    'cantidad_comprada' => (int) $group->sum('cantidad_comprada'),
+                    'valor_comprado'    => (float) $group->sum('valor_comprado'),
+                    'productos'         => (int) $group->unique('codigo')->count(),
+                ];
+            })
+            ->sortByDesc('valor_comprado')
+            ->values()
+            ->all();
 
         return [
             'totales' => [
