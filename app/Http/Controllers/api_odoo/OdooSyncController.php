@@ -554,4 +554,183 @@ class OdooSyncController extends Controller
         }
         return (string) $valueNode;
     }
+
+
+    // =========================================================================
+//  FORMULACIÓN — Órdenes de venta donde el médico es el prescriptor (doctor_id)
+// =========================================================================
+
+public function indexFormulacion()
+{
+    $url      = config('odoo.url');
+    $db       = config('odoo.db');
+    $username = config('odoo.username');
+    $password = config('odoo.password');
+
+    $conexionEstado = 'sin_probar';
+    if (!empty($url) && !empty($db) && !empty($password)) {
+        $uid = $this->obtenerUid($url, $db, $username, $password);
+        $conexionEstado = $uid ? 'conectado' : 'error';
+    }
+
+    return Inertia::render('API_ODOO/Odooformulacion', [
+        'conexionEstado' => $conexionEstado,
+    ]);
+}
+
+public function buscarFormulacion(Request $request)
+{
+    $request->validate([
+        'documento' => 'required|string|max:20',
+    ]);
+
+    $url      = config('odoo.url');
+    $db       = config('odoo.db');
+    $username = config('odoo.username');
+    $password = config('odoo.password');
+
+    $uid = $this->obtenerUid($url, $db, $username, $password);
+
+    if (!$uid) {
+        return Inertia::render('API_ODOO/Odooformulacion', [
+            'conexionEstado' => 'error',
+            'resultadoFormulacion' => [
+                'encontrado' => false,
+                'mensaje'    => 'No se pudo autenticar con Odoo.',
+            ]
+        ]);
+    }
+
+    // 1. Buscar al médico (prescriptor) por documento en res.partner
+    $ids = $this->ejecutarKw($url, $db, $uid, $password,
+        'res.partner',
+        'search',
+        [[['vat', '=', $request->documento]]],
+        ['limit' => 5]
+    );
+
+    if (empty($ids)) {
+        return Inertia::render('API_ODOO/Odooformulacion', [
+            'conexionEstado' => 'conectado',
+            'resultadoFormulacion' => [
+                'encontrado' => false,
+                'mensaje'    => 'No se encontró ningún médico con ese documento en Odoo.',
+            ]
+        ]);
+    }
+
+    $partner = $this->ejecutarKw($url, $db, $uid, $password,
+        'res.partner',
+        'read',
+        [$ids],
+        ['fields' => ['name', 'vat']]
+    );
+
+    $formulacion = $this->obtenerFormulacionOdoo($url, $db, $uid, $password, $ids);
+
+    return Inertia::render('API_ODOO/Odooformulacion', [
+        'conexionEstado' => 'conectado',
+        'resultadoFormulacion' => [
+            'encontrado'   => true,
+            'medico'       => $partner[0] ?? null,
+            'formulacion'  => $formulacion,
+        ]
+    ]);
+}
+
+/**
+ * Trae las líneas de sale.order.line de todas las órdenes donde
+ * doctor_id (el médico prescriptor) coincide, sin filtrar por quién
+ * es el partner_id (paciente/cliente) de la orden. Solo lectura.
+ */
+private function obtenerFormulacionOdoo(string $url, string $db, int $uid, string $password, array $doctorIds): array
+{
+    $formulacion = [];
+
+    $orderIds = $this->ejecutarKw($url, $db, $uid, $password,
+        'sale.order',
+        'search',
+        [[['doctor_id', 'in', $doctorIds]]]
+    );
+
+    Log::info('[OdooSync] DEBUG orderIds (formulación) encontrados: ' . json_encode($orderIds));
+
+    if (empty($orderIds)) {
+        return $formulacion;
+    }
+
+    // Cabeceras: necesitamos partner_id (paciente), doctor_title_id, fecha y estado
+    $ordenes = [];
+    try {
+        $ordenesRaw = $this->ejecutarKw($url, $db, $uid, $password,
+            'sale.order',
+            'read',
+            [$orderIds],
+            ['fields' => ['name', 'partner_id', 'doctor_id', 'doctor_title_id', 'date_order', 'state']]
+        );
+        if (is_array($ordenesRaw)) {
+            foreach ($ordenesRaw as $orden) {
+                $ordenes[$orden['id']] = $orden;
+            }
+        }
+    } catch (\Exception $e) {
+        Log::warning('[OdooSync] Error leyendo cabeceras sale.order (formulación): ' . $e->getMessage());
+    }
+
+    try {
+        $lineas = $this->ejecutarKw($url, $db, $uid, $password,
+            'sale.order.line',
+            'search_read',
+            [[['order_id', 'in', $orderIds]]],
+            [
+                'fields' => ['product_id', 'name', 'product_uom_qty', 'price_unit', 'price_subtotal', 'order_id', 'display_type'],
+                'order'  => 'id desc',
+            ]
+        );
+
+        Log::info('[OdooSync] DEBUG lineas formulación count: ' . (is_array($lineas) ? count($lineas) : 'null'));
+
+        if (is_array($lineas)) {
+            foreach ($lineas as $linea) {
+                if (!empty($linea['display_type'])) continue;
+                if (empty($linea['product_id'])) continue;
+
+                $ordenId = is_array($linea['order_id'] ?? null) ? ($linea['order_id'][0] ?? null) : null;
+                $orden   = $ordenId ? ($ordenes[$ordenId] ?? null) : null;
+
+                $productId  = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
+                $codigo     = is_array($linea['product_id']) ? $this->extraerCodigo($linea['product_id'][1] ?? '') : '—';
+                $nombreProd = is_array($linea['product_id']) ? $this->limpiarNombre($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
+
+                $paciente = '—';
+                if ($orden && is_array($orden['partner_id'] ?? null)) {
+                    $paciente = $orden['partner_id'][1] ?? '—';
+                }
+
+                $tituloDoctor = '';
+                if ($orden && is_array($orden['doctor_title_id'] ?? null)) {
+                    $tituloDoctor = $orden['doctor_title_id'][1] ?? '';
+                }
+
+                $formulacion[] = [
+                    'referencia'  => is_array($linea['order_id'] ?? null) ? ($linea['order_id'][1] ?? '—') : '—',
+                    'paciente'    => $paciente,
+                    'doctor_titulo' => $tituloDoctor,
+                    'codigo'      => $codigo,
+                    'producto_id' => $productId,
+                    'nombre'      => $nombreProd,
+                    'cantidad'    => is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0,
+                    'precio'      => is_numeric($linea['price_unit']      ?? null) ? (float) $linea['price_unit']      : 0,
+                    'subtotal'    => is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0,
+                    'fecha'       => $orden['date_order'] ?? null,
+                    'estado'      => $orden['state'] ?? 'Desconocido',
+                ];
+            }
+        }
+    } catch (\Exception $e) {
+        Log::warning('[OdooSync] Error consultando sale.order.line (formulación): ' . $e->getMessage());
+    }
+
+    return $formulacion;
+}
 }

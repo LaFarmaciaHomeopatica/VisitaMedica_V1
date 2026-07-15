@@ -206,7 +206,13 @@ Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
      ->name('Gmedicos.odooStats');
 
      
+// Cambia esto:
+// Route::get('/odoo/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('odoo.formulacion');
+// Route::post('/odoo/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('odoo.formulacion.buscar');
 
+// Por esto:
+Route::get('/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('formulacion');
+Route::post('/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('formulacion.buscar');
  
 });
 

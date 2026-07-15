@@ -5,7 +5,7 @@ import {
     FaMagnifyingGlass, FaGear, FaPlug, FaCircleCheck,
     FaCircleXmark, FaTriangleExclamation, FaUser,
     FaIdCard, FaStethoscope, FaArrowLeft, FaDatabase,
-    FaCircleNotch, FaSpinner, FaFileInvoiceDollar, FaReceipt, FaBoxesStacked
+    FaCircleNotch, FaSpinner, FaFileInvoiceDollar, FaReceipt, FaBoxesStacked,FaPrescriptionBottleMedical,
 } from 'react-icons/fa6';
 
 function ConexionBadge({ estado = 'sin_probar' }) {
@@ -198,6 +198,12 @@ export default function OdooMedicos({ auth, conexionEstado = 'sin_probar', flash
                                 <FaBoxesStacked className="text-[10px]" />
                                 Productos
                             </Link>
+                            <Link href={route('odoo.formulacion')}
+                                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2.5 rounded-full shadow-sm transition-colors">
+                                <FaPrescriptionBottleMedical className="text-[10px]" />
+                                Formulación
+                            </Link>
+          
                             <Link href={route('odoo.config')}
                                 className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2.5 rounded-full shadow-sm transition-colors">
                                 <FaGear className="text-[10px]" />
