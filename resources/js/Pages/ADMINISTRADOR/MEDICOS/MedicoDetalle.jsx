@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
@@ -14,8 +14,8 @@ import {
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
 const fmtM = n => {
     n = n ?? 0;
-    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
+    if (n >= 10_000_000_000) return `$${(n / 10_000_000_000).toFixed(1)}M`;
+    if (n >= 10_000_000_000_000)     return `$${(n /10_000_000_000_000).toFixed(0)}K`;
     return `$${fmt(n)}`;
 };
 
@@ -50,6 +50,62 @@ function EstadoBadge({ estado }) {
         <span className="inline-block text-[8px] font-black uppercase px-2 py-0.5 rounded-full border"
               style={{ color, background: `${color}18`, borderColor: `${color}40` }}>
             {ESTADO_LABEL[estado] ?? estado}
+        </span>
+    );
+}
+
+function KpiSkeleton({ accent }) {
+    return (
+        <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-4 animate-pulse"
+             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
+            <div className="h-2 w-16 bg-slate-100 rounded mb-3" />
+            <div className="h-5 w-20 bg-slate-200 rounded" />
+        </div>
+    );
+}
+
+function ChartSkeleton({ height = 320 }) {
+    return (
+        <div className="animate-pulse flex flex-col justify-end gap-2" style={{ height }}>
+            <div className="flex-1 bg-slate-100 rounded-xl" />
+            <div className="h-2 w-1/2 bg-slate-100 rounded mx-auto" />
+        </div>
+    );
+}
+
+function BarRowSkeleton() {
+    return (
+        <div className="animate-pulse">
+            <div className="flex justify-between mb-1.5">
+                <div className="h-2 w-24 bg-slate-100 rounded" />
+                <div className="h-2 w-12 bg-slate-100 rounded" />
+            </div>
+            <div className="w-full h-1.5 bg-slate-100 rounded-full" />
+        </div>
+    );
+}
+
+function OdooStatusBadge({ loading, error }) {
+    if (loading) {
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase px-2.5 py-1 rounded-full border text-blue-600 bg-blue-50 border-blue-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Sincronizando datos Odoo…
+            </span>
+        );
+    }
+    if (error) {
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase px-2.5 py-1 rounded-full border text-red-600 bg-red-50 border-red-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                Error cargando datos Odoo
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase px-2.5 py-1 rounded-full border text-emerald-600 bg-emerald-50 border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Datos Odoo al día
         </span>
     );
 }
@@ -91,6 +147,56 @@ export default function MedicoDetalle({
     const [busquedaProd, setBusquedaProd] = useState('');
     const [ordenProd, setOrdenProd]       = useState('valor_desc'); // 'valor_desc' | 'valor_asc' | 'alfa'
 
+    // ── Datos que vienen de Odoo (lentos): se piden aparte para no bloquear
+    // el render inicial, que solo depende de datos locales (médico, visitas,
+    // visitadores). Si el controller ya los mandó en la carga inicial
+    // (txStats truthy), no se vuelven a pedir.
+    const [odoo, setOdoo] = useState({
+        txStats:        txStats ?? null,
+        tendencia:      tendencia ?? [],
+        topProductos:   topProductos ?? [],
+        porLaboratorio: porLaboratorio ?? [],
+        todosProductos: todosProductos ?? [],
+    });
+    const [odooLoading, setOdooLoading] = useState(!txStats);
+    const [odooError, setOdooError]     = useState(false);
+
+    useEffect(() => {
+        if (txStats) return; // ya vino con la carga inicial
+
+        let cancelado = false;
+        setOdooLoading(true);
+        setOdooError(false);
+
+        fetch(
+            route('Gmedicos.odooStats', documentoBase ?? medico.documento) +
+            `?periodo=${periodoActivo}`,
+            { headers: { Accept: 'application/json' } }
+        )
+            .then(r => {
+                if (!r.ok) throw new Error('odoo-stats request failed');
+                return r.json();
+            })
+            .then(data => {
+                if (cancelado) return;
+                setOdoo({
+                    txStats:        data.txStats ?? null,
+                    tendencia:      data.tendencia ?? [],
+                    topProductos:   data.topProductos ?? [],
+                    porLaboratorio: data.porLaboratorio ?? [],
+                    todosProductos: data.todosProductos ?? [],
+                });
+                setOdooLoading(false);
+            })
+            .catch(() => {
+                if (cancelado) return;
+                setOdooError(true);
+                setOdooLoading(false);
+            });
+
+        return () => { cancelado = true; };
+    }, [documentoBase, medico.documento, periodoActivo]);
+
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },
         { name: 'Programadas',    value: Number(visitasStats?.programadas     ?? 0), color: ESTADO_COLOR.programada },
@@ -99,13 +205,13 @@ export default function MedicoDetalle({
         { name: 'No contactados', value: Number(visitasStats?.no_contactados  ?? 0), color: ESTADO_COLOR['No contactado'] },
     ].filter(e => e.value > 0);
 
-    const tendenciaData = (tendencia ?? []).map(d => ({
+    const tendenciaData = (odoo.tendencia ?? []).map(d => ({
         label:     d.mes,
         comprado:  Number(d.valor_comprado),
         formulado: Number(d.valor_formulado),
     })).slice(-12);
 
-    const prodData = (topProductos ?? []).map(p => ({
+    const prodData = (odoo.topProductos ?? []).map(p => ({
         name:      p.nombre,
         valor:     Number(p.valor_comprado),
         formulado: Number(p.valor_formulado),
@@ -200,6 +306,7 @@ export default function MedicoDetalle({
                     {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
                     <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-50">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-1">Período:</p>
+                        <OdooStatusBadge loading={odooLoading} error={odooError} />
                         {PERIODOS.map(p => (
                             <button
                                 key={p.key}
@@ -223,14 +330,29 @@ onClick={() => router.get(
                 <div className="px-8 pt-7 space-y-7">
 
                     {/* ── KPIs ─────────────────────────────────────────── */}
+                    {/* Val./Unidades/Productos dependen de Odoo → skeleton mientras cargan.
+                        Total visitas es local (visitasStats) → siempre instantáneo. */}
                     <div className="flex gap-3">
-                        <KpiCard label="Val. comprado"   value={fmtM(txStats?.total_valor_comprado)}  accent="#4184F0" />
-                        <KpiCard label="Val. formulado"  value={fmtM(txStats?.total_valor_formulado)} accent="#8b5cf6" />
-                        <KpiCard label="Unidades Generales"        value={fmt(txStats?.total_unidades)}          accent="#f59e0b" />
-                        {/* CORREGIDO: Se cambia total_unidades_compradas por unidades_compradas (o el mapeo real del backend) */}
-                        <KpiCard label="Unidades compradas" value={fmt(txStats?.unidades_compradas ?? txStats?.total_unidades_compradas)} accent="#ef4444" />
-                        <KpiCard label="Unidades formuladas" value={fmt(txStats?.unidades_formuladas ?? txStats?.total_unidades_formuladas)} accent="#ec4899" />
-                        <KpiCard label="Productos"       value={fmt(txStats?.total_productos)}         accent="#10b981" sub={`${txStats?.meses_activo ?? 0} meses activo`} />
+                        {odooLoading ? (
+                            <>
+                                <KpiSkeleton accent="#4184F0" />
+                                <KpiSkeleton accent="#8b5cf6" />
+                                <KpiSkeleton accent="#f59e0b" />
+                                <KpiSkeleton accent="#ef4444" />
+                                <KpiSkeleton accent="#ec4899" />
+                                <KpiSkeleton accent="#10b981" />
+                            </>
+                        ) : (
+                            <>
+                                <KpiCard label="Val. comprado"   value={fmtM(odoo.txStats?.total_valor_comprado)}  accent="#4184F0" />
+                                <KpiCard label="Val. formulado"  value={fmtM(odoo.txStats?.total_valor_formulado)} accent="#8b5cf6" />
+                                <KpiCard label="Unidades Generales"        value={fmt(odoo.txStats?.total_unidades)}          accent="#f59e0b" />
+                                {/* CORREGIDO: Se cambia total_unidades_compradas por unidades_compradas (o el mapeo real del backend) */}
+                                <KpiCard label="Unidades compradas" value={fmt(odoo.txStats?.unidades_compradas ?? odoo.txStats?.total_unidades_compradas)} accent="#ef4444" />
+                                <KpiCard label="Unidades formuladas" value={fmt(odoo.txStats?.unidades_formuladas ?? odoo.txStats?.total_unidades_formuladas)} accent="#ec4899" />
+                                <KpiCard label="Productos"       value={fmt(odoo.txStats?.total_productos)}         accent="#10b981" sub={`${odoo.txStats?.meses_activo ?? 0} meses activo`} />
+                            </>
+                        )}
                         <KpiCard label="Total visitas"   value={fmt(visitasStats?.total)}              accent="#ef4444" sub={`${visitasStats?.efectivas ?? 0} efectivas`} />
                     </div>
 
@@ -241,7 +363,9 @@ onClick={() => router.get(
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Histórico</p>
                             <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado </p>
-                            {tendenciaData.length === 0 ? (
+                            {odooLoading ? (
+                                <ChartSkeleton height={320} />
+                            ) : tendenciaData.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin transacciones</div>
                             ) : (
                                 <ResponsiveContainer width="100%" height={320}>
@@ -304,7 +428,13 @@ onClick={() => router.get(
                                     <span className="flex items-center gap-1 text-[8px] font-black text-purple-500"><span className="w-2 h-1.5 rounded-full bg-purple-500 inline-block" /> Formulado</span>
                                 </div>
                                 <div className="space-y-3">
-                                    {prodData.map((p, i) => {
+                                    {odooLoading ? (
+                                        <>
+                                            <BarRowSkeleton />
+                                            <BarRowSkeleton />
+                                            <BarRowSkeleton />
+                                        </>
+                                    ) : prodData.map((p, i) => {
                                         const maxC = prodData[0]?.valor ?? 1;
                                         const maxF = Math.max(...prodData.map(x => x.formulado), 1);
                                         return (
@@ -340,7 +470,7 @@ onClick={() => router.get(
                         <div className="flex border-b border-slate-100">
                             {[
                                 { id: 'visitadores',  label: 'Visitadores asignados',   icon: <FaUserDoctor />,    count: visitadoresAsignados?.length },
-                                { id: 'laboratorios', label: 'Laboratorios y productos', icon: <FaFlask />,         count: todosProductos?.length },
+                                { id: 'laboratorios', label: 'Laboratorios y productos', icon: <FaFlask />,         count: odooLoading ? '…' : odoo.todosProductos?.length },
                                 { id: 'visitas',      label: 'Historial de visitas',     icon: <FaCalendarCheck />, count: visitas?.length },
                             ].map(tab => (
                                 <button key={tab.id} onClick={() => setTabActiva(tab.id)}
@@ -391,8 +521,8 @@ onClick={() => router.get(
 
                         {/* Tab: Laboratorios y productos */}
                         {tabActiva === 'laboratorios' && (() => {
-                            const maxLabC = Math.max(...(porLaboratorio ?? []).map(l => Number(l.valor_comprado)), 1);
-                            const maxLabF = Math.max(...(porLaboratorio ?? []).map(l => Number(l.valor_formulado)), 1);
+                            const maxLabC = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_comprado)), 1);
+                            const maxLabF = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_formulado)), 1);
                             return (
                                 <div className="p-6 space-y-6">
 
@@ -412,11 +542,17 @@ onClick={() => router.get(
                                                 </select>
                                             </div>
                                         </div>
-                                        {(porLaboratorio ?? []).length === 0 ? (
+                                        {odooLoading ? (
+                                            <div className="space-y-4">
+                                                <BarRowSkeleton />
+                                                <BarRowSkeleton />
+                                                <BarRowSkeleton />
+                                            </div>
+                                        ) : (odoo.porLaboratorio ?? []).length === 0 ? (
                                             <p className="text-[10px] text-slate-300 text-center py-6">Sin datos</p>
                                         ) : (
                                             <div className="space-y-3">
-                                                {(porLaboratorio ?? []).slice(0, limLab).map((lab, i) => (
+                                                {(odoo.porLaboratorio ?? []).slice(0, limLab).map((lab, i) => (
                                                     <div key={i}>
                                                         <div className="flex justify-between items-baseline mb-1">
                                                             <span className="text-[10px] font-black text-slate-700 uppercase">{lab.laboratorio}</span>
@@ -531,7 +667,7 @@ onClick={() => router.get(
                                         {/* ── Tabla ── */}
                                         {(() => {
                                             const termino = busquedaProd.trim().toLowerCase();
-                                            const filtrados = (todosProductos ?? [])
+                                            const filtrados = (odoo.todosProductos ?? [])
                                                 .filter(p =>
                                                     !termino ||
                                                     (p.nombre ?? '').toLowerCase().includes(termino) ||
@@ -578,7 +714,18 @@ onClick={() => router.get(
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
-                                                                {visibles.length === 0 ? (
+                                                                {odooLoading ? (
+                                                                    Array.from({ length: 6 }).map((_, i) => (
+                                                                        <tr key={i} className="animate-pulse">
+                                                                            <td className="px-5 py-3 border-r border-slate-50"><div className="h-2.5 w-32 bg-slate-100 rounded" /></td>
+                                                                            <td className="px-5 py-3 border-r border-slate-50"><div className="h-2.5 w-16 bg-slate-100 rounded" /></td>
+                                                                            <td className="px-5 py-3 border-r border-slate-50"><div className="h-2.5 w-14 bg-slate-100 rounded ml-auto" /></td>
+                                                                            <td className="px-5 py-3 border-r border-slate-50"><div className="h-2.5 w-14 bg-slate-100 rounded ml-auto" /></td>
+                                                                            <td className="px-5 py-3"><div className="h-2.5 w-10 bg-slate-100 rounded ml-auto" /></td>
+                                                                            <td className="px-5 py-3"><div className="h-2.5 w-10 bg-slate-100 rounded ml-auto" /></td>
+                                                                        </tr>
+                                                                    ))
+                                                                ) : visibles.length === 0 ? (
                                                                     <tr>
                                                                         <td colSpan={4} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">
                                                                             Sin productos{termino ? ` que coincidan con "${busquedaProd}"` : ''}

@@ -291,6 +291,99 @@ class OdooService
     }
 
     /**
+     * Trae las líneas de formulación (sale.order.line de todas las órdenes donde doctor_id
+     * coincide con el médico) directo de Odoo.
+     */
+    public function getFormulacionPorDocumento(string $documento, ?string $fechaDesde = null): array
+    {
+        $uid = $this->obtenerUid();
+        if (!$uid) return [];
+
+        $doctorIds = $this->buscarPartnerIds($uid, $documento);
+        if (empty($doctorIds)) return [];
+
+        $filtro = [['doctor_id', 'in', $doctorIds]];
+        if ($fechaDesde) {
+            $filtro[] = ['date_order', '>=', $fechaDesde . ' 00:00:00'];
+        }
+
+        $orderIds = $this->ejecutarKw(
+            $uid,
+            'sale.order',
+            'search',
+            [$filtro]
+        );
+
+        if (empty($orderIds) || !is_array($orderIds)) return [];
+
+        $ordenes = [];
+        try {
+            $ordenesRaw = $this->ejecutarKw(
+                $uid,
+                'sale.order',
+                'read',
+                [$orderIds],
+                ['fields' => ['id', 'date_order', 'state']]
+            );
+            if (is_array($ordenesRaw)) {
+                foreach ($ordenesRaw as $orden) {
+                    $ordenes[(int) $orden['id']] = $orden;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] Error leyendo cabeceras sale.order para formulación: ' . $e->getMessage());
+        }
+
+        $lineasFormuladas = [];
+        try {
+            $lineas = $this->ejecutarKw(
+                $uid,
+                'sale.order.line',
+                'search_read',
+                [[['order_id', 'in', $orderIds]]],
+                [
+                    'fields' => ['product_id', 'name', 'product_uom_qty', 'price_unit', 'price_subtotal', 'price_total', 'order_id', 'display_type'],
+                    'order'  => 'id desc',
+                ]
+            );
+
+            if (is_array($lineas)) {
+                foreach ($lineas as $linea) {
+                    if (!empty($linea['display_type'])) continue;
+                    if (empty($linea['product_id'])) continue;
+
+                    $ordId = is_array($linea['order_id']) ? ($linea['order_id'][0] ?? null) : $linea['order_id'];
+                    $orden = $ordId ? ($ordenes[(int) $ordId] ?? null) : null;
+                    $estado = $orden ? ($orden['state'] ?? 'draft') : 'draft';
+                    $fecha = $orden ? ($orden['date_order'] ?? null) : null;
+
+                    $productId = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
+                    $codigo = is_array($linea['product_id']) ? $this->extraerCodigo($linea['product_id'][1] ?? '') : '—';
+                    $nombre = is_array($linea['product_id']) ? $this->limpiarNombre($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
+
+                    $lineasFormuladas[] = [
+                        'origen' => 'Formulación',
+                        'referencia' => is_array($linea['order_id']) ? ($linea['order_id'][1] ?? '—') : '—',
+                        'codigo' => $codigo,
+                        'producto_id' => $productId,
+                        'nombre' => $nombre,
+                        'cantidad' => is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0,
+                        'precio' => is_numeric($linea['price_unit'] ?? null) ? (float) $linea['price_unit'] : 0,
+                        'subtotal' => is_numeric($linea['price_subtotal'] ?? null) ? (float) $linea['price_subtotal'] : 0,
+                        'total' => is_numeric($linea['price_total'] ?? null) ? (float) $linea['price_total'] : 0,
+                        'fecha' => $fecha,
+                        'estado' => $estado,
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] Error en sale.order.line para formulación: ' . $e->getMessage());
+        }
+
+        return $lineasFormuladas;
+    }
+
+    /**
      * Comparativo de productos entre dos períodos para la vista de alertas.
      * Período A = mes seleccionado histórico.
      * Período B = mes actual real.
@@ -557,6 +650,166 @@ class OdooService
         return $resultados;
     }
 
+    /**
+     * Versión grupal de getFormulacionPorDocumento(): trae la formulación
+     * (sale.order.line vía doctor_id) de VARIOS médicos en una sola pasada
+     * a Odoo, en lugar de una llamada por médico. Pensada para reemplazar
+     * el foreach + 2 llamadas/médico que se usaba en AlertaController::index().
+     *
+     * Retorna un array indexado por documento:
+     * [
+     *   documento => [
+     *     'formulado_mes_anterior' => float,
+     *     'formulado_mes_actual'   => float,
+     *     'formulado_diferencia'   => float,  // (actual - anterior), con signo
+     *     'formulado_tendencia'    => 'subio'|'bajo'|'igual',
+     *   ]
+     * ]
+     *
+     * $periodoA / $periodoB: ['desde' => 'Y-m-d', 'hasta' => 'Y-m-d']
+     */
+    public function getFormulacionGrupalPorDocumentos(array $documentos, array $periodoA, array $periodoB): array
+    {
+        // Estructura vacía por defecto para todos los documentos pedidos,
+        // así el controller siempre recibe una entrada por médico aunque
+        // Odoo no tenga nada para él (o falle la conexión).
+        $resultados = [];
+        foreach ($documentos as $doc) {
+            $resultados[trim((string) $doc)] = [
+                'formulado_mes_anterior' => 0.0,
+                'formulado_mes_actual'   => 0.0,
+                'formulado_diferencia'   => 0.0,
+                'formulado_tendencia'    => 'igual',
+            ];
+        }
+
+        $uid = $this->obtenerUid();
+        if (!$uid || empty($documentos)) return $resultados;
+
+        // 1. Buscar partners (documento vat -> partner_id, y su inverso)
+        $partnerIdsMap = []; // [partner_id => vat]
+        foreach (array_chunk($documentos, 100) as $chunk) {
+            $ids = $this->ejecutarKw(
+                $uid,
+                'res.partner',
+                'search',
+                [[['vat', 'in', $chunk]]],
+                ['limit' => 500]
+            );
+
+            if (!empty($ids) && is_array($ids)) {
+                $partners = $this->ejecutarKw(
+                    $uid,
+                    'res.partner',
+                    'read',
+                    [$ids],
+                    ['fields' => ['id', 'vat']]
+                );
+
+                if (is_array($partners)) {
+                    foreach ($partners as $p) {
+                        if (!empty($p['id']) && !empty($p['vat'])) {
+                            $partnerIdsMap[(int) $p['id']] = trim((string) $p['vat']);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($partnerIdsMap)) return $resultados;
+
+        $fechaMin = min($periodoA['desde'], $periodoB['desde']);
+        $fechaMax = max($periodoA['hasta'], $periodoB['hasta']);
+
+        // 2. Buscar TODAS las órdenes (sale.order) de estos médicos en el
+        // rango total que cubre ambos períodos, en una sola llamada.
+        $filtroOrdenes = [
+            ['doctor_id', 'in', array_keys($partnerIdsMap)],
+            ['date_order', '>=', $fechaMin . ' 00:00:00'],
+            ['date_order', '<=', $fechaMax . ' 23:59:59'],
+        ];
+
+        $orderIds = $this->ejecutarKw($uid, 'sale.order', 'search', [$filtroOrdenes]);
+        if (empty($orderIds) || !is_array($orderIds)) return $resultados;
+
+        // 3. Leer cabeceras una sola vez: fecha, estado y doctor_id (para
+        // saber a qué médico pertenece cada orden y a qué período).
+        $ordenes = [];
+        try {
+            $ordenesRaw = $this->ejecutarKw(
+                $uid,
+                'sale.order',
+                'read',
+                [$orderIds],
+                ['fields' => ['id', 'date_order', 'state', 'doctor_id']]
+            );
+            if (is_array($ordenesRaw)) {
+                foreach ($ordenesRaw as $orden) {
+                    $ordenes[(int) $orden['id']] = $orden;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] Error leyendo cabeceras sale.order (formulación grupal): ' . $e->getMessage());
+            return $resultados;
+        }
+
+        // 4. Leer TODAS las líneas de esas órdenes en una sola llamada.
+        try {
+            $lineas = $this->ejecutarKw(
+                $uid,
+                'sale.order.line',
+                'search_read',
+                [[['order_id', 'in', $orderIds]]],
+                ['fields' => ['product_uom_qty', 'order_id', 'display_type']]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] Error en sale.order.line (formulación grupal): ' . $e->getMessage());
+            return $resultados;
+        }
+
+        if (!is_array($lineas)) return $resultados;
+
+        // 5. Sumar cantidades por médico y por período, excluyendo canceladas.
+        foreach ($lineas as $linea) {
+            if (!empty($linea['display_type'])) continue;
+
+            $ordId = is_array($linea['order_id']) ? ($linea['order_id'][0] ?? null) : $linea['order_id'];
+            if (!$ordId || !isset($ordenes[(int) $ordId])) continue;
+
+            $orden  = $ordenes[(int) $ordId];
+            $estado = strtoupper((string) ($orden['state'] ?? 'draft'));
+            if (in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA'])) continue;
+
+            $doctorRef = $orden['doctor_id'] ?? null;
+            $partnerId = is_array($doctorRef) ? ($doctorRef[0] ?? null) : $doctorRef;
+            if (!$partnerId || !isset($partnerIdsMap[$partnerId])) continue;
+
+            $doc = $partnerIdsMap[$partnerId];
+            if (!isset($resultados[$doc])) continue;
+
+            $fecha    = substr((string) ($orden['date_order'] ?? ''), 0, 10);
+            $cantidad = is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0;
+
+            if ($fecha >= $periodoA['desde'] && $fecha <= $periodoA['hasta']) {
+                $resultados[$doc]['formulado_mes_anterior'] += $cantidad;
+            }
+            if ($fecha >= $periodoB['desde'] && $fecha <= $periodoB['hasta']) {
+                $resultados[$doc]['formulado_mes_actual'] += $cantidad;
+            }
+        }
+
+        // 6. Diferencia y tendencia por médico (mismo criterio que el
+        // AlertaController original: diferencia con signo, no absoluta).
+        foreach ($resultados as $doc => &$r) {
+            $dif = $r['formulado_mes_actual'] - $r['formulado_mes_anterior'];
+            $r['formulado_diferencia'] = $dif;
+            $r['formulado_tendencia']  = $dif > 0 ? 'subio' : ($dif < 0 ? 'bajo' : 'igual');
+        }
+        unset($r);
+
+        return $resultados;
+    }
+
     // =========================================================================
     //  HELPERS PRIVADOS — CONSULTAS
     // =========================================================================
@@ -632,6 +885,7 @@ class OdooService
                             'product_id', 'name', 'product_uom_qty',
                             'price_unit', 'price_subtotal', 'order_id',
                             'display_type',
+                            'state',
                         ],
                         'order' => 'id desc',
                     ]
@@ -790,76 +1044,98 @@ class OdooService
      * Calcula KPIs a partir de las líneas de producto obtenidas de Odoo.
      * Agrupa por producto y por mes.
      */
-    private function calcularKpis(array $lineas): array
-    {
-        $totalValor    = 0;
-        $totalUnidades = 0;
-        $productoMap   = []; // [clave => [ codigo, nombre, subtotal, unidades ]]
-        $tendenciaMap  = []; // [Y-m  => [ mes, subtotal, unidades ]]
+private function calcularKpis(array $lineas): array
+{
+    $totalValor              = 0;
+    $totalUnidades           = 0;
+    $totalValorFormulado     = 0; // 🟢 NUEVO
+    $totalUnidadesFormuladas = 0; // 🟢 NUEVO
+    
+    $productoMap   = []; // [clave => [ codigo, nombre, subtotal, unidades, ... ]]
+    $tendenciaMap  = []; // [Y-m   => [ mes, subtotal, unidades, ... ]]
 
-        foreach ($lineas as $l) {
-            $totalValor    += $l['subtotal'];
-            $totalUnidades += $l['cantidad'];
-
-            // Clave de agrupación por producto
-            $clave = $l['codigo'] !== '—' ? $l['codigo'] : $l['nombre'];
-            if (!isset($productoMap[$clave])) {
-                $productoMap[$clave] = [
-                    'codigo'          => $l['codigo'],
-                    'nombre'          => $l['nombre'],
-                    'laboratorio'     => $l['laboratorio'] ?? null,
-                    // Keys que espera el React
-                    'valor_comprado'  => 0,
-                    'valor_formulado' => 0,   // No existe en Odoo
-                    'unidades'        => 0,
-                ];
-            }
-            $productoMap[$clave]['valor_comprado'] += $l['subtotal'];
-            $productoMap[$clave]['unidades']       += $l['cantidad'];
-
-            // Agrupación por mes (solo si tenemos fecha)
-            if (!empty($l['fecha'])) {
-                $mes = substr($l['fecha'], 0, 7); // Y-m
-                if (!isset($tendenciaMap[$mes])) {
-                    // Keys que espera el React en tendenciaData: valor_comprado, valor_formulado
-                    $tendenciaMap[$mes] = [
-                        'mes'             => $mes,
-                        'valor_comprado'  => 0,
-                        'valor_formulado' => 0,  // No existe en Odoo
-                        'unidades'        => 0,
-                    ];
-                }
-                $tendenciaMap[$mes]['valor_comprado'] += $l['subtotal'];
-                $tendenciaMap[$mes]['unidades']       += $l['cantidad'];
-            }
+    foreach ($lineas as $l) {
+        // Si la línea está cancelada, la ignoramos por completo
+        $estado = strtoupper($l['estado'] ?? $l['state'] ?? '');
+        if ($estado === 'CANCEL' || $estado === 'CANCELADO' || $estado === 'CANCELADA') {
+            continue; 
         }
 
-        uasort($productoMap, fn($a, $b) => $b['valor_comprado'] <=> $a['valor_comprado']);
-        ksort($tendenciaMap);
+        // 🟢 Lectura de nuevos campos (ajusta las llaves si en tu array se llaman distinto)
+        $subtotalFormulado = $l['subtotal_formulado'] ?? $l['valor_formulado'] ?? 0;
+        $cantidadFormulada = $l['cantidad_formulada'] ?? $l['unidades_formuladas'] ?? 0;
 
-        $todosProductos = array_values($productoMap);
-        $topProductos   = array_slice($todosProductos, 0, 6);
-        $tendencia      = array_values($tendenciaMap);
-        $mesesActivo    = count(array_filter($tendenciaMap, fn($m) => $m['valor_comprado'] > 0));
+        // Acumuladores globales
+        $totalValor              += $l['subtotal'];
+        $totalUnidades           += $l['cantidad'];
+        $totalValorFormulado     += $subtotalFormulado; // 🟢 NUEVO
+        $totalUnidadesFormuladas += $cantidadFormulada; // 🟢 NUEVO
 
-        return [
-            // KPIs principales
-            'total_valor_comprado'     => round($totalValor, 2),
-            'total_valor_formulado'    => 0,   // No existe en Odoo
-            'total_unidades'           => $totalUnidades,
-            'total_unidades_compradas' => $totalUnidades,
-            'total_unidades_formuladas'=> 0,   // No existe en Odoo
-            'total_productos'          => count($productoMap),
-            'total_transacciones'      => count($lineas),
-            'meses_activo'             => $mesesActivo,
+        // Clave de agrupación por producto
+        $clave = $l['codigo'] !== '—' ? $l['codigo'] : $l['nombre'];
+        if (!isset($productoMap[$clave])) {
+            $productoMap[$clave] = [
+                'codigo'             => $l['codigo'],
+                'nombre'             => $l['nombre'],
+                'laboratorio'        => $l['laboratorio'] ?? null,
+                // Keys que espera el React
+                'valor_comprado'     => 0,
+                'valor_formulado'    => 0, // 🟢 HABILITADO
+                'unidades'           => 0, // Unidades compradas
+                'unidades_formuladas'=> 0, // 🟢 NUEVO
+            ];
+        }
+        $productoMap[$clave]['valor_comprado']  += $l['subtotal'];
+        $productoMap[$clave]['valor_formulado'] += $subtotalFormulado; // 🟢 HABILITADO
+        $productoMap[$clave]['unidades']        += $l['cantidad'];
+        $productoMap[$clave]['unidades_formuladas'] += $cantidadFormulada; // 🟢 NUEVO
 
-            // Colecciones
-            'tendencia'                => $tendencia,
-            'top_productos'            => $topProductos,
-            'todos_productos'          => $todosProductos,
-        ];
+        // Agrupación por mes (solo si tenemos fecha)
+        if (!empty($l['fecha'])) {
+            $mes = substr($l['fecha'], 0, 7); // Y-m
+            if (!isset($tendenciaMap[$mes])) {
+                $tendenciaMap[$mes] = [
+                    'mes'                 => $mes,
+                    'valor_comprado'      => 0,
+                    'valor_formulado'     => 0, // 🟢 HABILITADO
+                    'unidades'            => 0, // Unidades compradas
+                    'unidades_formuladas' => 0, // 🟢 NUEVO
+                ];
+            }
+            $tendenciaMap[$mes]['valor_comprado']  += $l['subtotal'];
+            $tendenciaMap[$mes]['valor_formulado'] += $subtotalFormulado; // 🟢 HABILITADO
+            $tendenciaMap[$mes]['unidades']        += $l['cantidad'];
+            $tendenciaMap[$mes]['unidades_formuladas'] += $cantidadFormulada; // 🟢 NUEVO
+        }
     }
 
+    uasort($productoMap, fn($a, $b) => $b['valor_comprado'] <=> $a['valor_comprado']);
+    ksort($tendenciaMap);
+
+    $todosProductos = array_values($productoMap);
+    $topProductos   = array_slice($todosProductos, 0, 6);
+    $tendencia      = array_values($tendenciaMap);
+    
+    // Contamos meses activos si hubo compra O si hubo formulación
+    $mesesActivo    = count(array_filter($tendenciaMap, fn($m) => $m['valor_comprado'] > 0 || $m['valor_formulado'] > 0));
+
+    return [
+        // KPIs principales
+        'total_valor_comprado'      => round($totalValor, 2),
+        'total_valor_formulado'     => round($totalValorFormulado, 2),   // 🟢 HABILITADO (y corregido error de round vacío)
+        'total_unidades'            => $totalUnidades,
+        'total_unidades_compradas'  => $totalUnidades,
+        'total_unidades_formuladas' => $totalUnidadesFormuladas,         // 🟢 HABILITADO
+        'total_productos'           => count($productoMap),
+        'total_transacciones'       => count($lineas),
+        'meses_activo'              => $mesesActivo,
+
+        // Colecciones
+        'tendencia'                 => $tendencia,
+        'top_productos'             => $topProductos,
+        'todos_productos'           => $todosProductos,
+    ];
+}
     /**
      * KPIs vacíos cuando el médico existe en Odoo pero no tiene transacciones.
      */
@@ -901,6 +1177,7 @@ class OdooService
             'subtotal'    => is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0,
             'fecha'       => $fecha, // Fecha cruzada desde sale.order.date_order
             'partner_id'  => $partnerId,
+            'state'       => $linea['state'] ?? 'draft', // 🟢 AGREGAMOS ESTA LÍNEA para transferir el estado
         ];
     }
 

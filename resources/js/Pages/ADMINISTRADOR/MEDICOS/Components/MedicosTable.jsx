@@ -1,8 +1,19 @@
-import React from 'react';
-import { Link } from '@inertiajs/react';
-import { FaChartLine } from 'react-icons/fa6';
+import React, { useState } from 'react';
+import { router } from '@inertiajs/react';
+import { FaChartLine, FaCircleNotch } from 'react-icons/fa6';
 
 export default function MedicosTable({ currentItems, selectedIds, onSelectOne, onEdit, onView }) {
+    // true mientras Inertia navega hacia el detalle del médico
+    const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
+    const verDetalle = (m) => {
+        if (cargandoDetalle) return; // evita doble clic mientras carga
+        setCargandoDetalle(true);
+        router.visit(route('Gmedicos.show', m.id), {
+            onFinish: () => setCargandoDetalle(false),
+        });
+    };
+
     return (
         /* 
            1. mt-[185px]: Este margen es VITAL. 
@@ -10,6 +21,19 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
               Como ahora los de arriba son fixed/sticky, este margen evita que la tabla empiece debajo de ellos.
         */
         <div className="flex-grow w-full mt-[30px]">
+
+            {/* ── OVERLAY DE CARGA A PANTALLA COMPLETA ─────────────── */}
+            {cargandoDetalle && (
+                <div className="fixed inset-0 z-[100] bg-white/70 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 px-8 py-6 flex flex-col items-center gap-3">
+                        <FaCircleNotch className="h-7 w-7 text-blue-600 animate-spin" />
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                            Cargando detalle del médico…
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className="overflow-x-auto w-full">
                 <table className="w-full text-left border-collapse table-auto">
                     {/* 
@@ -77,13 +101,14 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                                     )}
                                 </td>
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
-                                    <Link
-                                        href={route('Gmedicos.show', m.id)}
-                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm inline-flex items-center"
+                                    <button
+                                        onClick={() => verDetalle(m)}
+                                        disabled={cargandoDetalle}
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm inline-flex items-center disabled:opacity-50 disabled:cursor-wait"
                                         title="Ver detalle"
                                     >
                                         <FaChartLine className="h-4 w-4" />
-                                    </Link>
+                                    </button>
                                     <button onClick={() => onEdit(m)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#3D3FD8] hover:text-white transition-all shadow-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

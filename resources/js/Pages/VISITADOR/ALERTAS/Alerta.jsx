@@ -181,9 +181,7 @@ const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
                 style={{ paddingTop: `${headerHeight}px` }}
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
-                    <div className="bg-blue-50/80 border border-blue-200 text-blue-700 text-[10px] font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider text-center max-w-md mx-auto">
-                        💡 La formulación no está registrada en Odoo (valores en 0)
-                    </div>
+                    
                     
                     {/* ── MANEJO DE ESTADOS EN LA VISTA ── */}
                     {!datosListos ? (

@@ -195,8 +195,7 @@ class Medico2Controller extends Controller
     // =========================================================================
     //  DETALLE DEL MÉDICO — Datos de transacciones desde Odoo
     // =========================================================================
-
-    public function show(Request $request, $id)
+public function show(Request $request, $id)
     {
         $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
         $doc    = $medico->documento;
@@ -212,51 +211,96 @@ class Medico2Controller extends Controller
             default => null,
         };
 
-        // ── Datos Odoo ────────────────────────────────────────────────────────
-        // getKpisPorDocumento retorna un array PLANO (no anidado bajo 'tx_stats')
-        // con las claves: total_valor_comprado, total_unidades, tendencia,
-        // top_productos, todos_productos, etc. Retorna null si el médico no
-        // existe en Odoo o falla la conexión.
+        // ── Datos Odoo y Formulación Local ────────────────────────────────────
         $odooData = $this->odoo->getKpisPorDocumento($doc, $fechaDesde);
+        
+        // Obtener la formulación real desde la base de datos local para este período
+        $formulacionLocal = $this->odoo->getFormulacionPorDocumento($doc, $fechaDesde) ?? [];
 
-        $txStats = $odooData
-            ? (object) [
-                'total_transacciones'       => $odooData['total_transacciones'],
-                'total_valor_comprado'      => $odooData['total_valor_comprado'],
-                'total_valor_formulado'     => 0,               // No existe en Odoo
-                'total_unidades'            => $odooData['total_unidades'],
-                'total_unidades_compradas'  => $odooData['total_unidades_compradas'],
-                'total_unidades_formuladas' => 0,               // No existe en Odoo
-                'total_productos'           => $odooData['total_productos'],
-                'meses_activo'              => $odooData['meses_activo'],
-            ]
-            : $this->txStatsVacios();
+        $tendencia         = $odooData['tendencia']   ?? [];
+        $todosProductosRaw = $odooData['todos_productos'] ?? [];
 
-        $tendencia         = $odooData['tendencia']       ?? [];
-        $topProductos      = $odooData['top_productos']   ?? [];
-        $todosProductosRaw = collect($odooData['todos_productos'] ?? [])->values()->all();
+        // 1. Unificar productos comprados y formulados de forma idéntica a "showPorDocumento"
+        $productosUnificados = [];
+        foreach ($todosProductosRaw as $prod) {
+            $clave = (!empty($prod['codigo']) && $prod['codigo'] !== '—') ? $prod['codigo'] : $prod['nombre'];
+            $productosUnificados[$clave] = [
+                'codigo'              => $prod['codigo'] ?? '—',
+                'nombre'              => $prod['nombre'] ?? '',
+                'laboratorio'         => $prod['laboratorio'] ?? null,
+                'valor_comprado'      => (float) ($prod['valor_comprado'] ?? 0),
+                'valor_formulado'     => 0.0,
+                'unidades'            => (float) ($prod['unidades'] ?? 0),
+                'unidades_formuladas' => 0.0,
+                'estado'              => $prod['estado'] ?? $prod['state'] ?? 'draft',
+            ];
+        }
 
-        // 1. Extraer laboratorios de la DB Local
-        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
+        foreach ($formulacionLocal as $linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            if ($estado === 'CANCEL' || $estado === 'CANCELADO' || $estado === 'CANCELADA') {
+                continue;
+            }
+
+            $clave = (!empty($linea['codigo']) && $linea['codigo'] !== '—') ? $linea['codigo'] : $linea['nombre'];
+
+            if (!isset($productosUnificados[$clave])) {
+                $productosUnificados[$clave] = [
+                    'codigo'              => $linea['codigo'] ?? '—',
+                    'nombre'              => $linea['nombre'] ?? '',
+                    'laboratorio'         => null,
+                    'valor_comprado'      => 0.0,
+                    'valor_formulado'     => 0.0,
+                    'unidades'            => 0.0,
+                    'unidades_formuladas' => 0.0,
+                    'estado'              => $linea['estado'] ?? 'draft',
+                ];
+            }
+
+$productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $linea['subtotal'] ?? 0);
+            $productosUnificados[$clave]['unidades_formuladas'] += (int) ($linea['cantidad'] ?? 0);
+        }
+
+        // 2. Extraer laboratorios de la DB Local e inyectarlos
+        $codigosProductos = collect($productosUnificados)->pluck('codigo')->filter(fn($c) => $c !== '—')->unique()->toArray();
         $laboratoriosLocales = DB::table('productos')
             ->whereIn('codigo', $codigosProductos)
             ->pluck('laboratorio', 'codigo')
             ->toArray();
 
-        // 2. Construir el listado de productos inyectando el laboratorio
-        $todosProductos = collect($todosProductosRaw)->map(function($prod) use ($laboratoriosLocales) {
-            $nuevoProd = [
-                'codigo'         => $prod['codigo'] ?? null,
-                'nombre'         => $prod['nombre'] ?? 'Sin nombre',
-                'valor_comprado' => (float) ($prod['valor_comprado'] ?? 0),
-                'valor_formulado'=> (float) ($prod['valor_formulado'] ?? 0),
-                'unidades'       => (int) ($prod['unidades'] ?? 0),
-            ];
-            $nuevoProd['laboratorio'] = $laboratoriosLocales[$nuevoProd['codigo']] ?? '—';
-            return (object) $nuevoProd;
+        $todosProductos = collect($productosUnificados)->map(function($prod) use ($laboratoriosLocales) {
+            $prod = (object) $prod;
+            $prod->laboratorio = $laboratoriosLocales[$prod->codigo] ?? '—';
+            return $prod;
         })->values()->all();
 
-        // 3. Agrupar por laboratorio para la tarjeta lateral (filtrando vacíos)
+        // 3. Totales reales filtrando cancelados
+        $totalValorCompradoReal = collect($todosProductos)
+            ->filter(function($prod) {
+                $estado = strtoupper($prod->estado ?? '');
+                return $estado !== 'CANCEL' && $estado !== 'CANCELADO' && $estado !== 'CANCELADA';
+            })
+            ->sum('valor_comprado');
+
+        $totalUnidadesCompradasReal = collect($todosProductos)
+            ->filter(function($prod) {
+                $estado = strtoupper($prod->estado ?? '');
+                return $estado !== 'CANCEL' && $estado !== 'CANCELADO' && $estado !== 'CANCELADA';
+            })
+            ->sum('unidades');
+
+        $totalValorFormuladoReal     = collect($todosProductos)->sum('valor_formulado');
+        $totalUnidadesFormuladasReal = collect($todosProductos)->sum('unidades_formuladas');
+
+        // 4. Re-ordenar y obtener Top Productos
+        usort($todosProductos, function($a, $b) {
+            $valA = $a->valor_comprado + $a->valor_formulado;
+            $valB = $b->valor_comprado + $b->valor_formulado;
+            return $valB <=> $valA;
+        });
+        $topProductos = array_slice($todosProductos, 0, 6);
+
+        // 5. Agrupación por laboratorio
         $porLaboratorio = collect($todosProductos)
             ->filter(function($item) {
                 return !empty($item->laboratorio) && $item->laboratorio !== '—';
@@ -267,15 +311,31 @@ class Medico2Controller extends Controller
                     'laboratorio'     => $lab,
                     'valor_comprado'  => (float) $items->sum('valor_comprado'),
                     'valor_formulado' => (float) $items->sum('valor_formulado'),
-                    'unidades'        => (int) $items->sum('unidades'),
+                    'unidades'        => (int) $items->sum('unidades') + (int) $items->sum('unidades_formuladas'),
                     'total_productos' => (int) $items->unique('codigo')->count(),
                 ];
             })
-            ->sortByDesc('valor_comprado')
+            ->sortByDesc(function($item) {
+                return $item['valor_comprado'] + $item['valor_formulado'];
+            })
             ->values()
             ->all();
 
-        // ── Visitas (siguen desde DB local) ───────────────────────────────────
+        // 6. Construcción del txStats definitivo
+        $txStats = $odooData
+            ? (object) [
+                'total_transacciones'       => ($odooData['total_transacciones'] ?? 0) + count($formulacionLocal),
+                'total_valor_comprado'      => $totalValorCompradoReal,
+                'total_valor_formulado'     => $totalValorFormuladoReal,              
+                'total_unidades'            => $totalUnidadesCompradasReal + $totalUnidadesFormuladasReal,
+                'total_unidades_compradas'  => $totalUnidadesCompradasReal,
+                'total_unidades_formuladas' => $totalUnidadesFormuladasReal,
+                'total_productos'           => count($todosProductos),
+                'meses_activo'              => $odooData['meses_activo'] ?? 0,
+            ]
+            : $this->txStatsVacios();
+
+        // ── Visitas (DB local) ────────────────────────────────────────────────
         $visitaBase = fn() => DB::table('visitas')
             ->where('medico_id', $id)
             ->when($fechaDesde, fn($q) => $q->where('fecha_programada', '>=', $fechaDesde));
@@ -318,21 +378,18 @@ class Medico2Controller extends Controller
         return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
             'periodoActivo'        => $periodo,
-            // KPIs — misma estructura que antes para no romper el React
             'txStats'              => $txStats,
             'tendencia'            => $tendencia,
             'topProductos'         => $topProductos,
             'porLaboratorio'       => $porLaboratorio,
             'todosProductos'       => $todosProductos,
-            // Visitas — sin cambios
             'visitasStats'         => $visitasStats,
             'visitas'              => $visitas,
             'visitadoresAsignados' => $visitadoresAsignados,
-            // Bandera para que la vista sepa si Odoo respondió
             'odooConectado'        => $odooData !== null,
         ]);
     }
-
+    
     public function showPorDocumento(Request $request, $documento)
     {
         $medicoReal = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
@@ -374,37 +431,137 @@ class Medico2Controller extends Controller
 
         $odooData = $this->odoo->getKpisPorDocumento($documento, $fechaDesde);
 
-        $txStats = $odooData
-            ? (object) [
-                'total_transacciones'       => $odooData['total_transacciones'],
-                'total_valor_comprado'      => $odooData['total_valor_comprado'],
-                'total_valor_formulado'     => 0,
-                'total_unidades'            => $odooData['total_unidades'],
-                'total_unidades_compradas'  => $odooData['total_unidades_compradas'],
-                'total_unidades_formuladas' => 0,
-                'total_productos'           => $odooData['total_productos'],
-                'meses_activo'              => $odooData['meses_activo'],
-            ]
-            : $this->txStatsVacios();
-
-        $tendencia         = $odooData['tendencia']       ?? [];
-        $topProductos      = $odooData['top_productos']   ?? [];
+        $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($documento, $fechaDesde) ?? [];
         $todosProductosRaw = $odooData['todos_productos'] ?? [];
 
-        // 1. Mapeamos y extraemos los laboratorios locales para cada código de producto
-        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
+        // 1. Unificar productos comprados y formulados
+        $productosUnificados = [];
+        foreach ($todosProductosRaw as $prod) {
+            $clave = (!empty($prod['codigo']) && $prod['codigo'] !== '—') ? $prod['codigo'] : $prod['nombre'];
+            $productosUnificados[$clave] = [
+                'codigo'              => $prod['codigo'] ?? '—',
+                'nombre'              => $prod['nombre'] ?? '',
+                'laboratorio'         => $prod['laboratorio'] ?? null,
+                'valor_comprado'      => (float) ($prod['valor_comprado'] ?? 0),
+                'valor_formulado'     => 0.0,
+                'unidades'            => (float) ($prod['unidades'] ?? 0),
+                'unidades_formuladas' => 0.0,
+                'estado'              => $prod['estado'] ?? $prod['state'] ?? 'draft',
+            ];
+        }
+
+        foreach ($formulacionOdoo as $linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            if ($estado === 'CANCEL' || $estado === 'CANCELADO' || $estado === 'CANCELADA') {
+                continue;
+            }
+
+            $clave = (!empty($linea['codigo']) && $linea['codigo'] !== '—') ? $linea['codigo'] : $linea['nombre'];
+
+            if (!isset($productosUnificados[$clave])) {
+                $productosUnificados[$clave] = [
+                    'codigo'              => $linea['codigo'] ?? '—',
+                    'nombre'              => $linea['nombre'] ?? '',
+                    'laboratorio'         => null,
+                    'valor_comprado'      => 0.0,
+                    'valor_formulado'     => 0.0,
+                    'unidades'            => 0.0,
+                    'unidades_formuladas' => 0.0,
+                    'estado'              => $linea['estado'] ?? 'draft',
+                ];
+            }
+
+            $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $linea['subtotal'] ?? 0);
+            $productosUnificados[$clave]['unidades_formuladas'] += (int) ($linea['cantidad'] ?? 0);
+        }
+
+        $codigosProductos = collect($productosUnificados)->pluck('codigo')->filter(fn($c) => $c !== '—')->unique()->toArray();
         $laboratoriosLocales = DB::table('productos')
             ->whereIn('codigo', $codigosProductos)
             ->pluck('laboratorio', 'codigo')
             ->toArray();
 
-        $todosProductos = collect($todosProductosRaw)->map(function($prod) use ($laboratoriosLocales) {
+        $todosProductos = collect($productosUnificados)->map(function($prod) use ($laboratoriosLocales) {
             $prod = (object) $prod;
             $prod->laboratorio = $laboratoriosLocales[$prod->codigo] ?? '—';
             return $prod;
-        })->all();
+        })->values()->all();
 
-        // 2. Agrupamos por el laboratorio local y filtramos los vacíos o guiones
+        // 2. Calculamos los totales reales
+        $totalValorCompradoReal = collect($todosProductos)
+            ->filter(function($prod) {
+                $estado = strtoupper($prod->estado ?? '');
+                return $estado !== 'CANCEL' && $estado !== 'CANCELADO' && $estado !== 'CANCELADA';
+            })
+            ->sum('valor_comprado');
+
+        $totalUnidadesCompradasReal = collect($todosProductos)
+            ->filter(function($prod) {
+                $estado = strtoupper($prod->estado ?? '');
+                return $estado !== 'CANCEL' && $estado !== 'CANCELADO' && $estado !== 'CANCELADA';
+            })
+            ->sum('unidades');
+
+        $totalValorFormuladoReal = collect($todosProductos)->sum('valor_formulado');
+        $totalUnidadesFormuladasReal = collect($todosProductos)->sum('unidades_formuladas');
+
+        // 3. Unificar tendencia
+        $tendenciaMap = [];
+        foreach ($odooData['tendencia'] ?? [] as $t) {
+            $mes = $t['mes'];
+            $tendenciaMap[$mes] = [
+                'mes'             => $mes,
+                'valor_comprado'  => (float) ($t['valor_comprado'] ?? 0),
+                'valor_formulado' => (float) ($t['valor_formulado'] ?? 0),
+                'unidades'        => (float) ($t['unidades'] ?? 0),
+            ];
+        }
+
+        foreach ($formulacionOdoo as $linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            if ($estado === 'CANCEL' || $estado === 'CANCELADO' || $estado === 'CANCELADA') {
+                continue;
+            }
+
+            if (!empty($linea['fecha'])) {
+                $mes = substr($linea['fecha'], 0, 7); // Y-m
+                if (!isset($tendenciaMap[$mes])) {
+                    $tendenciaMap[$mes] = [
+                        'mes'             => $mes,
+                        'valor_comprado'  => 0.0,
+                        'valor_formulado' => 0.0,
+                        'unidades'        => 0.0,
+                    ];
+                }
+                $tendenciaMap[$mes]['valor_formulado'] += (float) ($linea['subtotal'] ?? $linea['total'] ?? 0);
+            }
+        }
+        ksort($tendenciaMap);
+        $tendencia = array_values($tendenciaMap);
+
+        // 4. Re-ordenar y obtener Top Productos
+        usort($todosProductos, function($a, $b) {
+            $valA = $a->valor_comprado + $a->valor_formulado;
+            $valB = $b->valor_comprado + $b->valor_formulado;
+            return $valB <=> $valA;
+        });
+        $topProductos = array_slice($todosProductos, 0, 6);
+
+        // 5. Crear objeto $txStats
+        $txStats = $odooData
+            ? (object) [
+                'total_transacciones'       => ($odooData['total_transacciones'] ?? 0) + count($formulacionOdoo),
+                'total_valor_comprado'      => $totalValorCompradoReal,
+                'total_valor_formulado'     => $totalValorFormuladoReal,
+                'total_unidades'            => $totalUnidadesCompradasReal + $totalUnidadesFormuladasReal,
+                'total_unidades_compradas'  => $totalUnidadesCompradasReal,
+                'total_unidades_formuladas' => $totalUnidadesFormuladasReal,
+                'total_productos'           => count($todosProductos),
+                'meses_activo'              => count(array_filter($tendencia, fn($m) => $m['valor_comprado'] > 0 || $m['valor_formulado'] > 0)),
+            ]
+            : $this->txStatsVacios();
+
+        // 6. Agrupación por laboratorio
         $porLaboratorio = collect($todosProductos)
             ->filter(function($item) {
                 return !empty($item->laboratorio) && $item->laboratorio !== '—';
@@ -415,14 +572,17 @@ class Medico2Controller extends Controller
                     'laboratorio'     => $lab,
                     'valor_comprado'  => (float) $items->sum('valor_comprado'),
                     'valor_formulado' => (float) $items->sum('valor_formulado'),
-                    'unidades'        => (int) $items->sum('unidades'),
+                    'unidades'        => (int) $items->sum('unidades') + (int) $items->sum('unidades_formuladas'),
                     'total_productos' => (int) $items->unique('codigo')->count(),
                 ];
             })
-            ->sortByDesc('valor_comprado') // Los laboratorios que más venden primero
+            ->sortByDesc(function($item) {
+                return $item['valor_comprado'] + $item['valor_formulado'];
+            })
             ->values()
             ->all();
 
+        // 5. Carga de visitas locales
         if ($medicoIdLocal) {
             $visitaBase = fn() => DB::table('visitas')
                 ->where('medico_id', $medicoIdLocal)
@@ -488,7 +648,12 @@ class Medico2Controller extends Controller
         ]);
     }
 
+
     // =========================================================================
+    //  ALERTAS DE PRODUCTOS — Comparativo desde Odoo
+    // =========================================================================
+
+   // =========================================================================
     //  ALERTAS DE PRODUCTOS — Comparativo desde Odoo
     // =========================================================================
 
@@ -498,10 +663,10 @@ class Medico2Controller extends Controller
         $doc    = $medico->documento;
 
         // ── Mes actual (fijo: hoy) ────────────────────────────────────────────
-        $hoyReal             = Carbon::now();
-        $inicioMesActual     = $hoyReal->copy()->startOfMonth()->format('Y-m-d');
-        $finMesActual        = $hoyReal->copy()->endOfMonth()->format('Y-m-d');
-        $mesActualLabel      = ucfirst($hoyReal->locale('es')->isoFormat('MMMM YYYY'));
+        $hoyReal         = Carbon::now();
+        $inicioMesActual = $hoyReal->copy()->startOfMonth()->format('Y-m-d');
+        $finMesActual    = $hoyReal->copy()->endOfMonth()->format('Y-m-d');
+        $mesActualLabel  = ucfirst($hoyReal->locale('es')->isoFormat('MMMM YYYY'));
 
         // ── Mes seleccionado (dinámico) ───────────────────────────────────────
         $mesQuery = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
@@ -518,39 +683,59 @@ class Medico2Controller extends Controller
         $mesSeleccionadoLabel  = ucfirst($mesSeleccionado->locale('es')->isoFormat('MMMM YYYY'));
 
         // ── Consulta comparativa a Odoo ───────────────────────────────────────
-        // Período A = mes seleccionado histórico
-        // Período B = mes actual real
         $odooResult = $this->odoo->getProductosComparativo(
             $doc,
             ['desde' => $inicioMesSeleccionado, 'hasta' => $finMesSeleccionado],
             ['desde' => $inicioMesActual,        'hasta' => $finMesActual]
         );
 
-        // Si Odoo no responde o el médico no existe allá, enviamos array vacío
-        // para que la vista muestre el estado "sin datos" sin romper.
         if (!$odooResult['encontrado']) {
             Log::warning('[Medico2Controller] alertasProductos: ' . ($odooResult['mensaje'] ?? 'Sin datos Odoo'));
             $productosAlertas = [];
         } else {
-            // Mapeamos al mismo formato que esperaba la vista antes
-            // para no tener que reescribir el React.
-            $productosAlertas = collect($odooResult['productos'])->map(function ($p) {
+            // ── OBTENER Y FILTRAR FORMULACIONES PARA AMBOS PERÍODOS ──
+            $formulacionesMesSeleccionado = collect($this->odoo->getFormulacionPorDocumento($doc, $inicioMesSeleccionado))
+                ->filter(function($l) use ($inicioMesSeleccionado, $finMesSeleccionado) {
+                    $fecha = Carbon::parse($l['fecha'] ?? now());
+                    $estado = strtoupper($l['estado'] ?? '');
+                    return $fecha->between($inicioMesSeleccionado, $finMesSeleccionado) && !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA']);
+                })->groupBy('codigo');
+
+            $formulacionesMesActual = collect($this->odoo->getFormulacionPorDocumento($doc, $inicioMesActual))
+                ->filter(function($l) use ($inicioMesActual, $finMesActual) {
+                    $fecha = Carbon::parse($l['fecha'] ?? now());
+                    $estado = strtoupper($l['estado'] ?? '');
+                    return $fecha->between($inicioMesActual, $finMesActual) && !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA']);
+                })->groupBy('codigo');
+
+            // Mapeamos e inyectamos los datos reales cruzados por código
+            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual) {
+                $codigo = $p['codigo'];
+
+                $cantFormSeleccionado = $formulacionesMesSeleccionado->has($codigo) ? (int)$formulacionesMesSeleccionado->get($codigo)->sum('cantidad') : 0;
+                $cantFormActual       = $formulacionesMesActual->has($codigo) ? (int)$formulacionesMesActual->get($codigo)->sum('cantidad') : 0;
+                $diffFormulado        = $cantFormActual - $cantFormSeleccionado;
+                
+                $tendenciaFormulado = 'igual';
+                if ($diffFormulado > 0) $tendenciaFormulado = 'subio';
+                if ($diffFormulado < 0) $tendenciaFormulado = 'bajo';
+
                 return [
-                    'codigo'                     => $p['codigo'],
+                    'codigo'                     => $codigo,
                     'nombre'                     => $p['nombre'],
                     'laboratorio'                => $p['laboratorio'] ?? '—',
 
-                    // Período A = mes seleccionado histórico
-                    'formulado_mes_seleccionado' => 0,                  // No existe en Odoo
-                    'comprado_mes_seleccionado'  => (int) $p['comp_a'], // unidades compradas
+                    // Período A = mes seleccionado histórico (Inyección Real)
+                    'formulado_mes_seleccionado' => $cantFormSeleccionado,
+                    'comprado_mes_seleccionado'  => (int) $p['comp_a'],
 
-                    // Período B = mes actual
-                    'formulado_mes_actual'       => 0,                  // No existe en Odoo
+                    // Período B = mes actual (Inyección Real)
+                    'formulado_mes_actual'       => $cantFormActual,
                     'comprado_mes_actual'        => (int) $p['comp_b'],
 
-                    // Tendencias sobre unidades compradas
-                    'formulado_diferencia'       => 0,
-                    'formulado_tendencia'        => 'igual',
+                    // Tendencias calculadas
+                    'formulado_diferencia'       => $diffFormulado,
+                    'formulado_tendencia'        => $tendenciaFormulado,
                     'comprado_diferencia'        => (int) $p['diferencia'],
                     'comprado_tendencia'         => $p['tendencia'],
                 ];
@@ -566,7 +751,6 @@ class Medico2Controller extends Controller
             'mesSeleccionadoLabel' => $mesSeleccionadoLabel,
             'mesQuery'             => $mesQuery,
             'puestoReal'           => $puestoReal,
-            // Bandera para que la vista pueda mostrar aviso si Odoo no respondió
             'odooConectado'        => $odooResult['encontrado'],
         ]);
     }
@@ -618,17 +802,49 @@ class Medico2Controller extends Controller
             Log::warning('[Medico2Controller] alertasPorDocumento: ' . ($odooResult['mensaje'] ?? 'Sin datos Odoo'));
             $productosAlertas = [];
         } else {
-            $productosAlertas = collect($odooResult['productos'])->map(function ($p) {
+            // ── OBTENER Y FILTRAR FORMULACIONES PARA AMBOS PERÍODOS ──
+            $formulacionesMesSeleccionado = collect($this->odoo->getFormulacionPorDocumento($documento, $inicioMesSeleccionado))
+                ->filter(function($l) use ($inicioMesSeleccionado, $finMesSeleccionado) {
+                    $fecha = Carbon::parse($l['fecha'] ?? now());
+                    $estado = strtoupper($l['estado'] ?? '');
+                    return $fecha->between($inicioMesSeleccionado, $finMesSeleccionado) && !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA']);
+                })->groupBy('codigo');
+
+            $formulacionesMesActual = collect($this->odoo->getFormulacionPorDocumento($documento, $inicioMesActual))
+                ->filter(function($l) use ($inicioMesActual, $finMesActual) {
+                    $fecha = Carbon::parse($l['fecha'] ?? now());
+                    $estado = strtoupper($l['estado'] ?? '');
+                    return $fecha->between($inicioMesActual, $finMesActual) && !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA']);
+                })->groupBy('codigo');
+
+            // Mapeamos e inyectamos los datos reales cruzados por código
+            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual) {
+                $codigo = $p['codigo'];
+
+                $cantFormSeleccionado = $formulacionesMesSeleccionado->has($codigo) ? (int)$formulacionesMesSeleccionado->get($codigo)->sum('cantidad') : 0;
+                $cantFormActual       = $formulacionesMesActual->has($codigo) ? (int)$formulacionesMesActual->get($codigo)->sum('cantidad') : 0;
+                $diffFormulado        = $cantFormActual - $cantFormSeleccionado;
+                
+                $tendenciaFormulado = 'igual';
+                if ($diffFormulado > 0) $tendenciaFormulado = 'subio';
+                if ($diffFormulado < 0) $tendenciaFormulado = 'bajo';
+
                 return [
-                    'codigo'                     => $p['codigo'],
+                    'codigo'                     => $codigo,
                     'nombre'                     => $p['nombre'],
                     'laboratorio'                => $p['laboratorio'] ?? '—',
-                    'formulado_mes_seleccionado' => 0,
+                    
+                    // Período A = mes seleccionado histórico (Inyección Real)
+                    'formulado_mes_seleccionado' => $cantFormSeleccionado,
                     'comprado_mes_seleccionado'  => (int) $p['comp_a'],
-                    'formulado_mes_actual'       => 0,
+                    
+                    // Período B = mes actual (Inyección Real)
+                    'formulado_mes_actual'       => $cantFormActual,
                     'comprado_mes_actual'        => (int) $p['comp_b'],
-                    'formulado_diferencia'       => 0,
-                    'formulado_tendencia'        => 'igual',
+                    
+                    // Tendencias calculadas
+                    'formulado_diferencia'       => $diffFormulado,
+                    'formulado_tendencia'        => $tendenciaFormulado,
                     'comprado_diferencia'        => (int) $p['diferencia'],
                     'comprado_tendencia'         => $p['tendencia'],
                 ];
@@ -647,27 +863,4 @@ class Medico2Controller extends Controller
             'odooConectado'        => $odooResult['encontrado'],
             'documentoBase'        => $documento,
         ]);
-    }
-
-    // =========================================================================
-    //  HELPERS PRIVADOS
-    // =========================================================================
-
-    /**
-     * KPIs vacíos con la misma estructura de objeto que espera el React,
-     * usados cuando Odoo no responde o el médico no existe en Odoo.
-     */
-    private function txStatsVacios(): object
-    {
-        return (object) [
-            'total_transacciones'       => 0,
-            'total_valor_comprado'      => 0,
-            'total_valor_formulado'     => 0,
-            'total_unidades'            => 0,
-            'total_unidades_compradas'  => 0,
-            'total_unidades_formuladas' => 0,
-            'total_productos'           => 0,
-            'meses_activo'              => 0,
-        ];
-    }
-}
+    }}

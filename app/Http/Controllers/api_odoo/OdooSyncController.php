@@ -683,7 +683,7 @@ private function obtenerFormulacionOdoo(string $url, string $db, int $uid, strin
             'search_read',
             [[['order_id', 'in', $orderIds]]],
             [
-                'fields' => ['product_id', 'name', 'product_uom_qty', 'price_unit', 'price_subtotal', 'order_id', 'display_type'],
+                'fields' => ['product_id', 'name', 'product_uom_qty', 'price_unit', 'price_subtotal','price_total', 'order_id', 'display_type'],
                 'order'  => 'id desc',
             ]
         );
@@ -722,6 +722,8 @@ private function obtenerFormulacionOdoo(string $url, string $db, int $uid, strin
                     'cantidad'    => is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0,
                     'precio'      => is_numeric($linea['price_unit']      ?? null) ? (float) $linea['price_unit']      : 0,
                     'subtotal'    => is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0,
+
+                    'total'         => is_numeric($linea['price_total']     ?? null) ? (float) $linea['price_total']     : 0,
                     'fecha'       => $orden['date_order'] ?? null,
                     'estado'      => $orden['state'] ?? 'Desconocido',
                 ];

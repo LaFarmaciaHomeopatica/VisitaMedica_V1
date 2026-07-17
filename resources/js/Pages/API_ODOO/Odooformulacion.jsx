@@ -34,6 +34,7 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
     const [buscando, setBuscando]     = useState(false);
     const [busquedaTexto, setBusquedaTexto] = useState('');
     const [agruparRepetidos, setAgruparRepetidos] = useState(false);
+    const [ocultarCancelados, setOcultarCancelados] = useState(false);
 
     // --- NUEVOS ESTADOS (Filtros de Fecha & Paginación) ---
     const [fechaDesde, setFechaDesde] = useState('');
@@ -48,14 +49,18 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
     const buscado = !!resultadoFormulacion;
     const errorMsg = !resultadoFormulacion?.encontrado ? (resultadoFormulacion?.mensaje || errors?.error || flash?.error || '') : '';
 
-    const handleBuscar = (e) => {
+const handleBuscar = (e) => {
         e.preventDefault();
         if (!documento.trim()) return;
         setBuscando(true);
         setBusquedaTexto('');
         setPaginaActual(1); // Resetear página en nueva búsqueda
 
-        router.post(route('odoo.formulacion.buscar'), { documento }, {
+        // Validación segura: Si Ziggy no encuentra la nueva, usa temporalmente la vieja para que no rompa la app
+        const existeRutaNueva = typeof route !== 'undefined' && route.has && route.has('formulacion.buscar');
+        const rutaDestino = existeRutaNueva ? route('formulacion.buscar') : route('odoo.formulacion.buscar');
+
+        router.post(rutaDestino, { documento }, {
             preserveState: true,
             preserveScroll: true,
             onFinish: () => setBuscando(false),
@@ -89,7 +94,12 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
     };
 
     // --- PROCESAMIENTO DE FILTROS ---
-    const formulacionFiltradaInicial = formulacion.filter(f => {
+  const formulacionFiltradaInicial = formulacion.filter(f => {
+        // Nuevo: Filtro para quitar cancelados
+        if (ocultarCancelados && f.estado === 'cancel') {
+            return false;
+        }
+
         // 1. Filtro por texto (Producto, paciente, etc.)
         const query = busquedaTexto.toLowerCase().trim();
         const cumpleTexto = !query ? true : (
@@ -124,22 +134,30 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
         return cumpleTexto && cumpleFecha;
     });
 
+   
     // --- AGRUPAR REPETIDOS ---
     const formulacionFiltradaYAgrupada = agruparRepetidos
         ? Object.values(formulacionFiltradaInicial.reduce((acc, f) => {
             const key = f.producto_id;
             if (!acc[key]) {
-                acc[key] = { ...f, cantidad: Number(f.cantidad) || 0, subtotal: Number(f.subtotal) || 0 };
+                acc[key] = { 
+                    ...f, 
+                    cantidad: Number(f.cantidad) || 0, 
+                    subtotal: Number(f.subtotal) || 0,
+                    total: Number(f.total) || 0 // <-- Agregado
+                };
             } else {
                 acc[key].cantidad += Number(f.cantidad) || 0;
                 acc[key].subtotal += Number(f.subtotal) || 0;
+                acc[key].total += Number(f.total) || 0; // <-- Agregado
             }
             return acc;
         }, {}))
         : formulacionFiltradaInicial;
 
     // --- CÁLCULO DE TOTALES GENERALES (Sobre la lista filtrada completa) ---
-    const totalGeneral = formulacionFiltradaYAgrupada.reduce((acc, f) => acc + (Number(f.subtotal) || 0), 0);
+    const subtotalGeneral = formulacionFiltradaYAgrupada.reduce((acc, f) => acc + (Number(f.subtotal) || 0), 0); // <-- Cambiamos de totalGeneral a subtotalGeneral
+    const totalGeneral = formulacionFiltradaYAgrupada.reduce((acc, f) => acc + (Number(f.total) || 0), 0);       // <-- NUEVO: Acumula el total (con impuestos)
     const cantidadTotal = formulacionFiltradaYAgrupada.reduce((acc, f) => acc + (Number(f.cantidad) || 0), 0);
     const pacientesUnicos = new Set(formulacionFiltradaYAgrupada.map(f => f.paciente)).size;
 
@@ -249,21 +267,42 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
                                     </div>
 
                                     {formulacion.length > 0 && (
-                                        <label className="inline-flex items-center gap-2 cursor-pointer bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors select-none border border-slate-200">
-                                            <input
-                                                type="checkbox"
-                                                checked={agruparRepetidos}
-                                                onChange={(e) => {
-                                                    setAgruparRepetidos(e.target.checked);
-                                                    setPaginaActual(1);
-                                                }}
-                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
-                                            />
-                                            <span className="text-[9px] font-black uppercase text-slate-600 tracking-tight">
-                                                Agrupar repetidos
-                                            </span>
-                                        </label>
-                                    )}
+    <div className="flex items-center gap-3">
+        {/* Filtro Ocultar Cancelados */}
+        <label className="inline-flex items-center gap-2 cursor-pointer bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors select-none border border-slate-200">
+            <input
+                type="checkbox"
+                checked={ocultarCancelados}
+                onChange={(e) => {
+                    setOcultarCancelados(e.target.checked);
+                    setPaginaActual(1);
+                }}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+            />
+            <span className="text-[9px] font-black uppercase text-slate-600 tracking-tight">
+                Quitar Cancelados
+            </span>
+        </label>
+
+        {/* Agrupar Repetidos */}
+        <label className="inline-flex items-center gap-2 cursor-pointer bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors select-none border border-slate-200">
+            <input
+                type="checkbox"
+                checked={agruparRepetidos}
+                onChange={(e) => {
+                    setAgruparRepetidos(e.target.checked);
+                    setPaginaActual(1);
+                }}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+            />
+            <span className="text-[9px] font-black uppercase text-slate-600 tracking-tight">
+                Agrupar repetidos
+            </span>
+        </label>
+    </div>
+)}
+
+                                    
                                 </div>
 
                                 {formulacion.length > 0 && (
@@ -329,21 +368,34 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
                                 )}
                             </div>
 
+                           
                             {/* Sumatoria */}
-                            {formulacion.length > 0 && (
-                                <div className="px-6 py-3 bg-slate-800 flex items-center justify-between flex-wrap gap-3">
-                                    <div>
-                                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-0.5">
-                                            Subtotal formulado (con filtros activos)
-                                        </p>
-                                        <p className="text-[20px] font-black text-white leading-none">{fmt(totalGeneral)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[8px] font-black uppercase text-indigo-300 tracking-widest mb-0.5">Cantidad total</p>
-                                        <p className="text-[16px] font-black text-indigo-200 leading-none">{fmtN(cantidadTotal)} u.</p>
-                                    </div>
-                                </div>
-                            )}
+{formulacion.length > 0 && (
+    <div className="px-6 py-4 bg-slate-800 flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-8">
+            {/* Nuevo bloque destacado: Total Formulado */}
+            <div>
+                <p className="text-[8px] font-black uppercase text-indigo-300 tracking-widest mb-0.5">
+                    Total Formulado (Con Filtros Activos)
+                </p>
+                <p className="text-[22px] font-black text-white leading-none">{fmt(totalGeneral)}</p>
+            </div>
+            
+            {/* Bloque secundario: Subtotal Neto */}
+            <div className="border-l border-slate-700 pl-8">
+                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-0.5">
+                    Subtotal Neto
+                </p>
+                <p className="text-[16px] font-bold text-slate-300 leading-none">{fmt(subtotalGeneral)}</p>
+            </div>
+        </div>
+
+        <div className="text-right">
+            <p className="text-[8px] font-black uppercase text-indigo-300 tracking-widest mb-0.5">Cantidad total</p>
+            <p className="text-[16px] font-black text-indigo-200 leading-none">{fmtN(cantidadTotal)} u.</p>
+        </div>
+    </div>
+)}
 
                             {/* Tabla */}
                             {registrosPaginados.length > 0 ? (
@@ -357,6 +409,7 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
                                                 <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-indigo-500 text-center">Fecha</th>
                                                 <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-indigo-500 text-center">Cantidad</th>
                                                 <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-indigo-500 text-right">Subtotal</th>
+                                                <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-indigo-500 text-right">Total</th>
                                                 <th className="px-6 py-3 text-white text-[9px] font-black uppercase text-center">Estado</th>
                                             </tr>
                                         </thead>
@@ -390,6 +443,11 @@ export default function OdooFormulacion({ auth, conexionEstado = 'sin_probar', f
                                                     <td className="px-6 py-3 border-r border-slate-100 text-right">
                                                         <span className="text-[10px] font-black text-slate-800 font-mono">{fmt(f.subtotal)}</span>
                                                     </td>
+
+                                                    {/* Nuevo campo de Total: */}
+                                    <td className="px-6 py-3 border-r border-slate-100 text-right">
+                                        <span className="text-[10px] font-black text-slate-800 font-mono">{fmt(f.total)}</span>
+                                    </td>
                                                     <td className="px-6 py-3 text-center">
                                                         <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
                                                             ['sale', 'done'].includes(f.estado)

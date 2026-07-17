@@ -182,91 +182,129 @@ class TopMedicosController extends Controller
      * Lógica pesada de cálculo del detalle de un médico.
      */
     private function calcularDetalleMedico(Medico $medico, string $mes, string $periodo, Visitador $visitador): array
-    {
-        $fin = Carbon::parse($mes . '-01')->endOfMonth();
-        $inicio = match ($periodo) {
-            '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
-            '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
-            '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
-            '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
-            'all' => null,
-            default => Carbon::parse($mes . '-01')->startOfMonth(),
-        };
+{
+    $fin = Carbon::parse($mes . '-01')->endOfMonth();
+    $inicio = match ($periodo) {
+        '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
+        '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
+        '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
+        '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
+        'all' => null,
+        default => Carbon::parse($mes . '-01')->startOfMonth(),
+    };
 
-        $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
+    $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
 
-        $odooData = $this->odoo->getKpisPorDocumento($medico->documento, $fechaDesde);
+    // 1. Obtener datos desde Odoo / Repositorio local
+    $odooData = $this->odoo->getKpisPorDocumento($medico->documento, $fechaDesde);
+    $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($medico->documento, $fechaDesde);
 
-        $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
-        $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();
-        $mesFin    = Carbon::parse($mes . '-01')->endOfMonth();
+    $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
+    $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();
+    $mesFin    = Carbon::parse($mes . '-01')->endOfMonth();
 
-        $kpisGrupales = $this->odoo->getKpisGrupales(
-            $todosLosDocs->toArray(),
-            $mesInicio->format('Y-m-d'),
-            $mesFin->format('Y-m-d')
-        );
+    $kpisGrupales = $this->odoo->getKpisGrupales(
+        $todosLosDocs->toArray(),
+        $mesInicio->format('Y-m-d'),
+        $mesFin->format('Y-m-d')
+    );
 
-        $rankingGlobal = collect($kpisGrupales)->map(fn($k, $doc) => [
-            'documento' => $doc,
-            'suma'      => (float) ($k['total_comprado'] ?? 0),
-        ])->sortByDesc('suma')->values();
-$puestoReal = $rankingGlobal->search(fn($r) => (string) $r['documento'] === (string) $medico->documento);
-        $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
+    $rankingGlobal = collect($kpisGrupales)->map(fn($k, $doc) => [
+        'documento' => $doc,
+        'suma'      => (float) ($k['total_comprado'] ?? 0),
+    ])->sortByDesc('suma')->values();
+    $puestoReal = $rankingGlobal->search(fn($r) => (string) $r['documento'] === (string) $medico->documento);
+    $puestoReal = $puestoReal !== false ? $puestoReal + 1 : null;
 
-        // 🌟 1. Forzamos array plano secuencial quitando los índices asociativos de Odoo
-        $todosProductosRaw = collect($odooData['todos_productos'] ?? [])->values()->all();
+    $todosProductosRaw = collect($odooData['todos_productos'] ?? [])->values()->all();
 
-        // 🌟 2. Extraemos los códigos únicos y consultamos las marcas/laboratorios en tu base de datos local
-        $codigosProductos = collect($todosProductosRaw)->pluck('codigo')->filter()->unique()->toArray();
-        $laboratoriosLocales = DB::table('productos')
-            ->whereIn('codigo', $codigosProductos)
-            ->pluck('laboratorio', 'codigo')
-            ->toArray();
+    // Extraer códigos de productos para buscar laboratorios
+    $codigosComprados = collect($todosProductosRaw)->pluck('codigo')->filter();
+    $codigosFormulados = collect($formulacionOdoo)->pluck('codigo')->filter();
+    $codigosProductos = $codigosComprados->concat($codigosFormulados)->unique()->toArray();
 
-        // 🌟 3. Construimos el listado inyectando el laboratorio real de MySQL
-        $productosComprados = collect($todosProductosRaw)->map(function($p) use ($laboratoriosLocales) {
-            $codigo = $p['codigo'] ?? null;
+    $laboratoriosLocales = DB::table('productos')
+        ->whereIn('codigo', $codigosProductos)
+        ->pluck('laboratorio', 'codigo')
+        ->toArray();
+
+    // 2. Mapear compras unificadas
+    $productosComprados = collect($todosProductosRaw)->map(function($p) use ($laboratoriosLocales) {
+        $codigo = $p['codigo'] ?? null;
+        return [
+            'codigo'            => $codigo,
+            'nombre'            => $p['nombre'] ?? 'Sin nombre',
+            'laboratorio'       => $laboratoriosLocales[$codigo] ?? '—',
+            'cantidad_comprada' => (float) ($p['unidades'] ?? 0),
+            'valor_comprado'    => (float) ($p['valor_comprado'] ?? 0),
+        ];
+    })->values()->all();
+
+    // 3. CORRECCIÓN PRINCIPAL: Filtrar, agrupar y SUMAR el histórico de formulados
+    $productosFormulados = collect($formulacionOdoo)
+        ->filter(function($linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            return $estado !== 'CANCEL' && $estado !== 'CANCELADO' && $estado !== 'CANCELADA';
+        })
+        ->groupBy(function($linea) {
+            // Agrupamos por código para que sume los registros de todos los meses de ese producto
+            return $linea['codigo'] ?? $linea['nombre'] ?? 'sin_codigo';
+        })
+        ->map(function($grupo) use ($laboratoriosLocales) {
+            $primero = $grupo->first();
+            $codigo = $primero['codigo'] ?? null;
+            
             return [
-                'codigo'            => $codigo,
-                'nombre'            => $p['nombre'] ?? 'Sin nombre',
-                'laboratorio'       => $laboratoriosLocales[$codigo] ?? '—', // 👈 Cruce local exitoso
-                'cantidad_comprada' => (float) ($p['unidades'] ?? 0),
-                'valor_comprado'    => (float) ($p['valor_comprado'] ?? 0),
+                'codigo'             => $codigo,
+                'nombre'             => $primero['nombre'] ?? 'Sin nombre',
+                'laboratorio'        => $laboratoriosLocales[$codigo] ?? '—',
+                // SUMAMOS todas las cantidades del periodo seleccionado
+                'cantidad_formulada' => (float) $grupo->sum('cantidad'),
+                // SUMAMOS todos los valores usando el subtotal/total acordado
+                'valor_formulado'    => (float) $grupo->sum(fn($l) => ($l['total'] ?? 0)),
             ];
         })->values()->all();
 
-        // 🌟 4. Consolidamos y agrupamos por el laboratorio real para el Visitador
-       // 🌟 4. Consolidamos y agrupamos por el laboratorio real para el Visitador
-        $laboratoriosComprados = collect($productosComprados)
-            ->filter(function($item) {
-                // 🌟 CORREGIDO: Se cambia $item->laboratorio por $item['laboratorio']
-                return !empty($item['laboratorio']) && $item['laboratorio'] !== '—';
-            })
-            ->groupBy('laboratorio')
-            ->map(function($group, $lab) {
-                return [
-                    'laboratorio'       => $lab,
-                    'cantidad_comprada' => (int) $group->sum('cantidad_comprada'),
-                    'valor_comprado'    => (float) $group->sum('valor_comprado'),
-                    'productos'         => (int) $group->unique('codigo')->count(),
-                ];
-            })
-            ->sortByDesc('valor_comprado')
-            ->values()
-            ->all();
+    // 4. Laboratorios Top resumidos
+    $laboratoriosComprados = collect($productosComprados)
+        ->filter(fn($item) => !empty($item['laboratorio']) && $item['laboratorio'] !== '—')
+        ->groupBy('laboratorio')
+        ->map(fn($group, $lab) => [
+            'laboratorio'       => $lab,
+            'cantidad_comprada' => (int) $group->sum('cantidad_comprada'),
+            'valor_comprado'    => (float) $group->sum('valor_comprado'),
+            'productos'         => (int) $group->unique('codigo')->count(),
+        ])->sortByDesc('valor_comprado')->values()->all();
 
-        return [
-            'totales' => [
-                'total_comprado'      => (float) ($odooData['total_valor_comprado'] ?? 0),
-                'total_formulado'     => 0.0,
-                'unidades_compradas'  => (int) ($odooData['total_unidades_compradas'] ?? 0),
-                'unidades_formuladas' => 0,
-                'transacciones'       => (int) ($odooData['total_transacciones'] ?? 0),
-            ],
-            'productosComprados'    => $productosComprados,
-            'laboratoriosComprados' => $laboratoriosComprados,
-            'puestoReal'            => $puestoReal,
-        ];
-    }
+    $laboratoriosFormulados = collect($productosFormulados)
+        ->filter(fn($item) => !empty($item['laboratorio']) && $item['laboratorio'] !== '—')
+        ->groupBy('laboratorio')
+        ->map(fn($group, $lab) => [
+            'laboratorio'        => $lab,
+            'cantidad_formulada' => (int) $group->sum('cantidad_formulada'),
+            'valor_formulado'    => (float) $group->sum('valor_formulado'),
+            'productos'          => (int) $group->unique('codigo')->count(),
+        ])->sortByDesc('valor_formulado')->values()->all();
+
+    // 5. Totales Globales del Período
+    $totalCompradoReal = collect($productosComprados)->sum('valor_comprado');
+    $totalFormuladoReal = collect($productosFormulados)->sum('valor_formulado');
+    $unidadesCompradasReal = collect($productosComprados)->sum('cantidad_comprada');
+    $unidadesFormuladasReal = collect($productosFormulados)->sum('cantidad_formulada');
+
+    return [
+        'totales' => [
+            'total_comprado'      => (float) $totalCompradoReal,
+            'total_formulado'     => (float) $totalFormuladoReal,
+            'unidades_compradas'  => (int) $unidadesCompradasReal,
+            'unidades_formuladas' => (int) $unidadesFormuladasReal,
+            'transacciones'       => (int) ($odooData['total_transacciones'] ?? 0) + count($formulacionOdoo),
+        ],
+        'productosComprados'     => $productosComprados,
+        'productosFormulados'    => $productosFormulados,
+        'laboratoriosComprados'  => $laboratoriosComprados,
+        'laboratoriosFormulados' => $laboratoriosFormulados,
+        'puestoReal'             => $puestoReal,
+    ];
+}
 }
