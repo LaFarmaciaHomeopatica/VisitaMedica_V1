@@ -858,19 +858,34 @@ class OdooService
                 // Leer las fechas de las órdenes para poder asignarlas a las líneas
                 $fechasPorOrden = [];
                 $partnersPorOrden = [];
+                $ordenesFormulacionPropia = []; // order_id => true cuando partner_id == doctor_id (autoformulado)
                 $ordenesData = $this->ejecutarKw(
                     $uid,
                     'sale.order',
                     'read',
                     [$orderIds],
-                    ['fields' => ['id', 'date_order', 'partner_id']]
+                    ['fields' => ['id', 'date_order', 'partner_id', 'doctor_id']]
                 );
                 if (is_array($ordenesData)) {
                     foreach ($ordenesData as $ord) {
                         if (isset($ord['id'])) {
-                            $fechasPorOrden[(int) $ord['id']] = isset($ord['date_order']) ? substr((string) $ord['date_order'], 0, 10) : null;
+                            $orderId = (int) $ord['id'];
+                            $fechasPorOrden[$orderId] = isset($ord['date_order']) ? substr((string) $ord['date_order'], 0, 10) : null;
+
                             $partnerIdRaw = $ord['partner_id'] ?? null;
-                            $partnersPorOrden[(int) $ord['id']] = is_array($partnerIdRaw) ? ($partnerIdRaw[0] ?? null) : $partnerIdRaw;
+                            $partnerId = is_array($partnerIdRaw) ? ($partnerIdRaw[0] ?? null) : $partnerIdRaw;
+                            $partnersPorOrden[$orderId] = $partnerId;
+
+                            $doctorIdRaw = $ord['doctor_id'] ?? null;
+                            $doctorId = is_array($doctorIdRaw) ? ($doctorIdRaw[0] ?? null) : $doctorIdRaw;
+
+                            // Si el cliente (partner_id) y el médico (doctor_id) del pedido
+                            // son la misma persona, ese pedido ya se cuenta como
+                            // "formulado" (getFormulacionPorDocumento) y no debe
+                            // duplicarse aquí en "comprado".
+                            if ($doctorId && $partnerId && (int) $doctorId === (int) $partnerId) {
+                                $ordenesFormulacionPropia[$orderId] = true;
+                            }
                         }
                     }
                 }
@@ -897,8 +912,13 @@ class OdooService
                         if (empty($linea['product_id']))    continue;
                         // Cruzar la fecha de la orden padre
                         $ordId = is_array($linea['order_id']) ? ($linea['order_id'][0] ?? null) : $linea['order_id'];
-                        $fecha = $ordId ? ($fechasPorOrden[(int) $ordId] ?? null) : null;
-                        $partnerId = $ordId ? ($partnersPorOrden[(int) $ordId] ?? null) : null;
+                        $ordId = $ordId ? (int) $ordId : null;
+
+                        // Pedido donde cliente == médico: se conserva únicamente en "formulado".
+                        if ($ordId && isset($ordenesFormulacionPropia[$ordId])) continue;
+
+                        $fecha = $ordId ? ($fechasPorOrden[$ordId] ?? null) : null;
+                        $partnerId = $ordId ? ($partnersPorOrden[$ordId] ?? null) : null;
                         $productos[] = $this->mapearLineaVenta($linea, $fecha, $partnerId);
                     }
                 }
