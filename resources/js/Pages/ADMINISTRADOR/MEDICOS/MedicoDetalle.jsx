@@ -8,6 +8,7 @@ import {
 import {
     FaArrowLeft, FaUserDoctor, FaCalendarCheck,
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
+    FaCalendarDays, FaXmark,
 } from 'react-icons/fa6';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -126,17 +127,13 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────
 const PERIODOS = [
-    { key: 'all', label: 'Todo' },
-    { key: '2y',  label: '2 años' },
-    { key: '1y',  label: '1 año' },
-    { key: '6m',  label: '6 meses' },
-    { key: '3m',  label: '3 meses' },
     { key: 'mes', label: 'Mes Actual' },
-
+    { key: 'all', label: 'Todo' },
 ]; // Se puede agregar más períodos según sea necesario
 
 export default function MedicoDetalle({
-    auth, medico, periodoActivo = 'all', esTemporal = false, documentoBase,
+    auth, medico, periodoActivo = 'all', fechaDesdeActiva = null, fechaHastaActiva = null,
+    esTemporal = false, documentoBase,
     txStats, tendencia, topProductos,
     porLaboratorio, todosProductos,
     visitasStats, visitas, visitadoresAsignados,
@@ -146,6 +143,18 @@ export default function MedicoDetalle({
     const [limProd, setLimProd]     = useState(50);
     const [busquedaProd, setBusquedaProd] = useState('');
     const [ordenProd, setOrdenProd]       = useState('valor_desc'); // 'valor_desc' | 'valor_asc' | 'alfa'
+    const [mostrarCalendario, setMostrarCalendario] = useState(false);
+    const [fechaDesdeInput, setFechaDesdeInput] = useState(fechaDesdeActiva || '');
+    const [fechaHastaInput, setFechaHastaInput] = useState(fechaHastaActiva || '');
+
+    const handlePeriodoPersonalizado = () => {
+        if (!fechaDesdeInput || !fechaHastaInput) return;
+        router.get(
+            route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
+            { periodo: 'custom', fecha_desde: fechaDesdeInput, fecha_hasta: fechaHastaInput },
+            { preserveScroll: true, onSuccess: () => setMostrarCalendario(false) }
+        );
+    };
 
     // ── Datos que vienen de Odoo (lentos): se piden aparte para no bloquear
     // el render inicial, que solo depende de datos locales (médico, visitas,
@@ -304,17 +313,17 @@ export default function MedicoDetalle({
                     )}
 
                     {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
-                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-50">
+                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-50 relative">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-1">Período:</p>
                         <OdooStatusBadge loading={odooLoading} error={odooError} />
                         {PERIODOS.map(p => (
                             <button
                                 key={p.key}
-onClick={() => router.get(
-    route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
-    p.key !== 'all' ? { periodo: p.key } : {},
-    { preserveScroll: true }
-)} 
+                                onClick={() => router.get(
+                                    route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
+                                    p.key !== 'all' ? { periodo: p.key } : {},
+                                    { preserveScroll: true }
+                                )}
                                 className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
                                     periodoActivo === p.key
                                         ? 'bg-blue-600 text-white shadow-sm'
@@ -324,6 +333,60 @@ onClick={() => router.get(
                                 {p.label}
                             </button>
                         ))}
+
+                        <button
+                            onClick={() => setMostrarCalendario(v => !v)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
+                                periodoActivo === 'custom'
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                            <FaCalendarDays className="h-3 w-3" />
+                            {periodoActivo === 'custom' && fechaDesdeActiva && fechaHastaActiva
+                                ? `${fechaDesdeActiva} → ${fechaHastaActiva}`
+                                : 'Personalizado'}
+                        </button>
+
+                        {mostrarCalendario && (
+                            <div className="absolute top-full left-0 mt-2 z-40 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 w-full max-w-xs">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Rango personalizado</p>
+                                    <button onClick={() => setMostrarCalendario(false)} className="text-slate-300 hover:text-slate-500">
+                                        <FaXmark size={12} />
+                                    </button>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">
+                                        Desde
+                                        <input
+                                            type="date"
+                                            value={fechaDesdeInput}
+                                            max={fechaHastaInput || undefined}
+                                            onChange={e => setFechaDesdeInput(e.target.value)}
+                                            className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                    <label className="text-[9px] font-black uppercase text-slate-400">
+                                        Hasta
+                                        <input
+                                            type="date"
+                                            value={fechaHastaInput}
+                                            min={fechaDesdeInput || undefined}
+                                            onChange={e => setFechaHastaInput(e.target.value)}
+                                            className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                </div>
+                                <button
+                                    onClick={handlePeriodoPersonalizado}
+                                    disabled={!fechaDesdeInput || !fechaHastaInput}
+                                    className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white disabled:opacity-40 transition-all active:scale-95"
+                                >
+                                    Aplicar
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -362,7 +425,7 @@ onClick={() => router.get(
                         {/* Tendencia valor */}
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Histórico</p>
-                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado </p>
+                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado y formulado</p>
                             {odooLoading ? (
                                 <ChartSkeleton height={320} />
                             ) : tendenciaData.length === 0 ? (
@@ -375,6 +438,10 @@ onClick={() => router.get(
                                                 <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.28} />
                                                 <stop offset="95%" stopColor="#4184F0" stopOpacity={0} />
                                             </linearGradient>
+                                            <linearGradient id="gfM" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.28} />
+                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                            </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                                         <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
@@ -382,6 +449,7 @@ onClick={() => router.get(
                                         <Tooltip content={<ChartTooltip />} />
                                         <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
                                         <Area type="monotone" dataKey="comprado" name="Comprado" stroke="#4184F0" fill="url(#gcM)" strokeWidth={2.5} dot={false} />
+                                        <Area type="monotone" dataKey="formulado" name="Formulado" stroke="#8b5cf6" fill="url(#gfM)" strokeWidth={2.5} dot={false} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             )}

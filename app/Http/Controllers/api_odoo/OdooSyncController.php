@@ -4,6 +4,7 @@ namespace App\Http\Controllers\api_odoo;
 
 use Inertia\Inertia;
 use App\Http\Controllers\Controller;
+use App\Services\OdooService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -147,8 +148,12 @@ class OdooSyncController extends Controller
             'res.partner',
             'read',
             [$ids],
-            ['fields' => ['name', 'vat', 'email', 'phone', 'mobile']]
+            ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'category_id']]
         );
+
+        if (is_array($records)) {
+            $this->agregarEspecialidad($records, $url, $db, $uid, $password);
+        }
 
         $transacciones = $this->obtenerTransaccionesOdoo($url, $db, $uid, $password, $ids);
 
@@ -157,6 +162,49 @@ class OdooSyncController extends Controller
             'registros'     => $records,
             'transacciones' => $transacciones,
         ]);
+    }
+
+    /**
+     * Resuelve los category_id (tags) de cada registro de res.partner a un
+     * nombre de especialidad, filtrando por ESPECIALIDADES_CONOCIDAS ya que
+     * los tags de esta instancia de Odoo también incluyen cosas que no son
+     * especialidad (consentimiento de mercadeo, tipo de negocio, etc.).
+     * Agrega la clave 'especialidad' (string|null) a cada registro.
+     */
+    private function agregarEspecialidad(array &$records, string $url, string $db, int $uid, string $password): void
+    {
+        $idsUnicos = [];
+        foreach ($records as $r) {
+            foreach ($r['category_id'] ?? [] as $catId) {
+                $idsUnicos[$catId] = true;
+            }
+        }
+
+        $nombresPorId = [];
+        if (!empty($idsUnicos)) {
+            $categorias = $this->ejecutarKw($url, $db, $uid, $password,
+                'res.partner.category',
+                'read',
+                [array_keys($idsUnicos)],
+                ['fields' => ['name']]
+            );
+
+            foreach ((array) $categorias as $cat) {
+                $nombresPorId[$cat['id']] = $cat['name'];
+            }
+        }
+
+        foreach ($records as &$r) {
+            $nombres = [];
+            foreach ($r['category_id'] ?? [] as $catId) {
+                $nombre = $nombresPorId[$catId] ?? null;
+                if ($nombre && in_array(mb_strtoupper($nombre), OdooService::ESPECIALIDADES_CONOCIDAS, true)) {
+                    $nombres[] = $nombre;
+                }
+            }
+            $r['especialidad'] = !empty($nombres) ? implode(', ', $nombres) : null;
+            unset($r['category_id']);
+        }
     }
 
     // =========================================================================

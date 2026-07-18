@@ -11,10 +11,9 @@ use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
 use App\Http\Controllers\administrador\VisitasController;
 use App\Http\Controllers\administrador\ProductosController;
-use App\Http\Controllers\administrador\TransaccionesController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
-use App\Http\Controllers\administrador\MetricasController;
 use App\Http\Controllers\administrador\MetasController;
+use App\Http\Controllers\administrador\ListasPreciosController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
@@ -44,8 +43,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:1'])->group(function () {
         Route::get('/PanelAdmin', [GinicioController::class, 'index']);
         Route::get('/Ginicio',   [GinicioController::class, 'index'])->name('Ginicio');
-
-Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
+        Route::post('/Ginicio/actualizar', [GinicioController::class, 'actualizarGinicio'])->name('Ginicio.actualizar');
 
         Route::get('/Gmetas', [MetasController::class, 'index'])->name('Gmetas.index');
         Route::post('/Gmetas/upsert', [MetasController::class, 'upsert'])->name('Gmetas.upsert');
@@ -55,7 +53,16 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
 
 
 
-        Route::get('/Gusuarios', [UsuarioController::class, 'index'])->name('Gusuarios.index');
+        // Configuración de listas de precios (Compra / Formulación / etc.)
+        Route::get('/Gtarifas', [ListasPreciosController::class, 'index'])->name('Gtarifas.index');
+        Route::post('/Gtarifas', [ListasPreciosController::class, 'store'])->name('Gtarifas.store');
+        Route::put('/Gtarifas/{listaPrecio}', [ListasPreciosController::class, 'update'])->name('Gtarifas.update');
+        Route::delete('/Gtarifas/{listaPrecio}', [ListasPreciosController::class, 'destroy'])->name('Gtarifas.destroy');
+        Route::post('/Gtarifas/sincronizar', [ListasPreciosController::class, 'sincronizar'])->name('Gtarifas.sincronizar');
+        Route::post('/Gtarifas/odoo-config', [ListasPreciosController::class, 'odooConfigSave'])->name('Gtarifas.odooConfigSave');
+
+        // El listado de usuarios ahora vive en Configuración (pestaña "Usuarios").
+        Route::get('/Gusuarios', fn() => redirect('/Gtarifas?tab=usuarios'))->name('Gusuarios.index');
         Route::post('/Gusuarios', [UsuarioController::class, 'store'])->name('Gusuarios.store');
         Route::put('/Gusuarios/{id}', [UsuarioController::class, 'update'])->name('Gusuarios.update');
         Route::delete('/Gusuarios/{id}', [UsuarioController::class, 'destroy'])->name('Gusuarios.destroy');
@@ -106,14 +113,6 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
    
 
 
-    Route::get('/Gtransacciones', [TransaccionesController::class, 'index'])->name('Gtransacciones.index');
-    Route::post('/Gtransacciones', [TransaccionesController::class, 'store'])->name('Gtransacciones.store');
-    Route::put('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'update'])->name('Gtransacciones.update');
-    Route::delete('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'destroy'])->name('Gtransacciones.destroy');
-
-    Route::delete('/Gtransacciones-multiple', [TransaccionesController::class, 'destroyMultiple'])->name('Gtransacciones.destroy_multiple');
-
-
     Route::get('/GmedicosTemporales', [MedicoTemporalController::class, 'index'])->name('GmedicosTemporales.index');
     Route::get('/GmedicosTemporales/{id}/estadisticas', [MedicoTemporalController::class, 'estadisticas'])->name('GmedicosTemporales.estadisticas');
     Route::post('/GmedicosTemporales/{id}/promover', [MedicoTemporalController::class, 'promover'])->name('GmedicosTemporales.promover');
@@ -126,12 +125,6 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
     // Cambia el ->name(...) para que coincida con tu estructura actual
 Route::post('/medicos-temporales/importar', [MedicoTemporalController::class, 'importar'])
     ->name('GmedicosTemporales.importar');
-
-   // Ejemplo de cómo deberían estar tus rutas
-Route::get('/Gtransacciones/exportar',  [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
-Route::get('/Gtransacciones/plantilla', [TransaccionesController::class, 'plantilla'])->name('Gtransacciones.plantilla');
-Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'importar'])->name('Gtransacciones.importar');
-
 
 Route::get('administrador/medicos/{id}/alertas-productos', [
     Medico2Controller::class, 
@@ -172,22 +165,6 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
  
     Route::post('/medicos/buscar', [OdooSyncController::class, 'buscarPorDocumento'])
         ->name('medicos.buscar');
-    /*
-    |------------------------------------------------------------------
-    | Vista de configuración: Parámetros de conexión (.env)
-    |------------------------------------------------------------------
-    | GET  /odoo/config          → muestra el formulario de ajustes
-    | POST /odoo/config/guardar  → persiste los valores en .env
-    |                              (implementación pendiente)
-    |------------------------------------------------------------------
-    */
-    Route::get('/config', [OdooController::class, 'config'])
-        ->name('config');
- 
-    // POST deshabilitado hasta implementación supervisada
-    // Route::post('/config/guardar', [OdooController::class, 'configSave'])
-    //     ->name('config.save');
-    Route::post('/config/guardar', [OdooController::class, 'configSave'])->name('config.save');
 
 // Sincronización — nuevas
 Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);

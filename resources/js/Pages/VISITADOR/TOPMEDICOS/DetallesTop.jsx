@@ -24,6 +24,7 @@ import {
     FaLocationDot,
     FaBell,
     FaSpinner, // ✅ Añadido para el indicador de carga
+    FaCalendarDays,
 } from 'react-icons/fa6';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -402,6 +403,8 @@ const DetallesTop = ({
     medico,
     mesActual,
     periodoActivo = 'mes_actual',
+    fechaDesdeActiva = null,
+    fechaHastaActiva = null,
     vistaAnterior = 'general',
     limitAnterior = 10,
     searchAnterior = '',
@@ -412,6 +415,9 @@ const DetallesTop = ({
     const [pagina, setPagina] = useState(1);
     const [porPagina, setPorPagina] = useState(10);
     const [mostrarDetalles, setMostrarDetalles] = useState(false);
+    const [mostrarCalendario, setMostrarCalendario] = useState(false);
+    const [fechaDesdeInput, setFechaDesdeInput] = useState(fechaDesdeActiva || '');
+    const [fechaHastaInput, setFechaHastaInput] = useState(fechaHastaActiva || '');
 
     const headerRef = useRef(null);
     const [headerHeight, setHeaderHeight] = useState(160);
@@ -421,7 +427,7 @@ const DetallesTop = ({
         if (!odooDatosPesados) {
             router.reload({ only: ['odooDatosPesados'] });
         }
-    }, [periodoActivo]); // Si cambia el periodo, también se refresca automáticamente
+    }, [periodoActivo, fechaDesdeActiva, fechaHastaActiva]); // También se refresca si cambia el rango personalizado
 
     useEffect(() => {
         if (!headerRef.current) return;
@@ -460,6 +466,24 @@ const DetallesTop = ({
             `/visitador/top-medicos/${medico.documento}`,
             { mes: mesActual, periodo: key, vista: modo, limit: limitAnterior, search: searchAnterior, origen },
             { preserveScroll: true, preserveState: true }
+        );
+    };
+
+    const handlePeriodoPersonalizado = () => {
+        if (!fechaDesdeInput || !fechaHastaInput) return;
+        router.get(
+            `/visitador/top-medicos/${medico.documento}`,
+            {
+                mes: mesActual,
+                periodo: 'custom',
+                fecha_desde: fechaDesdeInput,
+                fecha_hasta: fechaHastaInput,
+                vista: modo,
+                limit: limitAnterior,
+                search: searchAnterior,
+                origen,
+            },
+            { preserveScroll: true, preserveState: true, onSuccess: () => setMostrarCalendario(false) }
         );
     };
 
@@ -691,14 +715,10 @@ const DetallesTop = ({
                     </section>
 
                     {/* ── Selector de período ── */}
-                    <div className="flex flex-wrap items-center gap-2 px-1">
+                    <div className="flex flex-wrap items-center gap-2 px-1 relative">
                         <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mr-1">Período:</p>
                         {[
                             { key: 'mes_actual', label: 'Mes Actual' },
-                            { key: '3m',         label: '3 meses' },
-                            { key: '6m',         label: '6 meses' },
-                            { key: '1y',         label: '1 año' },
-                            { key: '2y',         label: '2 años' },
                             { key: 'all',        label: 'Todo' },
                         ].map(p => (
                             <button
@@ -713,6 +733,60 @@ const DetallesTop = ({
                                 {p.label}
                             </button>
                         ))}
+
+                        <button
+                            onClick={() => setMostrarCalendario(v => !v)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border active:scale-95 ${
+                                periodoActivo === 'custom'
+                                    ? 'bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] text-white border-transparent shadow-sm shadow-blue-100'
+                                    : 'bg-white/80 backdrop-blur-md text-gray-400 border-white/40 hover:text-[#1C85E8] hover:border-[#1C85E8]/30'
+                            }`}
+                        >
+                            <FaCalendarDays className="h-3 w-3" />
+                            {periodoActivo === 'custom' && fechaDesdeActiva && fechaHastaActiva
+                                ? `${fechaDesdeActiva} → ${fechaHastaActiva}`
+                                : 'Personalizado'}
+                        </button>
+
+                        {mostrarCalendario && (
+                            <div className="absolute top-full left-0 mt-2 z-40 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex flex-col gap-3 w-full max-w-xs">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Rango personalizado</p>
+                                    <button onClick={() => setMostrarCalendario(false)} className="text-gray-300 hover:text-gray-500">
+                                        <FaXmark size={12} />
+                                    </button>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[9px] font-black uppercase text-gray-400">
+                                        Desde
+                                        <input
+                                            type="date"
+                                            value={fechaDesdeInput}
+                                            max={fechaHastaInput || undefined}
+                                            onChange={e => setFechaDesdeInput(e.target.value)}
+                                            className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                    <label className="text-[9px] font-black uppercase text-gray-400">
+                                        Hasta
+                                        <input
+                                            type="date"
+                                            value={fechaHastaInput}
+                                            min={fechaDesdeInput || undefined}
+                                            onChange={e => setFechaHastaInput(e.target.value)}
+                                            className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                </div>
+                                <button
+                                    onClick={handlePeriodoPersonalizado}
+                                    disabled={!fechaDesdeInput || !fechaHastaInput}
+                                    className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] text-white disabled:opacity-40 transition-all active:scale-95"
+                                >
+                                    Aplicar
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* ── VALIDACIÓN DE CARGA DIFERIDA DE ODOO ── */}

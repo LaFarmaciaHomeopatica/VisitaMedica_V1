@@ -1,19 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Head, usePage } from '@inertiajs/react';
-import PanelAdmin from '../PanelAdmin';
+import { usePage } from '@inertiajs/react';
 
-// Hooks
-import { useUsuariosFilter } from './HooksU/useUsuariosFilter';
-import { useUsuarioForm } from './HooksU/useUsuarioForm';
+import { useUsuariosFilter } from '../../USUARIOS/HooksU/useUsuariosFilter';
+import { useUsuarioForm } from '../../USUARIOS/HooksU/useUsuarioForm';
 
-// Componentes
-import UsuariosToolbar from './ComponentsU/UsuariosToolbar';
-import UsuariosPaginator from './ComponentsU/UsuariosPaginator';
-import UsuariosTable from './ComponentsU/UsuariosTable';
-import UsuarioFormModal from './ComponentsU/UsuarioFormModal';
-import UsuarioDeleteModal from './ComponentsU/UsuarioDeleteModal';
+import UsuariosToolbar from '../../USUARIOS/ComponentsU/UsuariosToolbar';
+import UsuariosPaginator from '../../USUARIOS/ComponentsU/UsuariosPaginator';
+import UsuariosTable from '../../USUARIOS/ComponentsU/UsuariosTable';
+import UsuarioFormModal from '../../USUARIOS/ComponentsU/UsuarioFormModal';
+import UsuarioDeleteModal from '../../USUARIOS/ComponentsU/UsuarioDeleteModal';
 
-const Gusuarios = ({ usuarios = [], roles = [] }) => {
+export default function UsuariosPanel({ usuarios = [], roles = [] }) {
     const filter = useUsuariosFilter(usuarios);
     const form = useUsuarioForm();
     const { flash } = usePage().props;
@@ -31,16 +28,14 @@ const Gusuarios = ({ usuarios = [], roles = [] }) => {
     }, [toast]);
 
     return (
-        <PanelAdmin>
-            <Head title="Gestión de Usuarios" />
-
+        <>
             {toast && (
                 <div className={`fixed top-5 right-5 z-[100] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-bold transition-all ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                     {toast.msg}
                 </div>
             )}
 
-            <div className="w-full min-h-screen flex flex-col bg-white">
+            <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <UsuariosToolbar
                     searchTerm={filter.searchTerm}
                     onSearchChange={filter.setSearchTerm}
@@ -79,8 +74,6 @@ const Gusuarios = ({ usuarios = [], roles = [] }) => {
                 onConfirm={form.handleConfirmDelete}
                 processing={form.processing}
             />
-        </PanelAdmin>
+        </>
     );
-};
-
-export default Gusuarios;
+}

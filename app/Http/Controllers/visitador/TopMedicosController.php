@@ -74,11 +74,29 @@ class TopMedicosController extends Controller
         $mes     = $request->input('mes', Carbon::now()->format('Y-m'));
         $periodo = $request->input('periodo', 'mes_actual');
 
+        $fechaDesdeCustom = null;
+        $fechaHastaCustom = null;
+        $periodoCache     = $periodo;
+
+        if ($periodo === 'custom') {
+            $fechaDesdeCustom = $request->input('fecha_desde');
+            $fechaHastaCustom = $request->input('fecha_hasta');
+
+            // Sin ambas fechas no hay rango válido: caemos a "mes actual" en vez de romper.
+            if (!$fechaDesdeCustom || !$fechaHastaCustom) {
+                $periodo = 'mes_actual';
+                $periodoCache = $periodo;
+            } else {
+                // Clave de caché única por rango exacto, para no colisionar entre rangos distintos.
+                $periodoCache = "custom_{$fechaDesdeCustom}_{$fechaHastaCustom}";
+            }
+        }
+
         $vistaParam     = $request->input('vista', 'general');
         $limitAnterior  = (int) $request->input('limit', 10);
         $searchAnterior = $request->input('search', '');
 
-        $snapshot = OdooSnapshot::buscar($medico->documento, $periodo, $mes);
+        $snapshot = OdooSnapshot::buscar($medico->documento, $periodoCache, $mes);
 
         return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
             'medico' => [
@@ -94,20 +112,22 @@ class TopMedicosController extends Controller
                     'nombre' => $medico->tipoDocumento->nombre
                 ] : null,
             ],
-            'mesActual'      => $mes,
-            'periodoActivo'  => $periodo,
-            'vistaAnterior'  => $vistaParam,
-            'limitAnterior'  => $limitAnterior,
-            'searchAnterior' => $searchAnterior,
+            'mesActual'        => $mes,
+            'periodoActivo'    => $periodo,
+            'fechaDesdeActiva' => $fechaDesdeCustom,
+            'fechaHastaActiva' => $fechaHastaCustom,
+            'vistaAnterior'    => $vistaParam,
+            'limitAnterior'    => $limitAnterior,
+            'searchAnterior'   => $searchAnterior,
 
             'odooDatosPesados' => $snapshot
                 ? array_merge($snapshot->payload, [
                     'actualizadoEn' => $snapshot->actualizado_en?->toIso8601String(),
                 ])
-                : Inertia::lazy(function () use ($medico, $mes, $periodo, $visitador) {
-                    $data = $this->calcularDetalleMedico($medico, $mes, $periodo, $visitador);
+                : Inertia::lazy(function () use ($medico, $mes, $periodo, $visitador, $fechaDesdeCustom, $fechaHastaCustom, $periodoCache) {
+                    $data = $this->calcularDetalleMedico($medico, $mes, $periodo, $visitador, $fechaDesdeCustom, $fechaHastaCustom);
 
-                    OdooSnapshot::guardar($medico->documento, $periodo, $mes, $data);
+                    OdooSnapshot::guardar($medico->documento, $periodoCache, $mes, $data);
 
                     $data['actualizadoEn'] = now()->toIso8601String();
                     return $data;
@@ -181,23 +201,23 @@ class TopMedicosController extends Controller
     /**
      * Lógica pesada de cálculo del detalle de un médico.
      */
-    private function calcularDetalleMedico(Medico $medico, string $mes, string $periodo, Visitador $visitador): array
+    private function calcularDetalleMedico(Medico $medico, string $mes, string $periodo, Visitador $visitador, ?string $fechaDesdeCustom = null, ?string $fechaHastaCustom = null): array
 {
-    $fin = Carbon::parse($mes . '-01')->endOfMonth();
-    $inicio = match ($periodo) {
-        '3m' => Carbon::parse($mes . '-01')->subMonths(3)->startOfMonth(),
-        '6m' => Carbon::parse($mes . '-01')->subMonths(6)->startOfMonth(),
-        '1y' => Carbon::parse($mes . '-01')->subMonths(12)->startOfMonth(),
-        '2y' => Carbon::parse($mes . '-01')->subMonths(24)->startOfMonth(),
-        'all' => null,
-        default => Carbon::parse($mes . '-01')->startOfMonth(),
-    };
-
-    $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
+    if ($periodo === 'custom' && $fechaDesdeCustom && $fechaHastaCustom) {
+        $fechaDesde = $fechaDesdeCustom;
+        $fechaHasta = $fechaHastaCustom;
+    } else {
+        $inicio = match ($periodo) {
+            'all' => null,
+            default => Carbon::parse($mes . '-01')->startOfMonth(), // 'mes_actual' u otro valor legado
+        };
+        $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
+        $fechaHasta = null;
+    }
 
     // 1. Obtener datos desde Odoo / Repositorio local
-    $odooData = $this->odoo->getKpisPorDocumento($medico->documento, $fechaDesde);
-    $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($medico->documento, $fechaDesde);
+    $odooData = $this->odoo->getKpisPorDocumento($medico->documento, $fechaDesde, $fechaHasta);
+    $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($medico->documento, $fechaDesde, $fechaHasta);
 
     $todosLosDocs = $visitador->medicos()->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
     $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();

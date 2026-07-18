@@ -207,10 +207,10 @@ const handleBuscar = (e) => {
                                 <span className="text-[9px] font-bold text-slate-400 uppercase mr-1">Estado API:</span>
                                 <ConexionBadge estado={conexionEstado} />
                             </div>
-                            <Link href={route('odoo.config')}
+                            <Link href={route('Gtarifas.index')}
                                 className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2.5 rounded-full shadow-sm transition-colors">
                                 <FaGear className="text-[10px]" />
-                                Ajustes de Conexión
+                                Configuración
                             </Link>
                         </div>
                     </div>

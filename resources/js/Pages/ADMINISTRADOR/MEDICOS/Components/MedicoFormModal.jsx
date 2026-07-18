@@ -47,8 +47,6 @@ export default function MedicoFormModal({
                             {errors.categoria_id && <div className="text-red-500 text-[9px] mt-1 font-bold">{errors.categoria_id}</div>}
                         </div>
 
-                        <input placeholder="Especialidad" value={data.especialidad} onChange={e => setData('especialidad', e.target.value)}
-                            className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
                         <input placeholder="Teléfono" value={data.telefono_contacto} onChange={e => setData('telefono_contacto', e.target.value)}
                             className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
                         <input placeholder="Horario" value={data.horario_atencion} onChange={e => setData('horario_atencion', e.target.value)}

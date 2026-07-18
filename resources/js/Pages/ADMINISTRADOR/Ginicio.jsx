@@ -5,17 +5,14 @@ import {
     AreaChart, Area, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { FaArrowRight } from 'react-icons/fa6';
+import { FaArrowRight, FaRotate } from 'react-icons/fa6';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
 const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16'];
@@ -141,13 +138,14 @@ function MedicoSearch({ medicos, value, onChange }) {
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function Ginicio({
-    auth, stats, tendencia, topProductos, topMedicos = [],
-    visitadoresResumen, visitadoresAnalisis = [], visitasPorEstado,
+    auth, statsLocales, stats, tendencia, topProductos, topMedicos = [],
+    visitadoresResumen, visitadoresAnalisis, visitasPorEstado,
     filtros, medicos = [],
 }) {
     const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
     const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
+    const [actualizando, setActualizando] = useState(false);
 
     const isFirstRender = useRef(true);
     const timerRef      = useRef(null);
@@ -164,13 +162,34 @@ export default function Ginicio({
         }, 500);
     }, [fechaInicio, fechaFin, medicoDoc]);
 
+    // ── Datos que vienen de Odoo (lentos): llegan por Inertia::lazy, se
+    // piden aparte para no bloquear el render inicial (conteos locales y
+    // filtros ya llegaron con la carga normal). Si el controller ya los
+    // mandó (stats truthy), no se vuelven a pedir.
+    const odooLoading = !stats;
+
+    useEffect(() => {
+        if (stats) return; // ya llegaron
+        router.reload({ only: ['stats', 'tendencia', 'topProductos', 'topMedicos', 'visitadoresAnalisis'] });
+    }, [stats, fechaInicio, fechaFin, medicoDoc]);
+
     const limpiar = () => {
         clearTimeout(timerRef.current);
         router.get(route('Ginicio'));
     };
 
-    const ticketPromedio = (stats?.total_transacciones ?? 0) > 0
-        ? (stats.valor_comprado / stats.total_transacciones) : 0;
+    const actualizar = () => {
+        setActualizando(true);
+        router.post(route('Ginicio.actualizar'), { medico_documento: medicoDoc || undefined }, {
+            preserveScroll: true,
+            onFinish: () => setActualizando(false),
+        });
+    };
+
+    const statsCombinado = { ...statsLocales, ...(stats ?? {}) };
+
+    const ticketPromedio = (statsCombinado.total_transacciones ?? 0) > 0
+        ? (statsCombinado.valor_comprado / statsCombinado.total_transacciones) : 0;
     const tendenciaData = (tendencia ?? []).map(d => ({
         label:    d.mes?.slice(0, 7),
         comprado: Number(d.valor_comprado),
@@ -184,6 +203,7 @@ export default function Ginicio({
     }));
 
     const medicosData = topMedicos ?? [];
+    const visitadoresAnalisisData = visitadoresAnalisis ?? [];
 
 
     return (
@@ -217,6 +237,11 @@ export default function Ginicio({
                                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition">
                             Limpiar
                         </button>
+                        <button onClick={actualizar} disabled={actualizando}
+                                className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-600 hover:text-blue-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition disabled:opacity-50">
+                            <FaRotate className={actualizando ? 'animate-spin' : ''} />
+                            {actualizando ? 'Actualizando...' : 'Actualizar'}
+                        </button>
                     </div>
                 </div>
 
@@ -224,14 +249,14 @@ export default function Ginicio({
 
                     {/* ── KPI CARDS ────────────────────────────────── */}
                     <div className="grid grid-cols-2 xl:grid-cols-8 gap-3">
-                        <KpiCard label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
-                        <KpiCard label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
-                        <KpiCard label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard label="unidades compradas" value={fmt(stats?.unidades_compradas)} accent="#ef4444" />
-                        <KpiCard label="unidades formuladas" value={fmt(stats?.unidades_formuladas)} accent="#ec4899" />
-                        <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
-                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
-                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />
+                        <KpiCard label="Visitadores"     value={fmt(statsCombinado.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard label="Médicos"         value={fmt(statsCombinado.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard label="Méd. Temporales" value={fmt(statsCombinado.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard label="unidades compradas" value={odooLoading ? '…' : fmt(statsCombinado.unidades_compradas)} accent="#ef4444" />
+                        <KpiCard label="unidades formuladas" value={odooLoading ? '…' : fmt(statsCombinado.unidades_formuladas)} accent="#ec4899" />
+                        <KpiCard label="Ticket Promedio" value={odooLoading ? '…' : fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
+                        <KpiCard label="Valor Comprado"  value={odooLoading ? '…' : fmtM(statsCombinado.valor_comprado)}  sub={odooLoading ? '' : `${fmt(statsCombinado.unidades_compradas)} un.`} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={odooLoading ? '…' : fmtM(statsCombinado.valor_formulado)} sub={odooLoading ? '' : `${fmt(statsCombinado.unidades_formuladas)} un.`} accent="#8b5cf6" />
                     </div>
 
                     {/* ── FILA 1: Tendencia + Visitas ──────────────── */}
@@ -239,7 +264,9 @@ export default function Ginicio({
 
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <SectionHeader label="Histórico" title="Tendencia de valor en el período" />
-                            {tendenciaData.length === 0 ? (
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-56 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : tendenciaData.length === 0 ? (
                                 <div className="flex items-center justify-center h-56 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
                                 <ResponsiveContainer width="100%" height={240}>
@@ -301,7 +328,9 @@ export default function Ginicio({
                         {/* Top productos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <SectionHeader label="Productos · período" title="Top productos por valor" />
-                            {(topProductos?.length === 0) ? (
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : (topProductos?.length === 0) ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (() => {
                                 const maxC = topProductos[0]?.valor_comprado ?? 1;
@@ -343,7 +372,9 @@ export default function Ginicio({
                         {/* Top médicos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <SectionHeader label="Ranking" title="Top médicos por unidades" />
-                            {medicosData.length === 0 ? (
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : medicosData.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (() => {
                                 const maxC = Math.max(...medicosData.map(m => m.compradas), 1);
@@ -382,13 +413,18 @@ export default function Ginicio({
                     </div>
 
                     {/* ── ANÁLISIS VISITADORES ──────────────────────── */}
-                    {visitadoresAnalisis.length > 0 && (() => {
-                        const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
+                    {odooLoading ? (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                            <div className="flex items-center justify-center h-32 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                        </div>
+                    ) : visitadoresAnalisisData.length > 0 && (() => {
+                        const maxVal = Math.max(...visitadoresAnalisisData.map(v => v.valor_comprado), 1);
                         return (
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                                 <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
                                 <div className="space-y-5">
-                                    {visitadoresAnalisis.map((v, i) => {
+                                    {visitadoresAnalisisData.map((v, i) => {
                                         const pctC = Math.round((v.valor_comprado  / maxVal) * 100);
                                         const pctF = Math.round((v.valor_formulado / maxVal) * 100);
                                         return (

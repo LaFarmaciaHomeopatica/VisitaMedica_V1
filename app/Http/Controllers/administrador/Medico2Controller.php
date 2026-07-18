@@ -35,12 +35,41 @@ class Medico2Controller extends Controller
 
     public function index()
     {
+        $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get();
+        $this->inyectarEspecialidadOdoo($medicos);
+
         return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
-            'medicos'        => Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get(),
+            'medicos'        => $medicos,
             'visitadores'    => Visitador::all(['id', 'nombre', 'apellido']),
             'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
             'categorias'     => Categoria::all(['id', 'nombre']),
         ]);
+    }
+
+    /**
+     * Reemplaza medico->especialidad (columna local, legado) por la
+     * especialidad real resuelta desde el tag del contacto en Odoo,
+     * cruzando por documento. Si Odoo no tiene un tag reconocido para
+     * ese documento, queda en null.
+     */
+    private function inyectarEspecialidadOdoo(iterable $medicos): void
+    {
+        $documentos = collect($medicos)->pluck('documento')->filter()->all();
+        $especialidades = $this->odoo->getEspecialidadesPorDocumentos($documentos);
+
+        foreach ($medicos as $medico) {
+            $medico->especialidad = $especialidades[trim((string) $medico->documento)] ?? null;
+        }
+    }
+
+    /**
+     * Igual que inyectarEspecialidadOdoo() pero para un único documento.
+     */
+    private function resolverEspecialidadOdoo(?string $documento): ?string
+    {
+        if (empty($documento)) return null;
+
+        return $this->odoo->getEspecialidadesPorDocumentos([$documento])[trim($documento)] ?? null;
     }
 
     public function store(Request $request)
@@ -50,7 +79,6 @@ class Medico2Controller extends Controller
             'documento'            => 'required|string|unique:medicos,documento',
             'nombre'               => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
-            'especialidad'         => 'nullable|string|max:100',
             'geolocalizacion'      => 'nullable|string|max:300',
             'direccion_detalles'   => 'nullable|string',
             'telefono_contacto'    => 'nullable|string|max:50',
@@ -85,7 +113,6 @@ class Medico2Controller extends Controller
             'documento'            => 'required|string|unique:medicos,documento,' . $medico->id,
             'nombre'               => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
-            'especialidad'         => 'nullable|string|max:100',
             'geolocalizacion'      => 'nullable|string|max:300',
             'direccion_detalles'   => 'nullable|string',
             'telefono_contacto'    => 'nullable|string|max:50',
@@ -199,26 +226,53 @@ public function show(Request $request, $id)
     {
         $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
         $doc    = $medico->documento;
+        $medico->especialidad = $this->resolverEspecialidadOdoo($doc);
 
         // ── Período ──────────────────────────────────────────────────────────
-        $periodo    = $request->input('periodo', 'all');
-        $fechaDesde = match($periodo) {
-            'mes' => Carbon::now()->startOfMonth()->format('Y-m-d'),
-            '3m'  => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
-            '6m'  => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
-            '1y'  => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
-            '2y'  => Carbon::now()->subMonths(24)->startOfMonth()->format('Y-m-d'),
-            default => null,
-        };
+        [$periodo, $fechaDesde, $fechaHasta, $fechaDesdeCustom, $fechaHastaCustom] = $this->resolverPeriodo($request);
 
         // ── Datos Odoo y Formulación Local ────────────────────────────────────
-        $odooData = $this->odoo->getKpisPorDocumento($doc, $fechaDesde);
-        
-        // Obtener la formulación real desde la base de datos local para este período
-        $formulacionLocal = $this->odoo->getFormulacionPorDocumento($doc, $fechaDesde) ?? [];
+        $odooData = $this->odoo->getKpisPorDocumento($doc, $fechaDesde, $fechaHasta);
 
-        $tendencia         = $odooData['tendencia']   ?? [];
+        // Obtener la formulación real desde la base de datos local para este período
+        $formulacionLocal = $this->odoo->getFormulacionPorDocumento($doc, $fechaDesde, $fechaHasta) ?? [];
+
         $todosProductosRaw = $odooData['todos_productos'] ?? [];
+
+        // Unificar tendencia mensual: comprado (ya viene de Odoo) + formulado
+        // (hay que sumarlo mes a mes, igual que en showPorDocumento).
+        $tendenciaMap = [];
+        foreach ($odooData['tendencia'] ?? [] as $t) {
+            $mes = $t['mes'];
+            $tendenciaMap[$mes] = [
+                'mes'             => $mes,
+                'valor_comprado'  => (float) ($t['valor_comprado'] ?? 0),
+                'valor_formulado' => (float) ($t['valor_formulado'] ?? 0),
+                'unidades'        => (float) ($t['unidades'] ?? 0),
+            ];
+        }
+
+        foreach ($formulacionLocal as $linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            if ($estado === 'CANCEL' || $estado === 'CANCELADO' || $estado === 'CANCELADA') {
+                continue;
+            }
+
+            if (!empty($linea['fecha'])) {
+                $mes = substr($linea['fecha'], 0, 7); // Y-m
+                if (!isset($tendenciaMap[$mes])) {
+                    $tendenciaMap[$mes] = [
+                        'mes'             => $mes,
+                        'valor_comprado'  => 0.0,
+                        'valor_formulado' => 0.0,
+                        'unidades'        => 0.0,
+                    ];
+                }
+                $tendenciaMap[$mes]['valor_formulado'] += (float) ($linea['subtotal'] ?? $linea['total'] ?? 0);
+            }
+        }
+        ksort($tendenciaMap);
+        $tendencia = array_values($tendenciaMap);
 
         // 1. Unificar productos comprados y formulados de forma idéntica a "showPorDocumento"
         $productosUnificados = [];
@@ -378,6 +432,8 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
             'periodoActivo'        => $periodo,
+            'fechaDesdeActiva'     => $fechaDesdeCustom,
+            'fechaHastaActiva'     => $fechaHastaCustom,
             'txStats'              => $txStats,
             'tendencia'            => $tendencia,
             'topProductos'         => $topProductos,
@@ -419,19 +475,13 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             ];
         }
 
-        $periodo    = $request->input('periodo', 'all');
-        $fechaDesde = match($periodo) {
-            'mes' => Carbon::now()->startOfMonth()->format('Y-m-d'),
-            '3m'  => Carbon::now()->subMonths(3)->startOfMonth()->format('Y-m-d'),
-            '6m'  => Carbon::now()->subMonths(6)->startOfMonth()->format('Y-m-d'),
-            '1y'  => Carbon::now()->subMonths(12)->startOfMonth()->format('Y-m-d'),
-            '2y'  => Carbon::now()->subMonths(24)->startOfMonth()->format('Y-m-d'),
-            default => null,
-        };
+        $medico->especialidad = $this->resolverEspecialidadOdoo($documento);
 
-        $odooData = $this->odoo->getKpisPorDocumento($documento, $fechaDesde);
+        [$periodo, $fechaDesde, $fechaHasta, $fechaDesdeCustom, $fechaHastaCustom] = $this->resolverPeriodo($request);
 
-        $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($documento, $fechaDesde) ?? [];
+        $odooData = $this->odoo->getKpisPorDocumento($documento, $fechaDesde, $fechaHasta);
+
+        $formulacionOdoo = $this->odoo->getFormulacionPorDocumento($documento, $fechaDesde, $fechaHasta) ?? [];
         $todosProductosRaw = $odooData['todos_productos'] ?? [];
 
         // 1. Unificar productos comprados y formulados
@@ -634,6 +684,8 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
             'periodoActivo'        => $periodo,
+            'fechaDesdeActiva'     => $fechaDesdeCustom,
+            'fechaHastaActiva'     => $fechaHastaCustom,
             'txStats'              => $txStats,
             'tendencia'            => $tendencia,
             'topProductos'         => $topProductos,
@@ -863,4 +915,55 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'odooConectado'        => $odooResult['encontrado'],
             'documentoBase'        => $documento,
         ]);
-    }}
+    }
+
+    /**
+     * Resuelve el período seleccionado en la vista de detalle de médico.
+     * Retorna [periodo, fechaDesde, fechaHasta, fechaDesdeCustom, fechaHastaCustom].
+     * fechaDesdeCustom/fechaHastaCustom solo se llenan cuando periodo === 'custom'
+     * (se usan para prellenar el calendario en el frontend).
+     */
+    private function resolverPeriodo(Request $request): array
+    {
+        $periodo = $request->input('periodo', 'all');
+        $fechaDesdeCustom = null;
+        $fechaHastaCustom = null;
+
+        if ($periodo === 'custom') {
+            $fechaDesdeCustom = $request->input('fecha_desde');
+            $fechaHastaCustom = $request->input('fecha_hasta');
+
+            // Sin ambas fechas no hay rango válido: caemos a "Todo" en vez de romper.
+            if (!$fechaDesdeCustom || !$fechaHastaCustom) {
+                $periodo = 'all';
+                $fechaDesdeCustom = null;
+                $fechaHastaCustom = null;
+            }
+        }
+
+        $fechaDesde = $fechaDesdeCustom ?? match ($periodo) {
+            'mes'   => Carbon::now()->startOfMonth()->format('Y-m-d'),
+            default => null, // 'all'
+        };
+        $fechaHasta = $fechaHastaCustom;
+
+        return [$periodo, $fechaDesde, $fechaHasta, $fechaDesdeCustom, $fechaHastaCustom];
+    }
+
+    /**
+     * Estructura de txStats cuando no hay conexión con Odoo.
+     */
+    private function txStatsVacios(): object
+    {
+        return (object) [
+            'total_transacciones'       => 0,
+            'total_valor_comprado'      => 0,
+            'total_valor_formulado'     => 0,
+            'total_unidades'            => 0,
+            'total_unidades_compradas'  => 0,
+            'total_unidades_formuladas' => 0,
+            'total_productos'           => 0,
+            'meses_activo'              => 0,
+        ];
+    }
+}

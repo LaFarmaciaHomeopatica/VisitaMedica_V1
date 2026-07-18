@@ -4,24 +4,15 @@ namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Rol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 
 class UsuarioController extends Controller
 {
-    public function index()
-    {
-        $usuarios = User::all();
-        $roles = Rol::all(); 
-        
-        return Inertia::render('ADMINISTRADOR/USUARIOS/Gusuarios', [
-            'usuarios' => $usuarios,
-            'roles' => $roles
-        ]);
-    }
+    // La vista de listado vive ahora en Configuración (pestaña "Usuarios",
+    // servida por ListasPreciosController::index). Este controlador solo
+    // maneja las acciones de escritura, que la pestaña sigue usando tal cual.
 
     public function store(Request $request)
     {
