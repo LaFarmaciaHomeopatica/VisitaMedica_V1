@@ -6,6 +6,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { FaArrowRight, FaRotate } from 'react-icons/fa6';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
@@ -327,59 +328,45 @@ export default function Ginicio({
 
                         {/* Top productos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Productos · período" title="Top productos por valor" />
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <SectionHeader label="Productos · período" title="Top productos por valor" />
+                                <LeyendaCompradoFormulado />
+                            </div>
                             {odooLoading ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
                             ) : (topProductos?.length === 0) ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
-                            ) : (() => {
-                                const maxC = topProductos[0]?.valor_comprado ?? 1;
-                                const maxF = Math.max(...(topProductos.map(x => x.valor_formulado ?? 0)), 1);
-                                return (
+                            ) : (
                                     <div className="space-y-4">
-                                        {(topProductos ?? []).map((p, i) => {
-                                            const pctC = Math.round((p.valor_comprado / maxC) * 100);
-                                            const pctF = Math.round(((p.valor_formulado ?? 0) / maxF) * 100);
-                                            return (
+                                        {(topProductos ?? []).map((p, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-1.5">
                                                         <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
                                                               style={{ background: PROD_COLORS[i] }}>{i + 1}</span>
                                                         <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{p.nombre}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${pctC}%`, background: PROD_COLORS[i] }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-slate-700 w-14 text-right shrink-0">{fmtM(p.valor_comprado)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${pctF}%`, background: '#8b5cf6' }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-purple-600 w-14 text-right shrink-0">{fmtM(p.valor_formulado ?? 0)}</span>
+                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
+                                                        <BarraComparativa comprado={p.valor_comprado} formulado={p.valor_formulado ?? 0} />
+                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(p.valor_formulado ?? 0)}</span>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                        ))}
                                     </div>
-                                );
-                            })()}
+                                )}
                         </div>
 
                         {/* Top médicos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Ranking" title="Top médicos por unidades" />
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <SectionHeader label="Ranking" title="Top médicos por unidades" />
+                                <LeyendaCompradoFormulado />
+                            </div>
                             {odooLoading ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
                             ) : medicosData.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
-                            ) : (() => {
-                                const maxC = Math.max(...medicosData.map(m => m.compradas), 1);
-                                const maxF = Math.max(...medicosData.map(m => m.formuladas), 1);
-                                return (
+                            ) : (
                                     <div className="space-y-4">
                                         {medicosData.map((m, i) => (
                                             <div key={i} className="flex items-start gap-3">
@@ -389,26 +376,16 @@ export default function Ginicio({
                                                 </span>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-[10px] font-black text-slate-700 uppercase leading-tight mb-1.5">{m.nombre}</p>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Compradas</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-[#4184F0] rounded-full" style={{ width: `${(m.compradas / maxC) * 100}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-[#4184F0] w-10 text-right shrink-0">{fmt(m.compradas)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Formuladas</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-[#8b5cf6] rounded-full" style={{ width: `${(m.formuladas / maxF) * 100}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-[#8b5cf6] w-10 text-right shrink-0">{fmt(m.formuladas)}</span>
+                                                        <span className="text-[9px] font-black w-10 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmt(m.compradas)}</span>
+                                                        <BarraComparativa comprado={m.compradas} formulado={m.formuladas} />
+                                                        <span className="text-[9px] font-black w-10 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmt(m.formuladas)}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                );
-                            })()}
+                                )}
                         </div>
                     </div>
 
@@ -418,16 +395,14 @@ export default function Ginicio({
                             <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
                             <div className="flex items-center justify-center h-32 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
                         </div>
-                    ) : visitadoresAnalisisData.length > 0 && (() => {
-                        const maxVal = Math.max(...visitadoresAnalisisData.map(v => v.valor_comprado), 1);
-                        return (
+                    ) : visitadoresAnalisisData.length > 0 && (
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                                <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                    <LeyendaCompradoFormulado />
+                                </div>
                                 <div className="space-y-5">
-                                    {visitadoresAnalisisData.map((v, i) => {
-                                        const pctC = Math.round((v.valor_comprado  / maxVal) * 100);
-                                        const pctF = Math.round((v.valor_formulado / maxVal) * 100);
-                                        return (
+                                    {visitadoresAnalisisData.map((v, i) => (
                                             <div key={i} className="flex items-start gap-3">
                                                 <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
                                                       style={{ background: COLORS[i % COLORS.length] }}>
@@ -438,28 +413,17 @@ export default function Ginicio({
                                                         <p className="text-[11px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
                                                         <span className="text-[9px] text-slate-400 font-bold">{v.medicos_activos} méd. · {v.total_visitas} visitas</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pctC}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-indigo-600 w-16 text-right shrink-0">{fmtM(v.valor_comprado)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-purple-400" style={{ width: `${pctF}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-purple-600 w-16 text-right shrink-0">{fmtM(v.valor_formulado)}</span>
+                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(v.valor_comprado)}</span>
+                                                        <BarraComparativa comprado={v.valor_comprado} formulado={v.valor_formulado} />
+                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(v.valor_formulado)}</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                    ))}
                                 </div>
                             </div>
-                        );
-                    })()}
+                    )}
 
                 </div>
             </div>

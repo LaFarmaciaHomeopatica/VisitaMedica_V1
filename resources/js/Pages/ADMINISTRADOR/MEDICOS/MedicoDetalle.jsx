@@ -10,6 +10,7 @@ import {
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
     FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus,
 } from 'react-icons/fa6';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
 function TendenciaCategoria({ tendencia }) {
     if (tendencia === 'subio') return <FaArrowTrendUp className="text-emerald-500 text-[10px]" title="Subió de categoría" />;
@@ -524,10 +525,7 @@ export default function MedicoDetalle({
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex-1">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Productos</p>
                                 <p className="text-[12px] font-black text-slate-800 mb-1">Top por valor comprado y formulado</p>
-                                <div className="flex gap-3 mb-3">
-                                    <span className="flex items-center gap-1 text-[8px] font-black text-indigo-600"><span className="w-2 h-1.5 rounded-full bg-indigo-500 inline-block" /> Comprado</span>
-                                    <span className="flex items-center gap-1 text-[8px] font-black text-purple-500"><span className="w-2 h-1.5 rounded-full bg-purple-500 inline-block" /> Formulado</span>
-                                </div>
+                                <LeyendaCompradoFormulado className="mb-3" />
                                 <div className="space-y-3">
                                     {odooLoading ? (
                                         <>
@@ -535,31 +533,18 @@ export default function MedicoDetalle({
                                             <BarRowSkeleton />
                                             <BarRowSkeleton />
                                         </>
-                                    ) : prodData.map((p, i) => {
-                                        const maxC = prodData[0]?.valor ?? 1;
-                                        const maxF = Math.max(...prodData.map(x => x.formulado), 1);
-                                        return (
+                                    ) : prodData.map((p, i) => (
                                             <div key={i}>
                                                 <div className="flex justify-between mb-1">
                                                     <span className="text-[9px] font-bold text-slate-600 truncate flex-1 pr-2">{p.name}</span>
                                                     <div className="flex gap-2 shrink-0">
-                                                        <span className="text-[9px] font-black text-indigo-600">{fmtM(p.valor)}</span>
-                                                        <span className="text-[9px] font-black text-purple-500">{fmtM(p.formulado)}</span>
+                                                        <span className="text-[9px] font-black" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor)}</span>
+                                                        <span className="text-[9px] font-black" style={{ color: COLOR_FORMULADO }}>{fmtM(p.formulado)}</span>
                                                     </div>
                                                 </div>
-                                                {/* Barra comprado */}
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-0.5">
-                                                    <div className="h-full rounded-full"
-                                                         style={{ width: `${(p.valor / maxC) * 100}%`, background: PROD_COLORS[i] }} />
-                                                </div>
-                                                {/* Barra formulado */}
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div className="h-full rounded-full"
-                                                         style={{ width: `${(p.formulado / maxF) * 100}%`, background: '#8b5cf6' }} />
-                                                </div>
+                                                <BarraComparativa comprado={p.valor} formulado={p.formulado} />
                                             </div>
-                                        );
-                                    })}
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -621,17 +606,15 @@ export default function MedicoDetalle({
                         )}
 
                         {/* Tab: Laboratorios y productos */}
-                        {tabActiva === 'laboratorios' && (() => {
-                            const maxLabC = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_comprado)), 1);
-                            const maxLabF = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_formulado)), 1);
-                            return (
+                        {tabActiva === 'laboratorios' && (
                                 <div className="p-6 space-y-6">
 
                                     {/* Laboratorios */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Por laboratorio</p>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <LeyendaCompradoFormulado />
                                                 <span className="text-[9px] text-slate-400">Mostrar</span>
                                                 <select
                                                     value={limLab}
@@ -658,26 +641,15 @@ export default function MedicoDetalle({
                                                         <div className="flex justify-between items-baseline mb-1">
                                                             <span className="text-[10px] font-black text-slate-700 uppercase">{lab.laboratorio}</span>
                                                             <div className="flex gap-4 text-right">
-                                                                <span className="text-[9px] font-black text-indigo-600">{fmtM(lab.valor_comprado)}</span>
-                                                                <span className="text-[9px] font-black text-purple-500">{fmtM(lab.valor_formulado)}</span>
+                                                                <span className="text-[9px] font-black" style={{ color: COLOR_COMPRADO }}>{fmtM(lab.valor_comprado)}</span>
+                                                                <span className="text-[9px] font-black" style={{ color: COLOR_FORMULADO }}>{fmtM(lab.valor_formulado)}</span>
                                                                 <span className="text-[9px] text-slate-400">{fmtM(lab.unidades)} u.</span>
                                                                 <span className="text-[9px] text-slate-400">{lab.total_productos} prod.</span>
                                                             </div>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-0.5">
-                                                            <div className="h-full rounded-full bg-indigo-500"
-                                                                 style={{ width: `${(Number(lab.valor_comprado) / maxLabC) * 100}%` }} />
-                                                        </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-purple-500"
-                                                                 style={{ width: `${(Number(lab.valor_formulado) / maxLabF) * 100}%` }} />
-                                                        </div>
+                                                        <BarraComparativa comprado={Number(lab.valor_comprado)} formulado={Number(lab.valor_formulado)} />
                                                     </div>
                                                 ))}
-                                                <div className="flex gap-4 pt-1">
-                                                    <span className="flex items-center gap-1 text-[8px] font-black text-indigo-600"><span className="w-2 h-1.5 rounded-full bg-indigo-500 inline-block" /> Comprado</span>
-                                                    <span className="flex items-center gap-1 text-[8px] font-black text-purple-500"><span className="w-2 h-1.5 rounded-full bg-purple-500 inline-block" /> Formulado</span>
-                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -867,8 +839,7 @@ export default function MedicoDetalle({
                                     </div>
 
                                 </div>
-                            );
-                        })()}
+                        )}
 
                         {/* Tab: Visitas */}
                         {tabActiva === 'visitas' && (

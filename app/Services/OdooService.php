@@ -598,7 +598,10 @@ class OdooService
             ->map(function ($p) {
                 $dif = $p['comp_b'] - $p['comp_a'];
                 return array_merge($p, [
-                    'diferencia' => abs($dif),
+                    // Con signo, igual que formulado_diferencia — antes se guardaba
+                    // abs($dif), lo que hacía que una caída se mostrara como "+X"/"X"
+                    // en vez de "-X" en el frontend.
+                    'diferencia' => $dif,
                     'tendencia'  => $dif > 0 ? 'subio' : ($dif < 0 ? 'bajo' : 'igual'),
                 ]);
             })

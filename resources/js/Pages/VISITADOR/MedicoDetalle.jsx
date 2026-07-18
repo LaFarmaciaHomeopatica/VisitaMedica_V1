@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import BarraNave from './barranave';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 import {
     FaArrowLeft,
     FaMagnifyingGlass,
@@ -267,14 +268,7 @@ const MedicoDetalle = ({ medico, periodoActivo = 'all', txStats, topProductos = 
                     </p>
 
                     {/* Leyenda */}
-                    <div className="flex gap-4 mb-4 border-b border-gray-100 pb-3">
-                        <span className="flex items-center gap-1.5 text-[9px] font-black text-[#1C85E8] uppercase">
-                            <span className="w-2.5 h-2.5 rounded bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] inline-block" /> Comprado
-                        </span>
-                        <span className="flex items-center gap-1.5 text-[9px] font-black text-[#24C765] uppercase">
-                            <span className="w-2.5 h-2.5 rounded bg-[#24C765] inline-block" /> Formulado
-                        </span>
-                    </div>
+                    <LeyendaCompradoFormulado className="mb-4 border-b border-gray-100 pb-3" />
 
                     {topProductos.length === 0 ? (
                         <div className="text-center py-14 bg-blue-50/30 rounded-[20px] border border-dashed border-gray-200 text-gray-400 text-xs italic font-bold uppercase tracking-widest">
@@ -283,8 +277,6 @@ const MedicoDetalle = ({ medico, periodoActivo = 'all', txStats, topProductos = 
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {topProductos.map((p, i) => {
-                                const maxC = Math.max(...topProductos.map(x => Number(x.valor_comprado)), 1);
-                                const maxF = Math.max(...topProductos.map(x => Number(x.valor_formulado)), 1);
                                 const valorComprado  = Number(p.valor_comprado  ?? 0);
                                 const valorFormulado = Number(p.valor_formulado ?? 0);
                                 const unidades       = Number(p.unidades        ?? 0);
@@ -302,27 +294,12 @@ const MedicoDetalle = ({ medico, periodoActivo = 'all', txStats, topProductos = 
                                                 </p>
                                             </div>
                                             <div className="flex gap-2 shrink-0 text-[10px] font-black">
-                                                <span className="text-[#1C85E8]">{fmtM(valorComprado)}</span>
-                                                <span className="text-[#24C765]">{fmtM(valorFormulado)}</span>
+                                                <span style={{ color: COLOR_COMPRADO }}>{fmtM(valorComprado)}</span>
+                                                <span style={{ color: COLOR_FORMULADO }}>{fmtM(valorFormulado)}</span>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-1.5">
-                                            {/* Barra comprado */}
-                                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] transition-all duration-500"
-                                                    style={{ width: `${(valorComprado / maxC) * 100}%` }}
-                                                />
-                                            </div>
-                                            {/* Barra formulado */}
-                                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full bg-gradient-to-r from-[#02CFE3] to-[#24C765] transition-all duration-500"
-                                                    style={{ width: `${(valorFormulado / maxF) * 100}%` }}
-                                                />
-                                            </div>
-                                        </div>
+                                        <BarraComparativa comprado={valorComprado} formulado={valorFormulado} height="h-2" />
                                     </div>
                                 );
                             })}
