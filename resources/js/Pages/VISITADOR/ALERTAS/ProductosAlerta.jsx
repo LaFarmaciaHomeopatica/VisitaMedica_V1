@@ -296,23 +296,15 @@ const handleItemsPerPageBlur = () => {
                         {/* Derecha */}
                         <div className="flex items-center gap-1.5 font-bold">
                             <span className="opacity-80 text-[9px]">VER</span>
-                           {/* Derecha */}
-<div className="flex items-center gap-1.5 font-bold">
-    <span className="opacity-80 text-[9px]">VER</span>
-    
-    {/* 🌟 NUEVO INPUT NUMÉRICO DINÁMICO */}
-    <input
-        type="number"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        value={itemsPerPageInput}
-        onChange={handleItemsPerPageChange}
-        onBlur={handleItemsPerPageBlur}
-        className="bg-white/20 text-white font-black text-[11px] rounded w-12 py-0.5 border-none focus:ring-0 outline-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-    />
-    
-    <span className="opacity-80 text-[9px]">/ pág.</span>
-</div>
+                            <input
+                                type="number"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={itemsPerPageInput}
+                                onChange={handleItemsPerPageChange}
+                                onBlur={handleItemsPerPageBlur}
+                                className="bg-white/20 text-white font-black text-[11px] rounded w-12 py-0.5 border-none focus:ring-0 outline-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <span className="opacity-80 text-[9px]">/ pág.</span>
                         </div>
                     </div>

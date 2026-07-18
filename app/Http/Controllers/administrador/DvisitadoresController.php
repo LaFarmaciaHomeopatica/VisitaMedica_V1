@@ -54,7 +54,7 @@ class DvisitadoresController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $datos = $request->validate([
             'usuario_id' => 'required|exists:usuarios,id|unique:visitadores,usuario_id',
             'nombre' => 'required|string|max:255',
             'apellido' => 'required|string|max:255',
@@ -64,7 +64,7 @@ class DvisitadoresController extends Controller
             'estado' => 'required|in:Habilitado,Inhabilitado',
         ]);
 
-        Visitador::create($request->all());
+        Visitador::create($datos);
 
         return Redirect::route('Gvisitadores.index')->with('message', 'Registrado con éxito');
     }
@@ -73,7 +73,7 @@ class DvisitadoresController extends Controller
     {
         $visitador = Visitador::findOrFail($id);
 
-        $request->validate([
+        $datos = $request->validate([
             'usuario_id' => 'required|exists:usuarios,id|unique:visitadores,usuario_id,' . $visitador->id,
             'nombre' => 'required|string|max:255',
             'apellido' => 'required|string|max:255',
@@ -83,7 +83,7 @@ class DvisitadoresController extends Controller
             'estado' => 'required|in:Habilitado,Inhabilitado',
         ]);
 
-        $visitador->update($request->all());
+        $visitador->update($datos);
 
         return Redirect::back()->with('message', 'Registro actualizado');
     }
@@ -117,24 +117,19 @@ class DvisitadoresController extends Controller
                 DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
             )->first();
 
-        // --- Todos los médicos históricos del visitador (sin filtro de mes) ---
-        // Se usa para transacciones y tendencia, ya que un médico puede comprar
-        // en meses donde el visitador no le hizo visita ese mes específico.
-       // --- Todos los médicos históricos del visitador (sin filtro de mes) ---
-// --- Todos los médicos históricos del visitador (sin filtro de mes) ---
-// 1. Primero definimos la variable
-$todosMedicosDoc = DB::table('visitas')
-    ->where('visitas.visitador_id', $id)
-    ->join('medicos', 'visitas.medico_id', '=', 'medicos.id')
-    ->pluck('medicos.documento')
-    ->unique()
-    ->values();
+        // --- Todos los médicos asignados al visitador (sin filtro de mes) ---
+        // Se usa para transacciones y tendencia: un médico asignado puede tener
+        // compras/formulación en Odoo aunque el visitador nunca le haya
+        // registrado una visita, así que no se puede derivar esta lista desde
+        // la tabla 'visitas' (eso excluía del KPI a los médicos sin visitas).
+        $todosMedicosDoc = DB::table('medicos')
+            ->where('visitador_id', $id)
+            ->pluck('documento')
+            ->filter()
+            ->unique()
+            ->values();
 
-// 2. Después la contamos (Justo debajo)
-// Cambia la forma de calcular el total de médicos asignados:
-$totalMedicosAsignados = DB::table('medicos')
-    ->where('visitador_id', $id)
-    ->count();
+        $totalMedicosAsignados = $todosMedicosDoc->count();
 
         // --- Médicos visitados en el mes seleccionado (para KPI y tabla) ---
        // --- Todos los médicos asignados al visitador (Muestra todos siempre, calculando visitas del mes seleccionado) ---

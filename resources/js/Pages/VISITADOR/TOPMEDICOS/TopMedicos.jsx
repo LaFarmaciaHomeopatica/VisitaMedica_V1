@@ -209,9 +209,7 @@ const TopMedicos = ({
                                                 {/* Puesto del Ranking */}
                                                 <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
                                                     <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
-                                                    <span className={`text-xs font-black leading-none ${
-                                                        puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-400'
-                                                    }`}>
+                                                    <span className="text-xs font-black leading-none text-slate-400">
                                                         #{puesto}
                                                     </span>
                                                 </div>

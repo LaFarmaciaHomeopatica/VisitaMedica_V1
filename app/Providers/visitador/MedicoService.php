@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Providers\visitador;
 
 use App\Models\Medico;
 use Illuminate\Support\Facades\DB;

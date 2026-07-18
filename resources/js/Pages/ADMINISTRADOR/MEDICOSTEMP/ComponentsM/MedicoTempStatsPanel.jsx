@@ -3,15 +3,10 @@ import { FaXmark, FaFileInvoiceDollar, FaChartLine, FaBoxesStacked } from 'react
 import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
-
-const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b'];
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 export default function MedicoTempStatsPanel({ medico, onClose }) {
     const [data,    setData]    = useState(null);
@@ -151,8 +146,7 @@ export default function MedicoTempStatsPanel({ medico, onClose }) {
                                         {topProductos.map((p, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-1.5">
-                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                              style={{ background: COLORS[i] }}>{i + 1}</span>
+                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">{i + 1}</span>
                                                         <span className="text-[10px] font-bold text-slate-700 flex-1">{p.nombre}</span>
                                                         <span className="text-[9px] font-black text-slate-500 shrink-0">{fmt(p.unidades)} un.</span>
                                                     </div>

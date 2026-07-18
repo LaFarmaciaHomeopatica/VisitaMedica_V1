@@ -153,11 +153,6 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
     Route::get('/medicos/documento/{documento}/alertas', [Medico2Controller::class, 'alertasPorDocumento'])
     ->name('Gmedicos.alertasPorDocumento');
 
-    // Ejemplo en routes/web.php
-Route::post('/medicos/previsualizar', [Medico2Controller::class, 'previsualizarImportacion'])
-    ->name('Gmedicos.previsualizar');
-
-
  });
 
 Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(function () {
@@ -191,10 +186,6 @@ Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
             ->name('productos.buscar');
 
 
-            Route::get('/Gmedicos/{id}/odoo-stats', [Medico2Controller::class, 'odooStats'])
-     ->name('Gmedicos.odooStats');
-
-     
 // Cambia esto:
 // Route::get('/odoo/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('odoo.formulacion');
 // Route::post('/odoo/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('odoo.formulacion.buscar');
@@ -233,9 +224,6 @@ Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'
         Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
         Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('MisVisitas.  efectiva');
         Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
-        Route::post('/MisVisitas/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('MisVisitas.cancelar');
-
-        Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
 
         Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 
@@ -247,12 +235,6 @@ Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'
 Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
 
 Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-
-// ── Botón "Actualizar período actual" (fuerza consulta fresca a Odoo) ──
-Route::post('/visitador/top-medicos/refrescar', [TopMedicosController::class, 'refrescarIndex'])
-    ->name('visitador.top-medicos.refrescar');
-Route::post('/visitador/top-medicos/{documento}/refrescar', [TopMedicosController::class, 'refrescarDetalle'])
-    ->name('visitador.top-medicos.detalle.refrescar');
 
 Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
 

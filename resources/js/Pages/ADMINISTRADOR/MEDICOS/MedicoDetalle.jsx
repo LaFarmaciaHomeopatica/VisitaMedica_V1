@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
@@ -21,12 +21,10 @@ function TendenciaCategoria({ tendencia }) {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 10_000_000_000) return `$${(n / 10_000_000_000).toFixed(1)}M`;
-    if (n >= 10_000_000_000_000)     return `$${(n /10_000_000_000_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 const ESTADO_COLOR = {
     efectiva:        '#10b981',
@@ -165,55 +163,18 @@ export default function MedicoDetalle({
         );
     };
 
-    // ── Datos que vienen de Odoo (lentos): se piden aparte para no bloquear
-    // el render inicial, que solo depende de datos locales (médico, visitas,
-    // visitadores). Si el controller ya los mandó en la carga inicial
-    // (txStats truthy), no se vuelven a pedir.
-    const [odoo, setOdoo] = useState({
+    // Los datos de Odoo (txStats, tendencia, productos...) siempre vienen
+    // resueltos desde el controller en la carga inicial (show/showPorDocumento),
+    // no hay una carga diferida del lado del cliente.
+    const odoo = {
         txStats:        txStats ?? null,
         tendencia:      tendencia ?? [],
         topProductos:   topProductos ?? [],
         porLaboratorio: porLaboratorio ?? [],
         todosProductos: todosProductos ?? [],
-    });
-    const [odooLoading, setOdooLoading] = useState(!txStats);
-    const [odooError, setOdooError]     = useState(false);
-
-    useEffect(() => {
-        if (txStats) return; // ya vino con la carga inicial
-
-        let cancelado = false;
-        setOdooLoading(true);
-        setOdooError(false);
-
-        fetch(
-            route('Gmedicos.odooStats', documentoBase ?? medico.documento) +
-            `?periodo=${periodoActivo}`,
-            { headers: { Accept: 'application/json' } }
-        )
-            .then(r => {
-                if (!r.ok) throw new Error('odoo-stats request failed');
-                return r.json();
-            })
-            .then(data => {
-                if (cancelado) return;
-                setOdoo({
-                    txStats:        data.txStats ?? null,
-                    tendencia:      data.tendencia ?? [],
-                    topProductos:   data.topProductos ?? [],
-                    porLaboratorio: data.porLaboratorio ?? [],
-                    todosProductos: data.todosProductos ?? [],
-                });
-                setOdooLoading(false);
-            })
-            .catch(() => {
-                if (cancelado) return;
-                setOdooError(true);
-                setOdooLoading(false);
-            });
-
-        return () => { cancelado = true; };
-    }, [documentoBase, medico.documento, periodoActivo]);
+    };
+    const odooLoading = false;
+    const odooError   = false;
 
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },
@@ -635,12 +596,12 @@ export default function MedicoDetalle({
                                         ) : (odoo.porLaboratorio ?? []).length === 0 ? (
                                             <p className="text-[10px] text-slate-300 text-center py-6">Sin datos</p>
                                         ) : (
-                                            <div className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                                                 {(odoo.porLaboratorio ?? []).slice(0, limLab).map((lab, i) => (
                                                     <div key={i}>
-                                                        <div className="flex justify-between items-baseline mb-1">
+                                                        <div className="flex flex-wrap justify-between items-baseline gap-x-2 mb-1">
                                                             <span className="text-[10px] font-black text-slate-700 uppercase">{lab.laboratorio}</span>
-                                                            <div className="flex gap-4 text-right">
+                                                            <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-right">
                                                                 <span className="text-[9px] font-black" style={{ color: COLOR_COMPRADO }}>{fmtM(lab.valor_comprado)}</span>
                                                                 <span className="text-[9px] font-black" style={{ color: COLOR_FORMULADO }}>{fmtM(lab.valor_formulado)}</span>
                                                                 <span className="text-[9px] text-slate-400">{fmtM(lab.unidades)} u.</span>

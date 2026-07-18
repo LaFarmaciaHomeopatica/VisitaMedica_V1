@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ListaPrecio;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,6 +36,9 @@ class OdooService
 
     /** Memoiza el mapa [odoo_pricelist_id => categoria]. */
     private ?array $cacheCategoriasPorPricelist = null;
+
+    /** Memoiza búsquedas de nombre local por código (para el reemplazo de nombres "(copia)"). */
+    private array $cacheNombresLocales = [];
 
     public function __construct()
     {
@@ -740,13 +744,16 @@ class OdooService
         foreach ($resultados as $doc => &$info) {
             $t = &$info['totales'];
             $dif = $t['comprado_mes_actual'] - $t['comprado_mes_anterior'];
-            $t['comprado_diferencia'] = abs($dif);
+            // Con signo, igual que formulado_diferencia — mismo bug que en
+            // getProductosComparativo() (abs() ocultaba las caídas mostrándolas
+            // en positivo).
+            $t['comprado_diferencia'] = $dif;
             $t['comprado_tendencia']  = $dif > 0 ? 'subio' : ($dif < 0 ? 'bajo' : 'igual');
 
             if (isset($prodMap[$doc])) {
                 foreach ($prodMap[$doc] as $clave => $pInfo) {
                     $pDif = $pInfo['comprado_mes_actual'] - $pInfo['comprado_mes_anterior'];
-                    $pInfo['comprado_diferencia'] = abs($pDif);
+                    $pInfo['comprado_diferencia'] = $pDif;
                     $pInfo['comprado_tendencia']  = $pDif > 0 ? 'subio' : ($pDif < 0 ? 'bajo' : 'igual');
 
                     $totalUds = $pInfo['comprado_mes_anterior'] + $pInfo['comprado_mes_actual'];
@@ -1258,13 +1265,14 @@ private function calcularKpis(array $lineas): array
         $productId = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
         $nombre    = is_array($linea['product_id']) ? ($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
         $orderId   = $linea['order_id'] ?? null;
+        $codigo    = $this->extraerCodigo($nombre);
 
         return [
             'origen'      => 'Venta',
             'referencia'  => is_array($orderId) ? ($orderId[1] ?? '—') : '—',
-            'codigo'      => $this->extraerCodigo($nombre),
+            'codigo'      => $codigo,
             'producto_id' => $productId,
-            'nombre'      => $this->limpiarNombre($nombre),
+            'nombre'      => $this->resolverNombreProducto($codigo, $this->limpiarNombre($nombre)),
             'cantidad'    => is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0,
             'precio'      => is_numeric($linea['price_unit']      ?? null) ? (float) $linea['price_unit']      : 0,
             'subtotal'    => is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0,
@@ -1279,13 +1287,14 @@ private function calcularKpis(array $lineas): array
         $productId = is_array($linea['product_id']) ? ($linea['product_id'][0] ?? null) : null;
         $nombre    = is_array($linea['product_id']) ? ($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
         $moveId    = $linea['move_id'] ?? null;
+        $codigo    = $this->extraerCodigo($nombre);
 
         return [
             'origen'      => 'Factura',
             'referencia'  => is_array($moveId) ? ($moveId[1] ?? '—') : '—',
-            'codigo'      => $this->extraerCodigo($nombre),
+            'codigo'      => $codigo,
             'producto_id' => $productId,
-            'nombre'      => $this->limpiarNombre($nombre),
+            'nombre'      => $this->resolverNombreProducto($codigo, $this->limpiarNombre($nombre)),
             'cantidad'    => is_numeric($linea['quantity']      ?? null) ? (float) $linea['quantity']      : 0,
             'precio'      => is_numeric($linea['price_unit']    ?? null) ? (float) $linea['price_unit']    : 0,
             'subtotal'    => is_numeric($linea['price_subtotal']?? null) ? (float) $linea['price_subtotal'] : 0,
@@ -1461,5 +1470,30 @@ private function calcularKpis(array $lineas): array
     private function limpiarNombre(string $nombreCompleto): string
     {
         return trim(preg_replace('/^\[.+?\]\s*/', '', $nombreCompleto));
+    }
+
+    /**
+     * Odoo a veces tiene productos duplicados cuyo nombre quedó marcado como
+     * "... (copia)" tras una duplicación manual en el ERP. Cuando eso pasa,
+     * se prefiere el nombre registrado localmente en la tabla 'productos'
+     * (por código) en vez del nombre corrupto que viene de Odoo.
+     */
+    private function resolverNombreProducto(string $codigo, string $nombreOdoo): string
+    {
+        if (stripos($nombreOdoo, '(copia)') === false) {
+            return $nombreOdoo;
+        }
+
+        if ($codigo === '—' || $codigo === '') {
+            return $nombreOdoo;
+        }
+
+        if (!array_key_exists($codigo, $this->cacheNombresLocales)) {
+            $this->cacheNombresLocales[$codigo] = DB::table('productos')
+                ->where('codigo', $codigo)
+                ->value('nombre');
+        }
+
+        return $this->cacheNombresLocales[$codigo] ?: $nombreOdoo;
     }
 }

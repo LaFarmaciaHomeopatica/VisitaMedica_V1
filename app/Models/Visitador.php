@@ -16,8 +16,6 @@ class Visitador extends Model
         'usuario_id',
         'documento',
         'zona_id',
-        'meta_visitas_mensual',
-        'meta_ventas_mensual',
         'estado',
         'tipo_documento_id',
         'nombre',

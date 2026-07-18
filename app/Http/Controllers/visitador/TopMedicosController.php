@@ -212,7 +212,7 @@ class TopMedicosController extends Controller
             default => Carbon::parse($mes . '-01')->startOfMonth(), // 'mes_actual' u otro valor legado
         };
         $fechaDesde = $inicio ? $inicio->format('Y-m-d') : null;
-        $fechaHasta = null;
+        $fechaHasta = $inicio ? $inicio->copy()->endOfMonth()->format('Y-m-d') : null;
     }
 
     // 1. Obtener datos desde Odoo / Repositorio local

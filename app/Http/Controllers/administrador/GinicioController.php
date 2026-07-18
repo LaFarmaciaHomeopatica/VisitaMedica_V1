@@ -230,12 +230,13 @@ class GinicioController extends Controller
                 ];
             })
             ->sortByDesc('compradas')
-            ->take(10)
+            ->take(50)
             ->values();
 
         $topProductos = collect($resumen['productos'])
-            ->take(10)
+            ->take(50)
             ->map(fn($p) => [
+                'codigo'          => $p['codigo'],
                 'nombre'          => $p['nombre'],
                 'valor_comprado'  => (float) $p['valor_comprado'],
                 'valor_formulado' => (float) $p['valor_formulado'],

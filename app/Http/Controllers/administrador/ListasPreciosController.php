@@ -123,7 +123,11 @@ class ListasPreciosController extends Controller
         foreach ($data as $clave => $valor) {
             $patron = "/^{$clave}=.*/m";
             if (preg_match($patron, $contenido)) {
-                $contenido = preg_replace($patron, "{$clave}={$valor}", $contenido);
+                // preg_replace_callback (no preg_replace) porque $valor es texto
+                // libre del usuario (ej. la contraseña de Odoo): con preg_replace,
+                // un valor que contenga "$1" se interpreta como referencia a un
+                // grupo de captura y se corrompe silenciosamente al guardar.
+                $contenido = preg_replace_callback($patron, fn() => "{$clave}={$valor}", $contenido);
             } else {
                 $contenido .= "\n{$clave}={$valor}";
             }

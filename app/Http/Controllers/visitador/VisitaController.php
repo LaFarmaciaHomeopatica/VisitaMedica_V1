@@ -52,6 +52,9 @@ class VisitaController extends Controller
     public function store(Request $request)
     {
         $visitador = $this->getVisitador();
+        if (!$visitador) {
+            return back()->withErrors(['error' => 'Tu usuario no tiene un perfil de visitador vinculado.']);
+        }
 
         $request->validate([
             'medico_id' => [
@@ -64,6 +67,7 @@ class VisitaController extends Controller
             'estado'             => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
             'muestras'           => 'nullable|string|max:255',
             'comentario_muestra' => 'nullable|string',
+            'comentarios'        => 'nullable|string',
         ]);
 
         // --- DETECCIÓN DE CRUCES ---
@@ -104,6 +108,9 @@ class VisitaController extends Controller
     public function marcarEfectiva(Request $request, $id)
     {
         $visitador = $this->getVisitador();
+        if (!$visitador) {
+            return back()->withErrors(['error' => 'Tu usuario no tiene un perfil de visitador vinculado.']);
+        }
         $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
         $request->validate([
@@ -152,7 +159,10 @@ class VisitaController extends Controller
     public function reprogramar(Request $request, $id)
     {
         $visitador = $this->getVisitador();
-        
+        if (!$visitador) {
+            return back()->withErrors(['error' => 'Tu usuario no tiene un perfil de visitador vinculado.']);
+        }
+
         $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
         
         $visita->update([

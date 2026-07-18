@@ -13,7 +13,7 @@ const PendientesTab = ({ visitasPendientesFiltradas, medicos, irAEjecutarVisita 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {visitasPendientesFiltradas.map((visita) => {
-                const medicoData = medicos.find(m => m.id === visita.medico_id);
+                const medicoData = medicos.find(m => String(m.id) === String(visita.medico_id)) || visita.medico;
                 
                 // Definimos el contenido interno de la card
                 const CardContent = (

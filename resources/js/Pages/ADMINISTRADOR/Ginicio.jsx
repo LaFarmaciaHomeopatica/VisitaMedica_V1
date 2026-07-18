@@ -15,8 +15,6 @@ const fmtM = n => new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', maximumFractionDigits: 0,
 }).format(n ?? 0);
 
-const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
-const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16'];
 const COLORS_ESTADO = {
     efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
     cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
@@ -147,6 +145,8 @@ export default function Ginicio({
     const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
     const [actualizando, setActualizando] = useState(false);
+    const [limProductos, setLimProductos] = useState(10);
+    const [limMedicos,   setLimMedicos]   = useState(10);
 
     const isFirstRender = useRef(true);
     const timerRef      = useRef(null);
@@ -203,7 +203,8 @@ export default function Ginicio({
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    const medicosData = topMedicos ?? [];
+    const productosData = (topProductos ?? []).slice(0, limProductos === Infinity ? undefined : limProductos);
+    const medicosData = (topMedicos ?? []).slice(0, limMedicos === Infinity ? undefined : limMedicos);
     const visitadoresAnalisisData = visitadoresAnalisis ?? [];
 
 
@@ -330,7 +331,18 @@ export default function Ginicio({
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <SectionHeader label="Productos · período" title="Top productos por valor" />
-                                <LeyendaCompradoFormulado />
+                                <div className="flex items-center gap-3">
+                                    <LeyendaCompradoFormulado />
+                                    <span className="text-[9px] text-slate-400">Mostrar</span>
+                                    <select
+                                        value={limProductos}
+                                        onChange={e => setLimProductos(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                                        <option value="all">Todos</option>
+                                    </select>
+                                </div>
                             </div>
                             {odooLoading ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
@@ -338,12 +350,16 @@ export default function Ginicio({
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
                                     <div className="space-y-4">
-                                        {(topProductos ?? []).map((p, i) => (
+                                        {productosData.map((p, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-1.5">
-                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                              style={{ background: PROD_COLORS[i] }}>{i + 1}</span>
-                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{p.nombre}</span>
+                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">{i + 1}</span>
+                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">
+                                                            {p.nombre}
+                                                            {p.codigo && (
+                                                                <span className="text-slate-400 font-medium"> ({p.codigo})</span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
@@ -360,7 +376,18 @@ export default function Ginicio({
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <SectionHeader label="Ranking" title="Top médicos por unidades" />
-                                <LeyendaCompradoFormulado />
+                                <div className="flex items-center gap-3">
+                                    <LeyendaCompradoFormulado />
+                                    <span className="text-[9px] text-slate-400">Mostrar</span>
+                                    <select
+                                        value={limMedicos}
+                                        onChange={e => setLimMedicos(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                                        <option value="all">Todos</option>
+                                    </select>
+                                </div>
                             </div>
                             {odooLoading ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
@@ -370,8 +397,7 @@ export default function Ginicio({
                                     <div className="space-y-4">
                                         {medicosData.map((m, i) => (
                                             <div key={i} className="flex items-start gap-3">
-                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">
                                                     {i + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
@@ -404,8 +430,7 @@ export default function Ginicio({
                                 <div className="space-y-5">
                                     {visitadoresAnalisisData.map((v, i) => (
                                             <div key={i} className="flex items-start gap-3">
-                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
-                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 bg-slate-400">
                                                     {i + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">

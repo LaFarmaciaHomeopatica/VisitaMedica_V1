@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Administrador;
+namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
 use App\Models\Medico;
@@ -92,6 +92,20 @@ class Medico2Controller extends Controller
             ->with('categoria:id,nombre,valor_minimo')
             ->take($meses)
             ->get();
+    }
+
+    /**
+     * true si el médico pertenece a la categoría de mayor rango (mayor
+     * valor_minimo). No asumir que esa categoría siempre tiene id=1: en
+     * /Gcategorias el admin puede crear/reordenar categorías libremente.
+     */
+    private function esCategoriaTope(?int $categoriaId): bool
+    {
+        if (!$categoriaId) return false;
+
+        $topeId = Categoria::orderByDesc('valor_minimo')->value('id');
+
+        return $topeId !== null && $categoriaId === $topeId;
     }
 
     /**
@@ -851,7 +865,7 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             })->all();
         }
 
-        $puestoReal = $medico->categoria_id == 1 ? 1 : null;
+        $puestoReal = $this->esCategoriaTope($medico->categoria_id) ? 1 : null;
 
         return Inertia::render('ADMINISTRADOR/MEDICOS/ProductosAlertaAdmin', [
             'medico'               => $medico,
@@ -960,7 +974,7 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             })->all();
         }
 
-        $puestoReal = ($medico->categoria_id ?? null) == 1 ? 1 : null;
+        $puestoReal = $this->esCategoriaTope($medico->categoria_id ?? null) ? 1 : null;
 
         return Inertia::render('ADMINISTRADOR/MEDICOS/ProductosAlertaAdmin', [
             'medico'               => $medico,

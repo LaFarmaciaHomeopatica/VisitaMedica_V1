@@ -157,14 +157,7 @@ const ProductCard = ({ item, index, modo }) => {
         ? 'bg-[#1C85E8]'
         : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]';
 
-    const rankColor =
-        index === 0
-            ? 'text-[#24C765]'
-            : index === 1
-            ? 'text-[#02CFE3]'
-            : index === 2
-            ? 'text-[#1C85E8]'
-            : 'text-slate-400';
+    const rankColor = 'text-slate-400';
 
     return (
         <div className="bg-white/80 backdrop-blur-md rounded-xl flex items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] transition-all duration-200 overflow-hidden w-full">
@@ -277,7 +270,7 @@ const LaboratoriosAcordeon = ({ laboratoriosComprados = [], laboratoriosFormulad
     const accentBar  = isCompra ? 'bg-[#24C765]' : isFormula ? 'bg-[#1C85E8]' : 'bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765]';
     const headerBg   = isCompra ? 'bg-emerald-50 border-emerald-100' : isFormula ? 'bg-blue-50 border-blue-100' : 'bg-sky-50 border-sky-100';
     const headerText = isCompra ? 'text-[#24C765]' : isFormula ? 'text-[#1C85E8]' : 'text-sky-600';
-    const rankColor  = (i) => i === 0 ? 'text-[#24C765]' : i === 1 ? 'text-[#02CFE3]' : i === 2 ? 'text-[#1C85E8]' : 'text-slate-400';
+    const rankColor  = () => 'text-slate-400';
 
     return (
         <div className="bg-white/90 rounded-[22px] border border-white/50 shadow-sm overflow-hidden">

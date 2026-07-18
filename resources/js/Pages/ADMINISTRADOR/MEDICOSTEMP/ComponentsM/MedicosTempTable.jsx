@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from '@inertiajs/react';
-import { FaUserPlus, FaTrash, FaChartLine } from 'react-icons/fa6';
+import { FaUserPlus, FaTrash, FaChartLine, FaFileInvoiceDollar } from 'react-icons/fa6';
 
 // Agregamos default values para evitar el error de undefined
 export default function MedicosTempTable({
@@ -69,6 +69,13 @@ export default function MedicosTempTable({
                                 </td>
 
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
+  <button
+      onClick={() => onStats(m)}
+      title="Ver estadísticas"
+      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+  >
+      <FaFileInvoiceDollar className="h-4 w-4" />
+  </button>
   {m.documento ? (
         <Link
             href={route('Gmedicos.showPorDocumento', m.documento)}

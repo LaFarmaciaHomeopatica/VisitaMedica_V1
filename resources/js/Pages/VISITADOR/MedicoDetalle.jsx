@@ -16,12 +16,10 @@ import {
 
 // Helpers de formateo
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 // KPI Card — glassmorphism coherente con el sistema
 function KpiCard({ label, value, icon, gradient }) {
