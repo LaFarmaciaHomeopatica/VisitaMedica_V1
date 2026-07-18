@@ -44,7 +44,10 @@ class ListasPreciosController extends Controller
             ],
             'usuarios'         => User::all(),
             'roles'            => Rol::all(),
-            'zonas'            => Zona::withCount('visitadores')->orderBy('nombre')->get(),
+            'zonas'            => Zona::with(['visitadores:id,nombre,apellido,zona_id'])
+                ->withCount('visitadores')
+                ->orderBy('nombre')
+                ->get(),
             // Ojo: distinto de 'categorias' de arriba (esas son las categorías
             // de tarifas/listas de precios, texto libre). Estas son las
             // categorías de desempeño mensual de médicos (A/B/C/X + umbral).
