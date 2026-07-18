@@ -11,7 +11,7 @@ export default function ProductosToolbar({
     currentPage, onPageChange, totalPages,
 }) {
     return (
-        <div className="fixed top-20 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
+        <div className="fixed top-14 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
             <div className="flex items-center justify-between gap-2 overflow-x-auto lg:overflow-visible">
 
                 {/* 1. SECCIÓN IZQUIERDA: CHECKBOX Y BUSCADOR */}

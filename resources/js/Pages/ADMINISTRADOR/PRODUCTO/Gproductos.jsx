@@ -211,7 +211,7 @@ const Gproductos = ({
                 />
 
                 {/* ── TABS LISTA / ESTADÍSTICAS ─────────────────────────────── */}
-                <div className="flex gap-1 px-6 pt-16 pb-2 border-b border-slate-100 bg-white sticky top-20 z-40">
+                <div className="flex gap-1 px-6 pt-16 pb-2 border-b border-slate-100 bg-white sticky top-14 z-40">
                     {[['lista', 'Lista'], ['estadisticas', 'Estadísticas']].map(([key, label]) => (
                         <button
                             key={key}

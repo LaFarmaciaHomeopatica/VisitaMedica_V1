@@ -215,7 +215,7 @@ export default function Ginicio({
             <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
 
                 {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
-                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-[80px] z-40 shadow-sm">
+                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-14 z-40 shadow-sm">
                     <div className="flex-1 min-w-0">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
                         <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
