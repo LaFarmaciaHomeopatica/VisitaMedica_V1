@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
+use App\Models\Categoria;
 use App\Models\ListaPrecio;
 use App\Models\Rol;
 use App\Models\User;
+use App\Models\Zona;
 use App\Services\OdooService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,9 +24,10 @@ class ListasPreciosController extends Controller
 
     /**
      * Página única de "Configuración", con pestañas: Tarifas, Conexión Odoo,
-     * Usuarios. Todos los datos son consultas locales livianas (nada de Odoo
-     * salvo el propio estado de configuración), así que se cargan de una vez
-     * y el cambio de pestaña es puramente del lado del cliente.
+     * Usuarios, Zonas, Categorías. Todos los datos son consultas locales
+     * livianas (nada de Odoo salvo el propio estado de configuración), así
+     * que se cargan de una vez y el cambio de pestaña es puramente del lado
+     * del cliente.
      */
     public function index()
     {
@@ -39,8 +42,13 @@ class ListasPreciosController extends Controller
                 'username_saved' => !empty(env('ODOO_USERNAME', '')),
                 'password_saved' => !empty(env('ODOO_PASSWORD', '')),
             ],
-            'usuarios' => User::all(),
-            'roles'    => Rol::all(),
+            'usuarios'         => User::all(),
+            'roles'            => Rol::all(),
+            'zonas'            => Zona::withCount('visitadores')->orderBy('nombre')->get(),
+            // Ojo: distinto de 'categorias' de arriba (esas son las categorías
+            // de tarifas/listas de precios, texto libre). Estas son las
+            // categorías de desempeño mensual de médicos (A/B/C/X + umbral).
+            'categoriasMedicos' => Categoria::withCount('medicos')->orderByDesc('valor_minimo')->get(),
         ]);
     }
 

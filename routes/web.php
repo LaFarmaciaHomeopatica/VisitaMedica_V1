@@ -14,6 +14,8 @@ use App\Http\Controllers\administrador\ProductosController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
 use App\Http\Controllers\administrador\MetasController;
 use App\Http\Controllers\administrador\ListasPreciosController;
+use App\Http\Controllers\administrador\ZonasController;
+use App\Http\Controllers\administrador\CategoriasController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
@@ -60,6 +62,16 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/Gtarifas/{listaPrecio}', [ListasPreciosController::class, 'destroy'])->name('Gtarifas.destroy');
         Route::post('/Gtarifas/sincronizar', [ListasPreciosController::class, 'sincronizar'])->name('Gtarifas.sincronizar');
         Route::post('/Gtarifas/odoo-config', [ListasPreciosController::class, 'odooConfigSave'])->name('Gtarifas.odooConfigSave');
+
+        // Zonas de visita (pestaña "Zonas" en Configuración)
+        Route::post('/Gzonas', [ZonasController::class, 'store'])->name('Gzonas.store');
+        Route::put('/Gzonas/{zona}', [ZonasController::class, 'update'])->name('Gzonas.update');
+        Route::delete('/Gzonas/{zona}', [ZonasController::class, 'destroy'])->name('Gzonas.destroy');
+
+        // Categorías de médicos por desempeño mensual (pestaña "Categorías" en Configuración)
+        Route::post('/Gcategorias', [CategoriasController::class, 'store'])->name('Gcategorias.store');
+        Route::put('/Gcategorias/{categoria}', [CategoriasController::class, 'update'])->name('Gcategorias.update');
+        Route::delete('/Gcategorias/{categoria}', [CategoriasController::class, 'destroy'])->name('Gcategorias.destroy');
 
         // El listado de usuarios ahora vive en Configuración (pestaña "Usuarios").
         Route::get('/Gusuarios', fn() => redirect('/Gtarifas?tab=usuarios'))->name('Gusuarios.index');

@@ -18,6 +18,7 @@ use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\Categoria;
 use Carbon\Carbon;
 use App\Models\MedicoTemporal;
+use App\Models\MedicoCategoriaHistorial;
 use App\Services\OdooService;  // ← Service nuevo
 
 class Medico2Controller extends Controller
@@ -37,6 +38,7 @@ class Medico2Controller extends Controller
     {
         $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get();
         $this->inyectarEspecialidadOdoo($medicos);
+        $this->inyectarTendenciaCategoria($medicos);
 
         return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
             'medicos'        => $medicos,
@@ -44,6 +46,52 @@ class Medico2Controller extends Controller
             'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
             'categorias'     => Categoria::all(['id', 'nombre']),
         ]);
+    }
+
+    /**
+     * Agrega medico->categoria_tendencia ('subio'|'bajo'|'igual'|null) comparando
+     * la categoría del último snapshot mensual contra la del mes anterior.
+     */
+    private function inyectarTendenciaCategoria(iterable $medicos): void
+    {
+        $medicoIds = collect($medicos)->pluck('id')->all();
+
+        $historialPorMedico = MedicoCategoriaHistorial::with('categoria:id,valor_minimo')
+            ->whereIn('medico_id', $medicoIds)
+            ->orderByDesc('mes')
+            ->get()
+            ->groupBy('medico_id');
+
+        foreach ($medicos as $medico) {
+            $items = $historialPorMedico->get($medico->id);
+            $medico->categoria_tendencia = $items
+                ? $this->calcularTendenciaCategoria($items->get(0), $items->get(1))
+                : null;
+        }
+    }
+
+    private function calcularTendenciaCategoria(?MedicoCategoriaHistorial $actual, ?MedicoCategoriaHistorial $anterior): ?string
+    {
+        if (!$actual || !$anterior) return null;
+
+        $vActual   = optional($actual->categoria)->valor_minimo;
+        $vAnterior = optional($anterior->categoria)->valor_minimo;
+        if ($vActual === null || $vAnterior === null) return null;
+
+        if ((float) $vActual > (float) $vAnterior) return 'subio';
+        if ((float) $vActual < (float) $vAnterior) return 'bajo';
+        return 'igual';
+    }
+
+    /**
+     * Últimos N snapshots mensuales de categoría de un médico, más reciente primero.
+     */
+    private function obtenerHistorialCategoria(Medico $medico, int $meses = 12)
+    {
+        return $medico->categoriaHistorial()
+            ->with('categoria:id,nombre,valor_minimo')
+            ->take($meses)
+            ->get();
     }
 
     /**
@@ -75,7 +123,6 @@ class Medico2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'categoria_id'         => 'nullable|exists:categoria,id',
             'documento'            => 'required|string|unique:medicos,documento',
             'nombre'               => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
@@ -92,10 +139,9 @@ class Medico2Controller extends Controller
             'exists'   => 'El :attribute seleccionado no existe.',
             'date'     => 'La :attribute no tiene un formato válido.',
         ], [
-            'categoria_id'      => 'Categoría',
             'documento'         => 'Número de Documento',
             'nombre'            => 'Nombre',
-            
+
             'tipo_documento_id' => 'Tipo de Documento',
             'visitador_id'      => 'Visitador Asignado',
             'fecha_inicio_relacion' => 'Fecha de Inicio',
@@ -109,7 +155,6 @@ class Medico2Controller extends Controller
     public function update(Request $request, Medico $medico)
     {
         $validated = $request->validate([
-            'categoria_id'         => 'nullable|exists:categoria,id',
             'documento'            => 'required|string|unique:medicos,documento,' . $medico->id,
             'nombre'               => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
@@ -124,10 +169,9 @@ class Medico2Controller extends Controller
             'unique'   => 'Este :attribute ya pertenece a otro médico.',
             'string'   => 'El campo :attribute debe ser una cadena de texto.',
         ], [
-            'categoria_id'      => 'Categoría',
             'documento'         => 'Número de Documento',
             'nombre'            => 'Nombre',
-            
+
             'tipo_documento_id' => 'Tipo de Documento',
         ]);
 
@@ -227,6 +271,9 @@ public function show(Request $request, $id)
         $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
         $doc    = $medico->documento;
         $medico->especialidad = $this->resolverEspecialidadOdoo($doc);
+
+        $historialCategoria = $this->obtenerHistorialCategoria($medico);
+        $medico->categoria_tendencia = $this->calcularTendenciaCategoria($historialCategoria->get(0), $historialCategoria->get(1));
 
         // ── Período ──────────────────────────────────────────────────────────
         [$periodo, $fechaDesde, $fechaHasta, $fechaDesdeCustom, $fechaHastaCustom] = $this->resolverPeriodo($request);
@@ -443,9 +490,10 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'visitas'              => $visitas,
             'visitadoresAsignados' => $visitadoresAsignados,
             'odooConectado'        => $odooData !== null,
+            'categoriaHistorial'   => $historialCategoria,
         ]);
     }
-    
+
     public function showPorDocumento(Request $request, $documento)
     {
         $medicoReal = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
@@ -476,6 +524,14 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         }
 
         $medico->especialidad = $this->resolverEspecialidadOdoo($documento);
+
+        if ($medicoReal) {
+            $historialCategoria = $this->obtenerHistorialCategoria($medicoReal);
+            $medico->categoria_tendencia = $this->calcularTendenciaCategoria($historialCategoria->get(0), $historialCategoria->get(1));
+        } else {
+            $historialCategoria = collect();
+            $medico->categoria_tendencia = null;
+        }
 
         [$periodo, $fechaDesde, $fechaHasta, $fechaDesdeCustom, $fechaHastaCustom] = $this->resolverPeriodo($request);
 
@@ -697,6 +753,7 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'odooConectado'        => $odooData !== null,
             'esTemporal'           => $esTemporal,
             'documentoBase'        => $documento,
+            'categoriaHistorial'   => $historialCategoria,
         ]);
     }
 

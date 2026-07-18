@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Visitador;
 use App\Models\User;
 use App\Models\TipoDocumento;
+use App\Models\Zona;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
@@ -30,6 +31,7 @@ class DvisitadoresController extends Controller
             'visitadores'    => $visitadores,
             'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
             'usuariosLibres' => $usuariosLibres,
+            'zonas'          => Zona::orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }
 
@@ -58,7 +60,7 @@ class DvisitadoresController extends Controller
             'apellido' => 'required|string|max:255',
             'tipo_documento_id' => 'required|exists:tipo_documento,id',
             'documento' => 'required|string|unique:visitadores,documento',
-            'zona_id' => 'required',
+            'zona_id' => 'required|exists:zonas,id',
             'estado' => 'required|in:Habilitado,Inhabilitado',
         ]);
 
@@ -77,7 +79,7 @@ class DvisitadoresController extends Controller
             'apellido' => 'required|string|max:255',
             'tipo_documento_id' => 'required|exists:tipo_documento,id',
             'documento' => 'required|string|unique:visitadores,documento,' . $visitador->id,
-            'zona_id' => 'required',
+            'zona_id' => 'required|exists:zonas,id',
             'estado' => 'required|in:Habilitado,Inhabilitado',
         ]);
 

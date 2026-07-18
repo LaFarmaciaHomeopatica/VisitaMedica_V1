@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
-import { FaTags, FaGear, FaUserGear } from 'react-icons/fa6';
+import { FaTags, FaGear, FaUserGear, FaMapLocationDot, FaLayerGroup } from 'react-icons/fa6';
 
 import TarifasPanel from './ComponentsC/TarifasPanel';
 import OdooConfigPanel from './ComponentsC/OdooConfigPanel';
 import UsuariosPanel from './ComponentsC/UsuariosPanel';
+import ZonasPanel from './ComponentsC/ZonasPanel';
+import CategoriasPanel from './ComponentsC/CategoriasPanel';
 
 const TABS = [
-    { key: 'tarifas',  label: 'Tarifas',        icon: <FaTags /> },
-    { key: 'odoo',     label: 'Conexión Odoo',  icon: <FaGear /> },
-    { key: 'usuarios', label: 'Usuarios',       icon: <FaUserGear /> },
+    { key: 'tarifas',    label: 'Tarifas',        icon: <FaTags /> },
+    { key: 'odoo',       label: 'Conexión Odoo',  icon: <FaGear /> },
+    { key: 'usuarios',   label: 'Usuarios',       icon: <FaUserGear /> },
+    { key: 'zonas',      label: 'Zonas',          icon: <FaMapLocationDot /> },
+    { key: 'categorias', label: 'Categorías',     icon: <FaLayerGroup /> },
 ];
 
 function tabInicial() {
@@ -19,7 +23,7 @@ function tabInicial() {
     return TABS.some(t => t.key === tab) ? tab : 'tarifas';
 }
 
-export default function Configuracion({ auth, tarifas, categorias, odooConfig, usuarios, roles }) {
+export default function Configuracion({ auth, tarifas, categorias, odooConfig, usuarios, roles, zonas, categoriasMedicos }) {
     const [tabActiva, setTabActiva] = useState(tabInicial());
 
     const cambiarTab = (key) => {
@@ -59,6 +63,8 @@ export default function Configuracion({ auth, tarifas, categorias, odooConfig, u
                     {tabActiva === 'tarifas' && <TarifasPanel tarifas={tarifas} categorias={categorias} />}
                     {tabActiva === 'odoo' && <OdooConfigPanel odooConfig={odooConfig} />}
                     {tabActiva === 'usuarios' && <UsuariosPanel usuarios={usuarios} roles={roles} />}
+                    {tabActiva === 'zonas' && <ZonasPanel zonas={zonas} />}
+                    {tabActiva === 'categorias' && <CategoriasPanel categoriasMedicos={categoriasMedicos} />}
                 </div>
             </div>
         </PanelAdmin>

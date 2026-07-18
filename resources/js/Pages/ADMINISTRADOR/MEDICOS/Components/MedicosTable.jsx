@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { FaChartLine, FaCircleNotch } from 'react-icons/fa6';
+import { FaChartLine, FaCircleNotch, FaArrowTrendUp, FaArrowTrendDown, FaMinus } from 'react-icons/fa6';
+
+function TendenciaCategoria({ tendencia }) {
+    if (tendencia === 'subio') return <FaArrowTrendUp className="text-emerald-500 text-[10px]" title="Subió de categoría" />;
+    if (tendencia === 'bajo') return <FaArrowTrendDown className="text-rose-500 text-[10px]" title="Bajó de categoría" />;
+    if (tendencia === 'igual') return <FaMinus className="text-slate-300 text-[8px]" title="Se mantuvo" />;
+    return null;
+}
 
 export default function MedicosTable({ currentItems, selectedIds, onSelectOne, onEdit, onView }) {
     // true mientras Inertia navega hacia el detalle del médico
@@ -84,8 +91,9 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                                 </td>
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     {m.categoria ? (
-                                        <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 uppercase">
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 uppercase">
                                             {m.categoria.nombre}
+                                            <TendenciaCategoria tendencia={m.categoria_tendencia} />
                                         </span>
                                     ) : (
                                         <span className="text-[9px] text-slate-300 italic">N/A</span>

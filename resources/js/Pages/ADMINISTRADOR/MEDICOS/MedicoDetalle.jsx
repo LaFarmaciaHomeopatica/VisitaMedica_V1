@@ -8,8 +8,15 @@ import {
 import {
     FaArrowLeft, FaUserDoctor, FaCalendarCheck,
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
-    FaCalendarDays, FaXmark,
+    FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus,
 } from 'react-icons/fa6';
+
+function TendenciaCategoria({ tendencia }) {
+    if (tendencia === 'subio') return <FaArrowTrendUp className="text-emerald-500 text-[10px]" title="Subió de categoría" />;
+    if (tendencia === 'bajo') return <FaArrowTrendDown className="text-rose-500 text-[10px]" title="Bajó de categoría" />;
+    if (tendencia === 'igual') return <FaMinus className="text-slate-300 text-[8px]" title="Se mantuvo" />;
+    return null;
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
@@ -137,6 +144,7 @@ export default function MedicoDetalle({
     txStats, tendencia, topProductos,
     porLaboratorio, todosProductos,
     visitasStats, visitas, visitadoresAsignados,
+    categoriaHistorial = [],
 })  {
     const [tabActiva, setTabActiva] = useState('visitadores');
     const [limLab, setLimLab]       = useState(50);
@@ -262,8 +270,9 @@ export default function MedicoDetalle({
                         
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                             {medico.categoria && (
-                                <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 uppercase">
+                                <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 uppercase">
                                     {medico.categoria.nombre}
+                                    <TendenciaCategoria tendencia={medico.categoria_tendencia} />
                                 </span>
                             )}
 
@@ -391,6 +400,30 @@ export default function MedicoDetalle({
                 </div>
 
                 <div className="px-8 pt-7 space-y-7">
+
+                    {/* ── HISTORIAL DE CATEGORÍA ─────────────────────────── */}
+                    {categoriaHistorial.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                Historial de categoría (mes a mes)
+                            </p>
+                            <div className="flex gap-2 flex-wrap">
+                                {[...categoriaHistorial].reverse().map((h) => (
+                                    <div key={h.id} className="flex flex-col items-center gap-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 min-w-[74px]">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase">
+                                            {h.mes?.slice(0, 7)}
+                                        </span>
+                                        <span className="text-[11px] font-black text-amber-700">
+                                            {h.categoria?.nombre ?? '—'}
+                                        </span>
+                                        <span className="text-[8px] text-slate-400 font-bold">
+                                            {fmtM(h.valor_total)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── KPIs ─────────────────────────────────────────── */}
                     {/* Val./Unidades/Productos dependen de Odoo → skeleton mientras cargan.

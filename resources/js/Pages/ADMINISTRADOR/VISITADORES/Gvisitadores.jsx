@@ -7,7 +7,7 @@ import VisitadorTable from './ComponentsVD/VisitadorTable';
 import VisitadorFormModal from './ComponentsVD/VisitadorFormModal';
 import VisitadorToolbar from './ComponentsVD/VisitadorToolbar';
 
-const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = [] }) => {
+const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = [], zonas = [] }) => {
     const { form, ui, filteredVisitadores } = useVisitadores(visitadores);
     const { flash } = usePage().props;
     const [toast, setToast] = useState(null);
@@ -105,6 +105,7 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = 
                 ui={ui}
                 tiposDocumento={tiposDocumento}
                 usuariosLibres={usuariosParaSelect()}
+                zonas={zonas}
             />
         </PanelAdmin>
     );

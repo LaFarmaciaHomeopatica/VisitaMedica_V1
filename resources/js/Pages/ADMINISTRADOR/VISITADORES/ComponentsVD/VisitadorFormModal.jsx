@@ -1,7 +1,7 @@
 // resources/js/Pages/ADMINISTRADOR/VISITADORES/ComponentsVD/VisitadorFormModal.jsx
 import React from 'react';
 
-const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumento, usuariosLibres = [] }) => {
+const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumento, usuariosLibres = [], zonas = [] }) => {
     if (!isOpen) return null;
 
     const { data, setData, errors, processing, post, put } = form;
@@ -85,9 +85,7 @@ const VisitadorFormModal = ({ isOpen, onClose, isEditing, form, ui, tiposDocumen
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Zona Asignada</label>
                             <select value={data.zona_id} onChange={e => setData('zona_id', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" required>
                                 <option value="">Seleccione...</option>
-                                <option value="1">Zona 1 - Norte</option>
-                                <option value="2">Zona 2 - Sur</option>
-                                <option value="3">Zona 3 - Centro</option>
+                                {zonas.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}
                             </select>
                             {errors.zona_id && <p className="text-rose-500 text-[9px] font-black mt-1 uppercase">{errors.zona_id}</p>}
                         </div>
