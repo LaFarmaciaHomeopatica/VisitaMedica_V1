@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
-use App\Models\Transaccion;
 use App\Models\Medico;
 use App\Models\MedicoTemporal;
 use App\Models\Visitador;
+use App\Services\OdooService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -14,76 +14,27 @@ use Inertia\Inertia;
 
 class GinicioController extends Controller
 {
+    private OdooService $odoo;
+
+    public function __construct(OdooService $odoo)
+    {
+        $this->odoo = $odoo;
+    }
+
+    // =========================================================================
+    //  RENDER RÁPIDO — solo datos locales, sin tocar Odoo
+    // =========================================================================
     public function index(Request $request)
     {
-        // 1. Fechas y filtros básicos
-        $fechaInicio = $request->input('fecha_inicio', Carbon::now()->subMonths(11)->startOfMonth()->format('Y-m-d'));
+       $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $fechaFin    = $request->input('fecha_fin',    Carbon::now()->endOfMonth()->format('Y-m-d'));
         $medicoDoc   = $request->input('medico_documento');
 
-        // Instancia base reusable para consultas del período
-        $base = Transaccion::whereBetween('fecha', [$fechaInicio, $fechaFin]);
-        if ($medicoDoc) {
-            $base->where('medico_documento', $medicoDoc);
-        }
+        $medicosLista = Medico::select('documento', DB::raw("TRIM(nombre) as nombre"))
+            ->whereNotNull('documento')
+            ->orderBy('nombre')
+            ->get();
 
-        // --- KPIs del período ---
-        $statsPeriodo = (clone $base)->select(
-            DB::raw('COUNT(*)                               as total_transacciones'),
-            DB::raw('COALESCE(SUM(valor_comprado),   0)     as valor_comprado'),
-            DB::raw('COALESCE(SUM(valor_formulado),  0)     as valor_formulado'),
-            DB::raw('COALESCE(SUM(unidades_compradas),  0) as unidades_compradas'),
-            DB::raw('COALESCE(SUM(unidades_formuladas), 0) as unidades_formuladas'),
-            DB::raw('COUNT(DISTINCT medico_documento)       as medicos_con_tx')
-        )->first();
-
-        // --- Tendencia del período seleccionado ---
-        $tendencia = (clone $base)->select(
-            DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
-            DB::raw('SUM(valor_comprado)      as valor_comprado'),
-            DB::raw('SUM(valor_formulado)     as valor_formulado'),
-            DB::raw('SUM(unidades_compradas)  as compradas'),
-            DB::raw('SUM(unidades_formuladas) as formuladas'),
-            DB::raw('COUNT(*)                 as transacciones')
-        )->groupBy('mes')->orderBy('mes')->get();
-
-        // --- Top 5 (10) productos del período ---
-        $topProductos = (clone $base)
-            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
-            ->select(
-                'productos.nombre',
-                DB::raw('SUM(transacciones.valor_comprado)     as valor_comprado'),
-                DB::raw('SUM(transacciones.valor_formulado)    as valor_formulado'),
-                DB::raw('SUM(transacciones.unidades_compradas) as unidades')
-            )
-            ->groupBy('productos.nombre')
-            ->orderByDesc('valor_comprado')
-            ->take(10)->get();
-
-        // --- Top 10 médicos del período (Optimizado con Joins directos) ---
-        $topMedicos = (clone $base)
-            ->leftJoin('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
-            ->leftJoin('medicos_temporales as mt', 'transacciones.medico_documento', '=', 'mt.documento')
-            ->select(
-                'transacciones.medico_documento as documento',
-                DB::raw("TRIM(COALESCE(m.nombre, mt.nombre_referencia, transacciones.medico_documento)) as nombre"),
-                DB::raw('SUM(transacciones.unidades_compradas)  as compradas'),
-                DB::raw('SUM(transacciones.unidades_formuladas) as formuladas'),
-                DB::raw('SUM(transacciones.valor_comprado)      as valor_comprado')
-            )
-            ->groupBy('transacciones.medico_documento', 'm.nombre', 'mt.nombre_referencia')
-            ->orderByDesc('compradas')
-            ->take(10)->get()
-            ->map(fn($m) => [
-                'documento'      => $m->documento,
-                'nombre'         => $m->nombre,
-                'compradas'      => (int)   $m->compradas,
-                'formuladas'     => (int)   $m->formuladas,
-                'valor_comprado' => (float) $m->valor_comprado,
-                'efectividad'    => $m->compradas > 0 ? round(($m->formuladas / $m->compradas) * 100, 1) : 0,
-            ]);
-
-        // --- Resumen de visitadores ---
         $visitadoresResumen = DB::table('visitadores')
             ->leftJoin('visitas', function ($j) use ($fechaInicio, $fechaFin) {
                 $j->on('visitadores.id', '=', 'visitas.visitador_id')
@@ -101,21 +52,108 @@ class GinicioController extends Controller
             ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
             ->get();
 
-        // --- Análisis de visitadores (Separado para evitar producto cartesiano destructivo) ---
-        $txVisitadores = DB::table('visitadores as v')
-            ->join('medicos as m', 'm.visitador_id', '=', 'v.id')
-            ->join('transacciones as t', 't.medico_documento', '=', 'm.documento')
-            ->whereBetween('t.fecha', [$fechaInicio, $fechaFin])
-            ->when($medicoDoc, fn($q) => $q->where('t.medico_documento', $medicoDoc))
-            ->select(
-                'v.id',
-                DB::raw('SUM(t.valor_comprado) as valor_comprado'),
-                DB::raw('SUM(t.valor_formulado) as valor_formulado'),
-                DB::raw('COUNT(DISTINCT t.medico_documento) as medicos_activos')
-            )
-            ->groupBy('v.id')
-            ->get()
-            ->keyBy('id');
+        $visitasPorEstado = $this->visitasPorEstadoQuery($fechaInicio, $fechaFin, $medicoDoc)
+            ->select('estado', DB::raw('COUNT(*) as total'))
+            ->groupBy('estado')
+            ->get();
+
+        return Inertia::render('ADMINISTRADOR/Ginicio', [
+            'filtros' => [
+                'fecha_inicio'        => $fechaInicio,
+                'fecha_fin'           => $fechaFin,
+                'medico_seleccionado' => $medicoDoc,
+            ],
+            'stats' => [
+                'visitadores'        => Visitador::count(),
+                'medicos'            => Medico::count(),
+                'medicos_temporales' => MedicoTemporal::count(),
+            ],
+            'visitadoresResumen' => $visitadoresResumen,
+            'visitasPorEstado'   => $visitasPorEstado,
+            'medicos'            => $medicosLista,
+        ]);
+    }
+
+    // =========================================================================
+    //  RESUMEN ODOO — endpoint JSON async, solo lectura, en vivo (sin caché)
+    // =========================================================================
+    public function odooResumen(Request $request)
+    {
+        set_time_limit(120);
+
+       $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
+$fechaFin    = $request->input('fecha_fin',    Carbon::now()->endOfMonth()->format('Y-m-d'));
+        $medicoDoc   = $request->input('medico_documento');
+
+        $medicosLista = Medico::select('id', 'documento', 'nombre', 'visitador_id')
+            ->whereNotNull('documento')
+            ->get();
+
+        $documentos = $medicoDoc
+            ? [$medicoDoc]
+            : $medicosLista->pluck('documento')->filter()->values()->all();
+
+        $resumen      = $this->odoo->getResumenGlobal($documentos, $fechaInicio, $fechaFin);
+        $porDocumento = $resumen['por_documento'] ?? [];
+
+        $medicosConTx = collect($porDocumento)->filter(
+            fn($d) => ($d['valor_comprado'] ?? 0) > 0 || ($d['valor_formulado'] ?? 0) > 0
+        )->count();
+
+        $stats = [
+            'total_transacciones' => (int)   ($resumen['total_transacciones']       ?? 0),
+            'valor_comprado'      => (float) ($resumen['total_valor_comprado']      ?? 0),
+            'valor_formulado'     => (float) ($resumen['total_valor_formulado']     ?? 0),
+            'unidades_compradas'  => (int)   ($resumen['total_unidades_compradas']  ?? 0),
+            'unidades_formuladas' => (int)   ($resumen['total_unidades_formuladas'] ?? 0),
+            'medicos_con_tx'      => $medicosConTx,
+        ];
+
+        $tendencia = collect($resumen['tendencia'] ?? [])->map(fn($m) => [
+            'mes'             => $m['mes'],
+            'valor_comprado'  => (float) $m['valor_comprado'],
+            'valor_formulado' => (float) $m['valor_formulado'],
+        ])->values();
+
+        $topProductos = collect($resumen['top_productos'] ?? [])->map(fn($p) => [
+            'nombre'          => $p['nombre'],
+            'valor_comprado'  => (float) $p['valor_comprado'],
+            'valor_formulado' => (float) $p['valor_formulado'],
+            'unidades'        => (float) $p['unidades'],
+        ])->values();
+
+       $nombresPorDoc = collect();
+
+foreach ($medicosLista as $m) {
+    $nombresPorDoc[trim((string) $m->documento)] = $m->nombre;
+}
+
+foreach (MedicoTemporal::pluck('nombre_referencia', 'documento') as $doc => $nombreRef) {
+    $key = trim((string) $doc);
+    if (!isset($nombresPorDoc[$key])) {
+        $nombresPorDoc[$key] = $nombreRef;
+    }
+}
+
+        $topMedicos = collect($porDocumento)
+            ->map(function ($d, $doc) use ($nombresPorDoc) {
+                $compradas  = (float) ($d['unidades_compradas']  ?? 0);
+                $formuladas = (float) ($d['unidades_formuladas'] ?? 0);
+                return [
+                    'documento'      => $doc,
+                    'nombre'         => trim($nombresPorDoc[$doc] ?? $doc),
+                    'compradas'      => (int) $compradas,
+                    'formuladas'     => (int) $formuladas,
+                    'valor_comprado' => (float) ($d['valor_comprado'] ?? 0),
+                    'efectividad'    => $compradas > 0 ? round(($formuladas / $compradas) * 100, 1) : 0,
+                ];
+            })
+            ->filter(fn($m) => $m['compradas'] > 0 || $m['formuladas'] > 0)
+            ->sortByDesc('compradas')
+            ->take(10)
+            ->values();
+
+        $medicosConVisitador = $medicosLista->whereNotNull('visitador_id')->groupBy('visitador_id');
 
         $visitasVisitadores = DB::table('visitadores as v')
             ->join('visitas as vis', 'vis.visitador_id', '=', 'v.id')
@@ -129,91 +167,67 @@ class GinicioController extends Controller
             ->get()
             ->keyBy('id');
 
-        $visitadoresAnalisis = Visitador::all(['id', 'nombre', 'apellido'])->map(function($v) use ($txVisitadores, $visitasVisitadores) {
-            $tx  = $txVisitadores->get($v->id);
-            $vis = $visitasVisitadores->get($v->id);
+        $visitadoresAnalisis = Visitador::all(['id', 'nombre', 'apellido'])->map(function ($v) use ($medicosConVisitador, $porDocumento, $visitasVisitadores) {
+            $medicosDelVisitador = $medicosConVisitador->get($v->id, collect());
 
+            $valorComprado  = 0.0;
+            $valorFormulado = 0.0;
+            $medicosActivos = 0;
+
+            foreach ($medicosDelVisitador as $m) {
+                $d = $porDocumento[$m->documento] ?? null;
+                if (!$d) continue;
+                $valorComprado  += $d['valor_comprado']  ?? 0;
+                $valorFormulado += $d['valor_formulado'] ?? 0;
+                if (($d['valor_comprado'] ?? 0) > 0 || ($d['valor_formulado'] ?? 0) > 0) {
+                    $medicosActivos++;
+                }
+            }
+
+            $vis = $visitasVisitadores->get($v->id);
             $totalVisitas = $vis?->total_visitas ?? 0;
             $visEfectivas = $vis?->visitas_efectivas ?? 0;
 
             return [
                 'id'                => $v->id,
                 'nombre'            => trim("$v->nombre $v->apellido"),
-                'valor_comprado'    => (float) ($tx?->valor_comprado ?? 0),
-                'valor_formulado'   => (float) ($tx?->valor_formulado ?? 0),
-                'medicos_activos'   => (int)   ($tx?->medicos_activos ?? 0),
-                'total_visitas'     => (int)   $totalVisitas,
-                'visitas_efectivas' => (int)   $visEfectivas,
+                'valor_comprado'    => (float) $valorComprado,
+                'valor_formulado'   => (float) $valorFormulado,
+                'medicos_activos'   => $medicosActivos,
+                'total_visitas'     => (int) $totalVisitas,
+                'visitas_efectivas' => (int) $visEfectivas,
                 'efectividad'       => $totalVisitas > 0 ? round(($visEfectivas / $totalVisitas) * 100, 1) : 0,
             ];
         })->sortByDesc('valor_comprado')->values();
 
+        return response()->json([
+            'stats'               => $stats,
+            'tendencia'           => $tendencia,
+            'topProductos'        => $topProductos,
+            'topMedicos'          => $topMedicos,
+            'visitadoresAnalisis' => $visitadoresAnalisis,
+            'odooConectado'       => $resumen['conectado'] ?? false,
+        ]);
+    }
 
-        // --- Visitas por estado (Sincronización de Identificadores) ---
-        $visitasPorEstadoQuery = DB::table('visitas')
-            ->whereBetween('fecha_programada', [$fechaInicio, $fechaFin]);
+    private function visitasPorEstadoQuery(string $fechaInicio, string $fechaFin, ?string $medicoDoc)
+    {
+        $query = DB::table('visitas')->whereBetween('fecha_programada', [$fechaInicio, $fechaFin]);
 
         if ($medicoDoc) {
-            // 1. Buscamos el ID numérico en la tabla de médicos principales
             $medicoIdReal = DB::table('medicos')
                 ->whereRaw('TRIM(documento) = ?', [trim($medicoDoc)])
                 ->value('id');
 
-            // 2. Si no aparece, buscamos en la tabla de médicos temporales por si acaso
             if (!$medicoIdReal) {
                 $medicoIdReal = DB::table('medicos_temporales')
                     ->whereRaw('TRIM(documento) = ?', [trim($medicoDoc)])
                     ->value('id');
             }
 
-            // 3. Aplicamos el filtro usando el ID numérico directo
-            if ($medicoIdReal) {
-                $visitasPorEstadoQuery->where('medico_id', $medicoIdReal);
-            } else {
-                // Si el documento no existe en ninguna de las dos tablas maestras,
-                // forzamos un resultado vacío seguro en vez de romper la consulta.
-                $visitasPorEstadoQuery->where('medico_id', 0);
-            }
+            $query->where('medico_id', $medicoIdReal ?: 0);
         }
 
-        $visitasPorEstado = $visitasPorEstadoQuery
-            ->select('estado', DB::raw('COUNT(*) as total'))
-            ->groupBy('estado')
-            ->get();
-
-
-        // --- Lista de médicos para el filtro ---
-        $medicosLista = (clone $base)
-            ->join('medicos as m', 'transacciones.medico_documento', '=', 'm.documento')
-            ->select('m.documento', DB::raw("TRIM(m.nombre) as nombre"))
-            ->distinct()
-            ->orderBy('nombre')
-            ->get();
-
-        return Inertia::render('ADMINISTRADOR/Ginicio', [
-            'filtros' => [
-                'fecha_inicio'        => $fechaInicio,
-                'fecha_fin'           => $fechaFin,
-                'medico_seleccionado' => $medicoDoc,
-            ],
-            'stats' => [
-                'visitadores'         => Visitador::count(),
-                'medicos'             => Medico::count(),
-                'medicos_temporales'  => MedicoTemporal::count(),
-                'total_transacciones' => (int)   ($statsPeriodo->total_transacciones ?? 0),
-                'valor_comprado'      => (float) ($statsPeriodo->valor_comprado      ?? 0),
-                'valor_formulado'     => (float) ($statsPeriodo->valor_formulado     ?? 0),
-                'unidades_compradas'  => (int)   ($statsPeriodo->unidades_compradas  ?? 0),
-                'unidades_formuladas' => (int)   ($statsPeriodo->unidades_formuladas ?? 0),
-                'medicos_con_tx'      => (int)   ($statsPeriodo->medicos_con_tx      ?? 0),
-            ],
-            'tendencia'           => $tendencia,
-            'topProductos'        => $topProductos,
-            'topMedicos'          => $topMedicos,
-            'visitadoresResumen'  => $visitadoresResumen,
-            'visitadoresAnalisis' => $visitadoresAnalisis,
-            'visitasPorEstado'    => $visitasPorEstado,
-            'medicos'             => $medicosLista,
-        ]);
+        return $query;
     }
 }

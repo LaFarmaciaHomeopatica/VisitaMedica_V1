@@ -1369,4 +1369,203 @@ private function calcularKpis(array $lineas): array
     {
         return trim(preg_replace('/^\[.+?\]\s*/', '', $nombreCompleto));
     }
+
+    public function getResumenGlobal(array $documentos, string $fechaDesde, string $fechaHasta): array
+{
+    $vacio = [
+        'conectado'     => false,
+        'por_documento' => [],
+        'tendencia'     => [],
+        'top_productos' => [],
+        'total_valor_comprado'      => 0.0,
+        'total_valor_formulado'     => 0.0,
+        'total_unidades_compradas'  => 0.0,
+        'total_unidades_formuladas' => 0.0,
+        'total_transacciones'       => 0,
+    ];
+
+    $uid = $this->obtenerUid();
+    if (!$uid) return $vacio;
+
+    if (empty($documentos)) {
+        return array_merge($vacio, ['conectado' => true]);
+    }
+
+    $partnerIdsMap = $this->mapearPartnersPorDocumentos($uid, $documentos); // [partner_id => vat]
+    if (empty($partnerIdsMap)) {
+        return array_merge($vacio, ['conectado' => true]);
+    }
+
+    $porDocumento = [];
+    foreach ($documentos as $doc) {
+        $porDocumento[trim((string) $doc)] = [
+            'valor_comprado'        => 0.0,
+            'unidades_compradas'    => 0.0,
+            'valor_formulado'       => 0.0,
+            'unidades_formuladas'   => 0.0,
+            'producto_mas_comprado' => null,
+        ];
+    }
+
+    $tendenciaMap        = []; // mes => [...]
+    $productosMap        = []; // nombre => [comprado, formulado, unidades]
+    $prodCantidadesXDoc  = []; // doc => [nombre => cantidad]
+    $totalTransacciones  = 0;
+
+    // ── 1. COMPRADO (partner_id = cliente) ───────────────────────────────
+    $lineasCompra = $this->obtenerProductos($uid, array_keys($partnerIdsMap), $fechaDesde, $fechaHasta);
+
+    foreach ($lineasCompra as $l) {
+        $estado = strtoupper($l['state'] ?? '');
+        if (in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA'])) continue;
+
+        $partnerId = $l['partner_id'] ?? null;
+        $doc = $partnerId ? ($partnerIdsMap[$partnerId] ?? null) : null;
+
+        if ($doc && isset($porDocumento[$doc])) {
+            $porDocumento[$doc]['valor_comprado']    += $l['subtotal'];
+            $porDocumento[$doc]['unidades_compradas'] += $l['cantidad'];
+
+            if ($l['cantidad'] > 0) {
+                $prodCantidadesXDoc[$doc][$l['nombre']] = ($prodCantidadesXDoc[$doc][$l['nombre']] ?? 0) + $l['cantidad'];
+            }
+        }
+
+        $mes = substr($l['fecha'] ?? '', 0, 7);
+        if ($mes) {
+            $tendenciaMap[$mes] ??= $this->mesVacio($mes);
+            $tendenciaMap[$mes]['valor_comprado']     += $l['subtotal'];
+            $tendenciaMap[$mes]['unidades_compradas']  += $l['cantidad'];
+            $tendenciaMap[$mes]['transacciones']++;
+        }
+
+        $nombre = $l['nombre'] ?? 'Sin nombre';
+        $productosMap[$nombre] ??= ['nombre' => $nombre, 'valor_comprado' => 0.0, 'valor_formulado' => 0.0, 'unidades' => 0.0];
+        $productosMap[$nombre]['valor_comprado'] += $l['subtotal'];
+        $productosMap[$nombre]['unidades']       += $l['cantidad'];
+
+        $totalTransacciones++;
+    }
+
+    foreach ($prodCantidadesXDoc as $doc => $productos) {
+        arsort($productos);
+        $porDocumento[$doc]['producto_mas_comprado'] = array_key_first($productos);
+    }
+
+    // ── 2. FORMULADO (doctor_id = prescriptor) ───────────────────────────
+    $filtroOrdenes = [
+        ['doctor_id', 'in', array_keys($partnerIdsMap)],
+        ['date_order', '>=', $fechaDesde . ' 00:00:00'],
+        ['date_order', '<=', $fechaHasta . ' 23:59:59'],
+    ];
+
+    $orderIds = $this->ejecutarKw($uid, 'sale.order', 'search', [$filtroOrdenes]);
+
+    if (!empty($orderIds) && is_array($orderIds)) {
+        $ordenes = [];
+        try {
+            $ordenesRaw = $this->ejecutarKw($uid, 'sale.order', 'read', [$orderIds],
+                ['fields' => ['id', 'date_order', 'state', 'doctor_id']]);
+            if (is_array($ordenesRaw)) {
+                foreach ($ordenesRaw as $o) $ordenes[(int) $o['id']] = $o;
+            }
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] getResumenGlobal cabeceras formulación: ' . $e->getMessage());
+        }
+
+        $lineasForm = [];
+        try {
+            $lineasForm = $this->ejecutarKw($uid, 'sale.order.line', 'search_read',
+                [[['order_id', 'in', $orderIds]]],
+                ['fields' => ['product_id', 'name', 'product_uom_qty', 'price_subtotal', 'order_id', 'display_type']]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] getResumenGlobal líneas formulación: ' . $e->getMessage());
+        }
+
+        if (is_array($lineasForm)) {
+            foreach ($lineasForm as $linea) {
+                if (!empty($linea['display_type'])) continue;
+                if (empty($linea['product_id']))    continue;
+
+                $ordId = is_array($linea['order_id']) ? ($linea['order_id'][0] ?? null) : $linea['order_id'];
+                $orden = $ordId ? ($ordenes[(int) $ordId] ?? null) : null;
+                if (!$orden) continue;
+
+                $estado = strtoupper((string) ($orden['state'] ?? ''));
+                if (in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA'])) continue;
+
+                $doctorRef = $orden['doctor_id'] ?? null;
+                $partnerId = is_array($doctorRef) ? ($doctorRef[0] ?? null) : $doctorRef;
+                $doc = $partnerId ? ($partnerIdsMap[$partnerId] ?? null) : null;
+                if (!$doc || !isset($porDocumento[$doc])) continue;
+
+                $cantidad = is_numeric($linea['product_uom_qty'] ?? null) ? (float) $linea['product_uom_qty'] : 0;
+                $subtotal = is_numeric($linea['price_subtotal']  ?? null) ? (float) $linea['price_subtotal']  : 0;
+                $nombre   = is_array($linea['product_id']) ? $this->limpiarNombre($linea['product_id'][1] ?? $linea['name']) : $linea['name'];
+
+                $porDocumento[$doc]['valor_formulado']     += $subtotal;
+                $porDocumento[$doc]['unidades_formuladas'] += $cantidad;
+
+                $mesForm = substr((string) ($orden['date_order'] ?? ''), 0, 7);
+                if ($mesForm) {
+                    $tendenciaMap[$mesForm] ??= $this->mesVacio($mesForm);
+                    $tendenciaMap[$mesForm]['valor_formulado']     += $subtotal;
+                    $tendenciaMap[$mesForm]['unidades_formuladas'] += $cantidad;
+                }
+
+                $productosMap[$nombre] ??= ['nombre' => $nombre, 'valor_comprado' => 0.0, 'valor_formulado' => 0.0, 'unidades' => 0.0];
+                $productosMap[$nombre]['valor_formulado'] += $subtotal;
+
+                $totalTransacciones++;
+            }
+        }
+    }
+
+    ksort($tendenciaMap);
+    uasort($productosMap, fn($a, $b) => ($b['valor_comprado'] + $b['valor_formulado']) <=> ($a['valor_comprado'] + $a['valor_formulado']));
+
+    return [
+        'conectado'     => true,
+        'por_documento' => $porDocumento,
+        'tendencia'     => array_values($tendenciaMap),
+        'top_productos' => array_slice(array_values($productosMap), 0, 10),
+        'total_valor_comprado'      => round(array_sum(array_column($porDocumento, 'valor_comprado')), 2),
+        'total_valor_formulado'     => round(array_sum(array_column($porDocumento, 'valor_formulado')), 2),
+        'total_unidades_compradas'  => array_sum(array_column($porDocumento, 'unidades_compradas')),
+        'total_unidades_formuladas' => array_sum(array_column($porDocumento, 'unidades_formuladas')),
+        'total_transacciones'       => $totalTransacciones,
+    ];
+}
+
+private function mesVacio(string $mes): array
+{
+    return [
+        'mes' => $mes,
+        'valor_comprado' => 0.0,
+        'valor_formulado' => 0.0,
+        'unidades_compradas' => 0.0,
+        'unidades_formuladas' => 0.0,
+        'transacciones' => 0,
+    ];
+}
+
+private function mapearPartnersPorDocumentos(int $uid, array $documentos): array
+{
+    $partnerIdsMap = [];
+    foreach (array_chunk($documentos, 2000) as $chunk)  {
+        $ids = $this->ejecutarKw($uid, 'res.partner', 'search', [[['vat', 'in', $chunk]]], ['limit' => 500]);
+        if (!empty($ids) && is_array($ids)) {
+            $partners = $this->ejecutarKw($uid, 'res.partner', 'read', [$ids], ['fields' => ['id', 'vat']]);
+            if (is_array($partners)) {
+                foreach ($partners as $p) {
+                    if (!empty($p['id']) && !empty($p['vat'])) {
+                        $partnerIdsMap[(int) $p['id']] = trim((string) $p['vat']);
+                    }
+                }
+            }
+        }
+    }
+    return $partnerIdsMap;
+}
 }

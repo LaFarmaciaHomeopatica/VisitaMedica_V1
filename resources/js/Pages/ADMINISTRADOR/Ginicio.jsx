@@ -79,7 +79,7 @@ function MedicoSearch({ medicos, value, onChange }) {
     const filtered = useMemo(() => {
         const term = query.toLowerCase();
         return medicos.filter(m =>
-            (m.nombre    ?? '').toLowerCase().includes(term) ||
+            (m.nombre ?? '').toLowerCase().includes(term) ||
             String(m.documento ?? '').toLowerCase().includes(term)
         );
     }, [medicos, query]);
@@ -141,19 +141,53 @@ function MedicoSearch({ medicos, value, onChange }) {
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function Ginicio({
-    auth, stats, tendencia, topProductos, topMedicos = [],
-    visitadoresResumen, visitadoresAnalisis = [], visitasPorEstado,
+    auth, stats, visitadoresResumen, visitasPorEstado,
     filtros, medicos = [],
 }) {
     const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
     const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
 
+    const [odooStats, setOdooStats] = useState({
+        total_transacciones: 0, valor_comprado: 0, valor_formulado: 0,
+        unidades_compradas: 0, unidades_formuladas: 0, medicos_con_tx: 0,
+    });
+    const [odooTendencia, setOdooTendencia] = useState([]);
+    const [odooTopProductos, setOdooTopProductos] = useState([]);
+    const [odooTopMedicos, setOdooTopMedicos] = useState([]);
+    const [odooVisitadoresAnalisis, setOdooVisitadoresAnalisis] = useState([]);
+    const [odooLoading, setOdooLoading] = useState(true);
+    const [odooConectado, setOdooConectado] = useState(null);
+
     const isFirstRender = useRef(true);
     const timerRef      = useRef(null);
 
+    const fetchOdooResumen = () => {
+        setOdooLoading(true);
+        fetch(route('Ginicio.odooResumen', {
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            medico_documento: medicoDoc || undefined,
+        }), { headers: { Accept: 'application/json' } })
+            .then(res => res.json())
+            .then(data => {
+                setOdooStats(data.stats ?? {});
+                setOdooTendencia(data.tendencia ?? []);
+                setOdooTopProductos(data.topProductos ?? []);
+                setOdooTopMedicos(data.topMedicos ?? []);
+                setOdooVisitadoresAnalisis(data.visitadoresAnalisis ?? []);
+                setOdooConectado(data.odooConectado ?? false);
+            })
+            .catch(() => setOdooConectado(false))
+            .finally(() => setOdooLoading(false));
+    };
+
     useEffect(() => {
-        if (isFirstRender.current) { isFirstRender.current = false; return; }
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            fetchOdooResumen();
+            return;
+        }
         clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
             router.get(route('Ginicio'), {
@@ -161,17 +195,22 @@ export default function Ginicio({
                 fecha_fin:        fechaFin,
                 medico_documento: medicoDoc || undefined,
             }, { preserveState: true });
+            fetchOdooResumen();
         }, 500);
     }, [fechaInicio, fechaFin, medicoDoc]);
 
+    
     const limpiar = () => {
         clearTimeout(timerRef.current);
         router.get(route('Ginicio'));
     };
 
-    const ticketPromedio = (stats?.total_transacciones ?? 0) > 0
-        ? (stats.valor_comprado / stats.total_transacciones) : 0;
-    const tendenciaData = (tendencia ?? []).map(d => ({
+    const statsMerged = { ...stats, ...odooStats };
+
+    const ticketPromedio = (statsMerged.total_transacciones ?? 0) > 0
+        ? (statsMerged.valor_comprado / statsMerged.total_transacciones) : 0;
+
+    const tendenciaData = odooTendencia.map(d => ({
         label:    d.mes?.slice(0, 7),
         comprado: Number(d.valor_comprado),
         formulado:Number(d.valor_formulado),
@@ -183,7 +222,9 @@ export default function Ginicio({
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    const medicosData = topMedicos ?? [];
+    const medicosData    = odooTopMedicos;
+    const topProductos   = odooTopProductos;
+    const visitadoresAnalisis = odooVisitadoresAnalisis;
 
 
     return (
@@ -191,6 +232,27 @@ export default function Ginicio({
             <Head title="Panel de Control" />
 
             <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+
+                {/* ── MODAL DE CARGA (OVERLAY GLOBAL) ──────────────── */}
+                {odooLoading && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center animate-fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center">
+                            
+                            {/* Spinner circular estilizado */}
+                            <div className="relative flex items-center justify-center mb-4">
+                                <div className="w-12 h-12 rounded-full border-4 border-slate-100 absolute"></div>
+                                <div className="w-12 h-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+                            </div>
+
+                            <p className="text-[12px] font-black uppercase tracking-wider text-slate-800 mb-1">
+                                Cargando Datos
+                            </p>
+                            <p className="text-[10px] font-bold text-slate-400">
+                                Sincronizando transacciones e inventarios con Odoo v18. Por favor espera...
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-[80px] z-40 shadow-sm">
@@ -224,14 +286,14 @@ export default function Ginicio({
 
                     {/* ── KPI CARDS ────────────────────────────────── */}
                     <div className="grid grid-cols-2 xl:grid-cols-8 gap-3">
-                        <KpiCard label="Visitadores"     value={fmt(stats?.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
-                        <KpiCard label="Médicos"         value={fmt(stats?.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
-                        <KpiCard label="Méd. Temporales" value={fmt(stats?.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard label="unidades compradas" value={fmt(stats?.unidades_compradas)} accent="#ef4444" />
-                        <KpiCard label="unidades formuladas" value={fmt(stats?.unidades_formuladas)} accent="#ec4899" />
+                        <KpiCard label="Visitadores"     value={fmt(statsMerged.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard label="Médicos"         value={fmt(statsMerged.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard label="Méd. Temporales" value={fmt(statsMerged.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard label="unidades compradas" value={fmt(statsMerged.unidades_compradas)} accent="#ef4444" />
+                        <KpiCard label="unidades formuladas" value={fmt(statsMerged.unidades_formuladas)} accent="#ec4899" />
                         <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
-                        <KpiCard label="Valor Comprado"  value={fmtM(stats?.valor_comprado)}  sub={`${fmt(stats?.unidades_compradas)} un.`} accent="#10b981" />
-                        <KpiCard label="Valor Formulado" value={fmtM(stats?.valor_formulado)} sub={`${fmt(stats?.unidades_formuladas)} un.`} accent="#8b5cf6" />
+                        <KpiCard label="Valor Comprado"  value={fmtM(statsMerged.valor_comprado)}  sub={`${fmt(statsMerged.unidades_compradas)} un.`} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={fmtM(statsMerged.valor_formulado)} sub={`${fmt(statsMerged.unidades_formuladas)} un.`} accent="#8b5cf6" />
                     </div>
 
                     {/* ── FILA 1: Tendencia + Visitas ──────────────── */}

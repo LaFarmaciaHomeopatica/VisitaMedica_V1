@@ -53,7 +53,7 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
         Route::delete('/Gmetas/{id}', [MetasController::class, 'destroy'])->name('Gmetas.destroy');
 
 
-
+        Route::get('/Ginicio/odoo-resumen', [GinicioController::class, 'odooResumen'])->name('Ginicio.odooResumen');
 
         Route::get('/Gusuarios', [UsuarioController::class, 'index'])->name('Gusuarios.index');
         Route::post('/Gusuarios', [UsuarioController::class, 'store'])->name('Gusuarios.store');
