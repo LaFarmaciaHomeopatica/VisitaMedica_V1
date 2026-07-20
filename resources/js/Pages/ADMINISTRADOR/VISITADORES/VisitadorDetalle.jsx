@@ -150,7 +150,7 @@ export default function VisitadorDetalle({
         <PanelAdmin user={auth?.user}>
             <Head title={`${visitador.nombre} ${visitador.apellido} · Detalle`} />
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── HEADER ─────────────────────────────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">

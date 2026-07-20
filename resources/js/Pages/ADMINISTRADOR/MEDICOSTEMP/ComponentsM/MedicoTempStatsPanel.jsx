@@ -37,7 +37,7 @@ export default function MedicoTempStatsPanel({ medico, onClose }) {
             <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-50" onClick={onClose} />
 
             {/* Panel */}
-            <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-[#F0F4FA] z-50 shadow-2xl flex flex-col overflow-hidden
+            <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-white z-50 shadow-2xl flex flex-col overflow-hidden
                             animate-in slide-in-from-right duration-300">
 
                 {/* Header */}

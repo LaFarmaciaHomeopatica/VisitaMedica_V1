@@ -285,6 +285,9 @@ public function show(Request $request, $id)
         $medico = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->findOrFail($id);
         $doc    = $medico->documento;
         $medico->especialidad = $this->resolverEspecialidadOdoo($doc);
+        // El tipo de documento se resuelve en vivo contra Odoo (l10n_latam_identification_type_id):
+        // el catálogo local puede quedar desactualizado frente al dato real capturado allá.
+        $tipoDocumentoOdoo = $this->odoo->getTipoDocumentoPorDocumento($doc);
 
         $historialCategoria = $this->obtenerHistorialCategoria($medico);
         $medico->categoria_tendencia = $this->calcularTendenciaCategoria($historialCategoria->get(0), $historialCategoria->get(1));
@@ -490,8 +493,12 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
             ->orderByDesc('total_visitas')->get();
 
+        $transacciones = $this->odoo->getTransaccionesPorDocumento($doc, $fechaDesde, $fechaHasta);
+        $tarifasSinClasificar = $this->odoo->getTarifasSinClasificarPorDocumento($doc, $fechaDesde, $fechaHasta);
+
         return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
+            'tipoDocumentoOdoo'    => $tipoDocumentoOdoo,
             'periodoActivo'        => $periodo,
             'fechaDesdeActiva'     => $fechaDesdeCustom,
             'fechaHastaActiva'     => $fechaHastaCustom,
@@ -500,6 +507,8 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'topProductos'         => $topProductos,
             'porLaboratorio'       => $porLaboratorio,
             'todosProductos'       => $todosProductos,
+            'transacciones'        => $transacciones,
+            'tarifasSinClasificar' => $tarifasSinClasificar,
             'visitasStats'         => $visitasStats,
             'visitas'              => $visitas,
             'visitadoresAsignados' => $visitadoresAsignados,
@@ -522,15 +531,28 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         } else {
             $temporal = MedicoTemporal::where('documento', $documento)->first();
 
+            // Sin registro local (ni médico ni temporal): el nombre y el
+            // contacto se resuelven directo contra el contacto de Odoo
+            // (res.partner) para que el buscador universal de /odoo/medicos
+            // no muestre "Sin registrar" para clientes que sí existen en Odoo.
+            $nombre  = $temporal->nombre_referencia ?? null;
+            $telefono = null;
+
+            if (!$nombre) {
+                $partnerOdoo = $this->odoo->buscarMedicoPorDocumento($documento);
+                $nombre   = $partnerOdoo['name'] ?? null;
+                $telefono = $partnerOdoo['mobile'] ?? $partnerOdoo['phone'] ?? null;
+            }
+
             $medico = (object) [
                 'id'                 => $temporal->id ?? null,
-                'nombre'             => $temporal->nombre_referencia ?? 'Sin registrar',
+                'nombre'             => $nombre ?? 'Sin registrar',
                 'documento'          => $documento,
                 'especialidad'       => null,
                 'tipo_documento'     => null,
                 'categoria'          => null,
                 'visitador'          => null,
-                'telefono_contacto'  => null,
+                'telefono_contacto'  => $telefono,
                 'horario_atencion'   => null,
                 'direccion_detalles' => null,
                 'geolocalizacion'    => null,
@@ -538,6 +560,7 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         }
 
         $medico->especialidad = $this->resolverEspecialidadOdoo($documento);
+        $tipoDocumentoOdoo = $this->odoo->getTipoDocumentoPorDocumento($documento);
 
         if ($medicoReal) {
             $historialCategoria = $this->obtenerHistorialCategoria($medicoReal);
@@ -751,8 +774,12 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             $visitadoresAsignados = [];
         }
 
+        $transacciones = $this->odoo->getTransaccionesPorDocumento($documento, $fechaDesde, $fechaHasta);
+        $tarifasSinClasificar = $this->odoo->getTarifasSinClasificarPorDocumento($documento, $fechaDesde, $fechaHasta);
+
         return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
+            'tipoDocumentoOdoo'    => $tipoDocumentoOdoo,
             'periodoActivo'        => $periodo,
             'fechaDesdeActiva'     => $fechaDesdeCustom,
             'fechaHastaActiva'     => $fechaHastaCustom,
@@ -761,6 +788,8 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'topProductos'         => $topProductos,
             'porLaboratorio'       => $porLaboratorio,
             'todosProductos'       => $todosProductos,
+            'transacciones'        => $transacciones,
+            'tarifasSinClasificar' => $tarifasSinClasificar,
             'visitasStats'         => $visitasStats,
             'visitas'              => $visitas,
             'visitadoresAsignados' => $visitadoresAsignados,
@@ -771,6 +800,99 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         ]);
     }
 
+    // =========================================================================
+    //  SINCRONIZACIÓN PUNTUAL — historial de categoría de UN médico
+    // =========================================================================
+
+    /**
+     * Botón "Sincronizar" del panel de detalle: refresca TODOS los datos que
+     * el panel consulta en Odoo para este médico puntual (KPIs, tendencia,
+     * productos, transacciones, cartera, especialidad, tipo de documento...).
+     * Esos datos se cachean 30 min por documento+rango (OdooService::
+     * cacheKeyPorDocumento) para no golpear Odoo en cada carga del panel;
+     * aquí se invalida esa caché primero (invalidarCachePorDocumento) para
+     * que la recarga que sigue traiga datos frescos y no la copia cacheada.
+     * Además queda persistido el historial de categoría (últimos 12 meses
+     * cerrados), porque a diferencia del resto es un snapshot histórico, no
+     * un dato "en vivo": se guarda en `medico_categoria_historial`, igual que
+     * hace el comando programado `medicos:calcular-categorias`, pero para
+     * todos los médicos por lote. Al terminar, back() vuelve a la misma URL
+     * (con su período activo) y esa recarga trae los datos ya frescos.
+     */
+    public function sincronizarCategoriaPorDocumento(Request $request, $documento)
+    {
+        // Limpia todo lo cacheado en OdooService para este documento (KPIs,
+        // transacciones, formulación, tarifas, tipo de documento) para
+        // cualquier rango de fechas, así la recarga que sigue trae datos
+        // frescos en vez de la copia de hasta 30 min que pudiera existir.
+        $this->odoo->invalidarCachePorDocumento($documento);
+
+        $medico = Medico::where('documento', $documento)->first();
+
+        if (!$medico) {
+            return back()->with('error', 'Este documento no está registrado localmente como médico; no se puede guardar su historial de categoría.');
+        }
+
+        $mesActualInicio = Carbon::now()->startOfMonth();
+        // Últimos 12 meses CERRADOS (no se recalcula el mes en curso, igual
+        // que el comando programado, para no guardar un snapshot parcial).
+        $fechaHasta = $mesActualInicio->copy()->subDay()->endOfMonth()->format('Y-m-d');
+        $fechaDesde = $mesActualInicio->copy()->subMonthsNoOverflow(12)->format('Y-m-d');
+
+        $odooData    = $this->odoo->getKpisPorDocumento($documento, $fechaDesde, $fechaHasta);
+        $formulacion = $this->odoo->getFormulacionPorDocumento($documento, $fechaDesde, $fechaHasta) ?? [];
+
+        $mensual = [];
+        foreach ($odooData['tendencia'] ?? [] as $t) {
+            $mensual[$t['mes']] = [
+                'comprado'  => (float) ($t['valor_comprado'] ?? 0),
+                'formulado' => 0.0,
+            ];
+        }
+        foreach ($formulacion as $linea) {
+            $estado = strtoupper($linea['estado'] ?? '');
+            if (in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA'], true)) continue;
+            if (empty($linea['fecha'])) continue;
+
+            $mes = substr($linea['fecha'], 0, 7);
+            $mensual[$mes] ??= ['comprado' => 0.0, 'formulado' => 0.0];
+            $mensual[$mes]['formulado'] += (float) ($linea['subtotal'] ?? $linea['total'] ?? 0);
+        }
+
+        if (empty($mensual)) {
+            return back()->with('error', 'No se encontraron datos en Odoo para este médico en los últimos 12 meses.');
+        }
+
+        $categorias = Categoria::orderByDesc('valor_minimo')->get();
+        $mesMasReciente = null;
+        $categoriaMasReciente = null;
+        $actualizados = 0;
+
+        foreach ($mensual as $mes => $valores) {
+            $valorTotal = $valores['comprado'] + $valores['formulado'];
+            $categoria  = $categorias->first(fn($c) => (float) $c->valor_minimo <= $valorTotal);
+
+            MedicoCategoriaHistorial::updateOrCreate(
+                ['medico_id' => $medico->id, 'mes' => $mes . '-01'],
+                [
+                    'categoria_id'    => $categoria?->id,
+                    'valor_comprado'  => $valores['comprado'],
+                    'valor_formulado' => $valores['formulado'],
+                    'valor_total'     => $valorTotal,
+                ]
+            );
+            $actualizados++;
+
+            if (!$mesMasReciente || $mes > $mesMasReciente) {
+                $mesMasReciente       = $mes;
+                $categoriaMasReciente = $categoria;
+            }
+        }
+
+        $medico->update(['categoria_id' => $categoriaMasReciente?->id]);
+
+        return back()->with('success', "Datos de Odoo sincronizados para este médico ({$actualizados} mes(es) de categoría actualizados).");
+    }
 
     // =========================================================================
     //  ALERTAS DE PRODUCTOS — Comparativo desde Odoo
@@ -996,7 +1118,10 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
      */
     private function resolverPeriodo(Request $request): array
     {
-        $periodo = $request->input('periodo', 'all');
+        // Por defecto "Mes Actual": evita traer el historial completo de
+        // Odoo (mucho más lento) en cada carga del panel — el usuario elige
+        // "Todo" o un rango personalizado solo cuando lo necesita.
+        $periodo = $request->input('periodo', 'mes');
         $fechaDesdeCustom = null;
         $fechaHastaCustom = null;
 

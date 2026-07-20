@@ -76,7 +76,7 @@ export default function ProductosAlertaAdmin({
         <PanelAdmin user={auth?.user}>
             <Head title={`Alertas Críticas · ${medico?.nombre || 'Médico'}`} />
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── HEADER ADMINISTRATIVO ──────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">

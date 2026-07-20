@@ -37,6 +37,9 @@ class OdooService
     /** Memoiza el mapa [odoo_pricelist_id => categoria]. */
     private ?array $cacheCategoriasPorPricelist = null;
 
+    /** Memoiza el mapa [odoo_pricelist_id => nombre de la tarifa]. */
+    private ?array $cacheNombresPricelist = null;
+
     /** Memoiza búsquedas de nombre local por código (para el reemplazo de nombres "(copia)"). */
     private array $cacheNombresLocales = [];
 
@@ -126,10 +129,58 @@ class OdooService
             'res.partner',
             'read',
             [$ids],
-            ['fields' => ['name', 'vat', 'email', 'phone', 'mobile']]
+            ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'l10n_latam_identification_type_id']]
         );
 
         return $partners[0] ?? null;
+    }
+
+    // =========================================================================
+    //  CACHÉ POR DOCUMENTO — panel de detalle (KPIs, transacciones, etc.)
+    // =========================================================================
+
+    /**
+     * Clave de caché versionada para un método *PorDocumento(). La versión
+     * (guardada aparte, por documento) permite invalidar TODO lo cacheado de
+     * un médico —sin importar con qué rango de fechas se haya guardado cada
+     * entrada— con un solo incremento, en vez de tener que enumerar y borrar
+     * cada combinación de fechas posible.
+     */
+    private function cacheKeyPorDocumento(string $prefijo, string $documento, ?string $fechaDesde = null, ?string $fechaHasta = null): string
+    {
+        $version = Cache::get("odoo_doc_version_{$documento}", 1);
+        return "odoo_{$prefijo}_{$documento}_v{$version}_" . ($fechaDesde ?? 'x') . '_' . ($fechaHasta ?? 'x');
+    }
+
+    /**
+     * Invalida (para este documento) todo lo cacheado por los métodos
+     * *PorDocumento(): KPIs, formulación, transacciones, tarifas sin
+     * clasificar y tipo de documento — para cualquier rango de fechas con el
+     * que se haya guardado. Se llama desde el botón "Sincronizar con Odoo"
+     * del panel de detalle antes de recalcular en vivo.
+     */
+    public function invalidarCachePorDocumento(string $documento): void
+    {
+        $version = Cache::get("odoo_doc_version_{$documento}", 1);
+        Cache::put("odoo_doc_version_{$documento}", $version + 1, now()->addDays(7));
+    }
+
+    /**
+     * Resuelve el tipo de documento (Cédula de Ciudadanía, NIT, etc.) directo
+     * desde Odoo (res.partner.l10n_latam_identification_type_id), en vez del
+     * catálogo local — que puede quedar desactualizado frente al dato real
+     * capturado en Odoo. Retorna null si no se encuentra el contacto o el
+     * campo no está asignado.
+     */
+    public function getTipoDocumentoPorDocumento(string $documento): ?string
+    {
+        $cacheKey = $this->cacheKeyPorDocumento('tipo_doc', $documento);
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento) {
+            $partner = $this->buscarMedicoPorDocumento($documento);
+            $tipo = $partner['l10n_latam_identification_type_id'] ?? null;
+            return is_array($tipo) ? ($tipo[1] ?? null) : null;
+        });
     }
 
     /**
@@ -262,18 +313,22 @@ class OdooService
      */
     public function getKpisPorDocumento(string $documento, ?string $fechaDesde = null, ?string $fechaHasta = null): ?array
     {
-        $uid = $this->obtenerUid();
-        if (!$uid) return null;
+        $cacheKey = $this->cacheKeyPorDocumento('kpis', $documento, $fechaDesde, $fechaHasta);
 
-        $partnerIds = $this->buscarPartnerIds($uid, $documento);
-        if (empty($partnerIds)) return null;
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $fechaDesde, $fechaHasta) {
+            $uid = $this->obtenerUid();
+            if (!$uid) return null;
 
-        $lineas = $this->obtenerProductos($uid, $partnerIds, $fechaDesde, $fechaHasta);
-        if (empty($lineas)) {
-            return $this->kpisVacios();
-        }
+            $partnerIds = $this->buscarPartnerIds($uid, $documento);
+            if (empty($partnerIds)) return null;
 
-        return $this->calcularKpis($lineas);
+            $lineas = $this->obtenerProductos($uid, $partnerIds, $fechaDesde, $fechaHasta);
+            if (empty($lineas)) {
+                return $this->kpisVacios();
+            }
+
+            return $this->calcularKpis($lineas);
+        });
     }
 
     /**
@@ -476,15 +531,19 @@ class OdooService
     /**
      * Trae transacciones (órdenes de venta y facturas) de un médico por documento.
      */
-    public function getTransaccionesPorDocumento(string $documento): array
+    public function getTransaccionesPorDocumento(string $documento, ?string $fechaDesde = null, ?string $fechaHasta = null): array
     {
-        $uid = $this->obtenerUid();
-        if (!$uid) return [];
+        $cacheKey = $this->cacheKeyPorDocumento('transacciones', $documento, $fechaDesde, $fechaHasta);
 
-        $partnerIds = $this->buscarPartnerIds($uid, $documento);
-        if (empty($partnerIds)) return [];
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $fechaDesde, $fechaHasta) {
+            $uid = $this->obtenerUid();
+            if (!$uid) return [];
 
-        return $this->obtenerTransacciones($uid, $partnerIds);
+            $partnerIds = $this->buscarPartnerIds($uid, $documento);
+            if (empty($partnerIds)) return [];
+
+            return $this->obtenerTransacciones($uid, $partnerIds, $fechaDesde, $fechaHasta);
+        });
     }
 
     /**
@@ -518,30 +577,104 @@ class OdooService
      */
     public function getFormulacionPorDocumento(string $documento, ?string $fechaDesde = null, ?string $fechaHasta = null): array
     {
-        $uid = $this->obtenerUid();
-        if (!$uid) return [];
+        $cacheKey = $this->cacheKeyPorDocumento('formulacion', $documento, $fechaDesde, $fechaHasta);
 
-        $partnerIds = $this->buscarPartnerIds($uid, $documento);
-        if (empty($partnerIds)) return [];
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $fechaDesde, $fechaHasta) {
+            $uid = $this->obtenerUid();
+            if (!$uid) return [];
 
-        $lineas = $this->obtenerLineasClasificadas($uid, $partnerIds, $fechaDesde, $fechaHasta);
+            $partnerIds = $this->buscarPartnerIds($uid, $documento);
+            if (empty($partnerIds)) return [];
 
-        return collect($lineas)
-            ->filter(fn($l) => $l['categoria'] === 'Formulación')
-            ->map(fn($l) => [
-                'origen'      => 'Formulación',
-                'referencia'  => $l['referencia'],
-                'codigo'      => $l['codigo'],
-                'producto_id' => $l['producto_id'],
-                'nombre'      => $l['nombre'],
-                'cantidad'    => $l['cantidad'],
-                'precio'      => $l['precio'],
-                'subtotal'    => $l['subtotal'],
-                'total'       => $l['total'],
-                'fecha'       => $l['fecha'],
-                'estado'      => $l['estado'],
-            ])
-            ->values()
+            $lineas = $this->obtenerLineasClasificadas($uid, $partnerIds, $fechaDesde, $fechaHasta);
+
+            return collect($lineas)
+                ->filter(fn($l) => $l['categoria'] === 'Formulación')
+                ->map(fn($l) => [
+                    'origen'      => 'Formulación',
+                    'referencia'  => $l['referencia'],
+                    'codigo'      => $l['codigo'],
+                    'producto_id' => $l['producto_id'],
+                    'nombre'      => $l['nombre'],
+                    'cantidad'    => $l['cantidad'],
+                    'precio'      => $l['precio'],
+                    'subtotal'    => $l['subtotal'],
+                    'total'       => $l['total'],
+                    'fecha'       => $l['fecha'],
+                    'estado'      => $l['estado'],
+                ])
+                ->values()
+                ->all();
+        });
+    }
+
+    /**
+     * Desglosa las líneas cuya tarifa (pricelist) todavía no tiene una
+     * categoría asignada en Configuración > Tarifas ('NA'). Ese valor ya se
+     * suma dentro de "Compra" (ver obtenerProductos()); esto solo sirve para
+     * mostrarle al usuario a qué tarifas corresponde, para que las clasifique.
+     */
+    public function getTarifasSinClasificarPorDocumento(string $documento, ?string $fechaDesde = null, ?string $fechaHasta = null): array
+    {
+        $vacio = ['total' => 0.0, 'lineas' => 0, 'tarifas' => []];
+        $cacheKey = $this->cacheKeyPorDocumento('tarifas_na', $documento, $fechaDesde, $fechaHasta);
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $fechaDesde, $fechaHasta, $vacio) {
+            $uid = $this->obtenerUid();
+            if (!$uid) return $vacio;
+
+            $partnerIds = $this->buscarPartnerIds($uid, $documento);
+            if (empty($partnerIds)) return $vacio;
+
+            // Mismo criterio de "cancelada" que calcularKpis(): una línea NA
+            // cancelada no cuenta dentro de "Val. comprado", así que tampoco
+            // debe sumar aquí — si no, el desglose puede superar el total.
+            $lineasNa = array_filter(
+                $this->obtenerLineasClasificadas($uid, $partnerIds, $fechaDesde, $fechaHasta),
+                function ($l) {
+                    if ($l['categoria'] !== 'NA') return false;
+                    $estado = strtoupper($l['estado'] ?? $l['state'] ?? '');
+                    return !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA'], true);
+                }
+            );
+            if (empty($lineasNa)) return $vacio;
+
+            $nombresPricelist = $this->nombresPricelistPorId();
+
+            $porTarifa = [];
+            foreach ($lineasNa as $l) {
+                $nombre = $l['pricelist_id'] !== null
+                    ? ($nombresPricelist[$l['pricelist_id']] ?? 'Tarifa sin nombre en Odoo')
+                    : 'Sin tarifa asignada en la orden';
+
+                if (!isset($porTarifa[$nombre])) {
+                    $porTarifa[$nombre] = ['nombre' => $nombre, 'valor' => 0.0, 'lineas' => 0];
+                }
+                $porTarifa[$nombre]['valor']  += $l['subtotal'];
+                $porTarifa[$nombre]['lineas']++;
+            }
+
+            $tarifas = collect($porTarifa)->sortByDesc('valor')->values()->all();
+
+            return [
+                'total'   => round(array_sum(array_column($tarifas, 'valor')), 2),
+                'lineas'  => count($lineasNa),
+                'tarifas' => $tarifas,
+            ];
+        });
+    }
+
+    /** Memoiza el mapa [odoo_pricelist_id => nombre de la tarifa], leído de la tabla local. */
+    private function nombresPricelistPorId(): array
+    {
+        if ($this->cacheNombresPricelist !== null) {
+            return $this->cacheNombresPricelist;
+        }
+
+        return $this->cacheNombresPricelist = ListaPrecio::query()
+            ->whereNotNull('odoo_id')
+            ->pluck('nombre', 'odoo_id')
+            ->mapWithKeys(fn($nombre, $odooId) => [(int) $odooId => (string) $nombre])
             ->all();
     }
 
@@ -1080,23 +1213,31 @@ class OdooService
     {
         $lineas = $this->obtenerLineasClasificadas($uid, $partnerIds, $fechaDesde, $fechaHasta);
 
-        return array_values(array_filter($lineas, fn($l) => $l['categoria'] === 'Compra'));
+        // Las líneas con tarifa 'NA' (pricelist aún sin clasificar en
+        // Configuración > Tarifas) se cuentan como "Compra" en vez de
+        // quedar invisibles — ver getTarifasSinClasificarPorDocumento()
+        // para el desglose de a qué tarifas corresponden.
+        return array_values(array_filter($lineas, fn($l) => $l['categoria'] === 'Compra' || $l['categoria'] === 'NA'));
     }
 
     /**
      * Obtiene transacciones (sale.order + account.move) para un conjunto de partnerIds.
      */
-    private function obtenerTransacciones(int $uid, array $partnerIds): array
+    private function obtenerTransacciones(int $uid, array $partnerIds, ?string $fechaDesde = null, ?string $fechaHasta = null): array
     {
         $transacciones = [];
 
         // Ventas
         try {
+            $filtroVentas = [['partner_id', 'in', $partnerIds]];
+            if ($fechaDesde) $filtroVentas[] = ['date_order', '>=', $fechaDesde . ' 00:00:00'];
+            if ($fechaHasta) $filtroVentas[] = ['date_order', '<=', $fechaHasta . ' 23:59:59'];
+
             $sales = $this->ejecutarKw(
                 $uid,
                 'sale.order',
                 'search_read',
-                [[['partner_id', 'in', $partnerIds]]],
+                [$filtroVentas],
                 [
                     'fields' => ['id', 'name', 'date_order', 'amount_total', 'amount_untaxed', 'amount_tax', 'state'],
                     'order'  => 'date_order desc',
@@ -1123,16 +1264,24 @@ class OdooService
 
         // Facturas
         try {
+            $filtroFacturas = [
+                ['partner_id', 'in', $partnerIds],
+                ['move_type', '=', 'out_invoice'],
+            ];
+            if ($fechaDesde) $filtroFacturas[] = ['invoice_date', '>=', $fechaDesde];
+            if ($fechaHasta) $filtroFacturas[] = ['invoice_date', '<=', $fechaHasta];
+
             $moves = $this->ejecutarKw(
                 $uid,
                 'account.move',
                 'search_read',
-                [[
-                    ['partner_id', 'in', $partnerIds],
-                    ['move_type', '=', 'out_invoice'],
-                ]],
+                [$filtroFacturas],
                 [
-                    'fields' => ['id', 'name', 'invoice_date', 'amount_total', 'amount_untaxed', 'amount_tax', 'state'],
+                    'fields' => [
+                        'id', 'name', 'invoice_date', 'invoice_date_due',
+                        'amount_total', 'amount_untaxed', 'amount_tax', 'amount_residual',
+                        'state', 'payment_state',
+                    ],
                     'order'  => 'invoice_date desc',
                 ]
             );
@@ -1140,14 +1289,17 @@ class OdooService
             if (is_array($moves)) {
                 foreach ($moves as $m) {
                     $transacciones[] = [
-                        'origen'         => 'Odoo (Factura)',
-                        'id'             => $m['id'],
-                        'referencia'     => $m['name'],
-                        'fecha'          => $m['invoice_date'] ?? null,
-                        'total'          => is_numeric($m['amount_total']   ?? null) ? (float) $m['amount_total']   : 0,
-                        'base_imponible' => is_numeric($m['amount_untaxed'] ?? null) ? (float) $m['amount_untaxed'] : 0,
-                        'impuestos'      => is_numeric($m['amount_tax']     ?? null) ? (float) $m['amount_tax']     : 0,
-                        'estado'         => $m['state'] ?? 'Desconocido',
+                        'origen'          => 'Odoo (Factura)',
+                        'id'              => $m['id'],
+                        'referencia'      => $m['name'],
+                        'fecha'           => $m['invoice_date'] ?? null,
+                        'fecha_vence'     => $m['invoice_date_due'] ?? null,
+                        'total'           => is_numeric($m['amount_total']    ?? null) ? (float) $m['amount_total']    : 0,
+                        'base_imponible'  => is_numeric($m['amount_untaxed']  ?? null) ? (float) $m['amount_untaxed']  : 0,
+                        'impuestos'       => is_numeric($m['amount_tax']      ?? null) ? (float) $m['amount_tax']      : 0,
+                        'saldo_pendiente' => is_numeric($m['amount_residual'] ?? null) ? (float) $m['amount_residual'] : 0,
+                        'estado'          => $m['state'] ?? 'Desconocido',
+                        'estado_pago'     => $m['payment_state'] ?? null,
                     ];
                 }
             }

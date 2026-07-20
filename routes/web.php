@@ -153,47 +153,31 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
     Route::get('/medicos/documento/{documento}/alertas', [Medico2Controller::class, 'alertasPorDocumento'])
     ->name('Gmedicos.alertasPorDocumento');
 
+    Route::post('/medicos/documento/{documento}/sincronizar-categoria', [Medico2Controller::class, 'sincronizarCategoriaPorDocumento'])
+    ->name('Gmedicos.sincronizarCategoria');
+
  });
 
 Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(function () {
- 
+
     /*
     |------------------------------------------------------------------
-    | Vista principal: Consulta de Médicos en Odoo
+    | Vista principal: Consulta de Clientes en Odoo
     |------------------------------------------------------------------
     | GET /odoo/medicos
-    | Renderiza la vista con el buscador por número de documento.
-    | La búsqueda real se ejecuta desde el mismo controlador
-    | cuando se envía el parámetro ?documento=...
+    | Buscador por número de documento — al enviar el formulario navega
+    | directo al panel gerencial del cliente (Gmedicos.showPorDocumento),
+    | que funciona para cualquier documento esté o no registrado.
     |------------------------------------------------------------------
     */
     Route::get('/medicos', [OdooController::class, 'index'])
         ->name('medicos');
- 
-    Route::post('/medicos/buscar', [OdooSyncController::class, 'buscarPorDocumento'])
-        ->name('medicos.buscar');
 
-// Sincronización — nuevas
-Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
-Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
-Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
+    // Sincronización — carga de tarifas/pricelists de Odoo hacia la app
+    Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
+    Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
+    Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
 
-
-
-        Route::get('/productos',         [OdooSyncController::class, 'indexProductos'])
-            ->name('productos');
-        Route::post('/productos/buscar', [OdooSyncController::class, 'buscarProductos'])
-            ->name('productos.buscar');
-
-
-// Cambia esto:
-// Route::get('/odoo/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('odoo.formulacion');
-// Route::post('/odoo/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('odoo.formulacion.buscar');
-
-// Por esto:
-Route::get('/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('formulacion');
-Route::post('/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('formulacion.buscar');
- 
 });
 
 

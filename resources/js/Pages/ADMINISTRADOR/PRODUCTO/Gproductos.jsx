@@ -239,7 +239,7 @@ const Gproductos = ({
 
                 {/* ── VISTA: ESTADÍSTICAS ───────────────────────────────────── */}
                 {vista === 'estadisticas' && (
-                    <div className="px-6 py-6 space-y-6 bg-[#F0F4FA] flex-1">
+                    <div className="px-6 py-6 space-y-6 bg-white flex-1">
 
                         {/* ── FILTROS ──────────────────────────────────────────── */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4 flex flex-wrap gap-6 items-start">

@@ -34,7 +34,7 @@ function KpiCard({ icon, label, value, sub, accent, href }) {
             )}
             <div className="min-w-0">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-                <p className="text-[20px] font-black text-slate-800 leading-none">{value}</p>
+                <p className="text-[20px] font-black text-slate-800 leading-none break-words">{value}</p>
                 {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
             </div>
             {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[10px] shrink-0" />}
@@ -212,13 +212,21 @@ export default function Ginicio({
         <PanelAdmin user={auth?.user}>
             <Head title="Panel de Control" />
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-14 z-40 shadow-sm">
                     <div className="flex-1 min-w-0">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
-                        <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
+                            {(odooLoading || actualizando) && (
+                                <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-blue-500 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full animate-pulse">
+                                    <FaRotate className="animate-spin text-[9px]" />
+                                    Consultando datos de Odoo...
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <div className="flex flex-wrap items-end gap-3">
                         <div>

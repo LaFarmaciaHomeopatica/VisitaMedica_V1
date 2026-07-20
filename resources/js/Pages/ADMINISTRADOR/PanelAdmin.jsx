@@ -23,7 +23,7 @@ const PanelAdmin = ({ children }) => {
     ];
 
     return (
-        <div className="min-h-screen bg-[#F0F4FA] font-sans flex flex-col">
+        <div className="min-h-screen bg-white font-sans flex flex-col">
             <Head title="Panel Administrativo" />
 
             {/* HEADER COMPLETO (SÓLIDO) */}
