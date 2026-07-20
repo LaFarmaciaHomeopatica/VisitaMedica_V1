@@ -135,6 +135,59 @@ class OdooService
         return $partners[0] ?? null;
     }
 
+    /**
+     * Autocompletado por nombre o documento contra TODOS los clientes de
+     * Odoo (estén o no registrados localmente como médico) — usado por el
+     * buscador de /odoo/medicos. Solo se devuelven los que tienen vat
+     * (documento), porque el panel de destino navega por documento.
+     *
+     * ['parent_id','=',false] excluye direcciones/contactos hijos (facturación,
+     * entrega...) que Odoo guarda como res.partner aparte y que en la práctica
+     * duplican/ensucian los resultados (ej. buscar "positiva" sin este filtro
+     * devuelve decenas de direcciones que solo mencionan "positiva" en la
+     * calle, antes que la empresa real). ['customer_rank','>',0] deja solo
+     * contactos que efectivamente son clientes (tienen ventas/facturas),
+     * no cualquier contacto de la base de Odoo.
+     */
+    public function buscarClientesPorTexto(string $texto, int $limite = 8): array
+    {
+        $uid = $this->obtenerUid();
+        if (!$uid) return [];
+
+        $dominio = [
+            '|',
+            ['name', 'ilike', $texto],
+            ['vat', 'ilike', $texto],
+            ['parent_id', '=', false],
+            ['customer_rank', '>', 0],
+        ];
+
+        try {
+            $partners = $this->ejecutarKw(
+                $uid,
+                'res.partner',
+                'search_read',
+                [$dominio],
+                ['fields' => ['name', 'vat'], 'limit' => $limite, 'order' => 'name']
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OdooService] Error en buscarClientesPorTexto: ' . $e->getMessage());
+            return [];
+        }
+
+        if (!is_array($partners)) return [];
+
+        return collect($partners)
+            ->filter(fn($p) => !empty($p['vat']))
+            ->map(fn($p) => [
+                'documento' => trim((string) $p['vat']),
+                'nombre'    => $p['name'] ?? '—',
+            ])
+            ->unique('documento')
+            ->values()
+            ->all();
+    }
+
     // =========================================================================
     //  CACHÉ POR DOCUMENTO — panel de detalle (KPIs, transacciones, etc.)
     // =========================================================================
@@ -173,6 +226,16 @@ class OdooService
     {
         $version = Cache::get('odoo_cartera_version', 1);
         Cache::put('odoo_cartera_version', $version + 1, now()->addDays(7));
+    }
+
+    /**
+     * Invalida la caché del módulo Proveedores (vista global de cuentas por
+     * pagar). Se llama desde el botón "Actualizar" de /Gproveedores.
+     */
+    public function invalidarCuentasPorPagarGlobal(): void
+    {
+        $version = Cache::get('odoo_cxp_version', 1);
+        Cache::put('odoo_cxp_version', $version + 1, now()->addDays(7));
     }
 
     /**
@@ -430,15 +493,17 @@ class OdooService
     private const TAMANO_LOTE_CARTERA = 300;
 
     /**
-     * Cartera pendiente de cobro de TODOS los contactos con facturas
-     * impagas en Odoo — estén o no registrados localmente como médico
-     * (aseguradoras, empresas, etc. también facturan y también deben).
-     * A diferencia de la versión anterior (que solo miraba a los médicos
-     * ya registrados), acá se recorre `account.move` completo por lotes
-     * (paginado con offset/limit, sin filtrar por partner_id) y luego se
-     * resuelve documento (vat) + nombre de Odoo solo para los partners que
-     * sí aparecieron con saldo pendiente — mucho más liviano que resolver
-     * partner_id para todos los médicos de antemano.
+     * Saldo pendiente de TODOS los contactos con facturas impagas en Odoo de
+     * un tipo de comprobante dado — estén o no registrados localmente
+     * (aseguradoras, empresas, proveedores, etc. también aparecen). Recorre
+     * `account.move` completo por lotes (paginado con offset/limit, sin
+     * filtrar por partner_id) y luego resuelve documento (vat) + nombre de
+     * Odoo solo para los partners que sí quedaron con saldo pendiente — mucho
+     * más liviano que resolver partner_id para todos de antemano.
+     *
+     * $moveType: 'out_invoice' (facturas de venta — Cartera/cuentas por
+     * cobrar) o 'in_invoice' (facturas de proveedor — Proveedores/cuentas
+     * por pagar). Usado por getCarteraGlobal() y getCuentasPorPagarGlobal().
      *
      * Un mismo documento puede repetirse en varios partner_id en Odoo (p.
      * ej. una aseguradora con más de un contacto duplicado): se suman.
@@ -448,113 +513,129 @@ class OdooService
      */
     private const LOTE_FACTURAS_CARTERA = 2000;
 
+    private function resumenGlobalPorMoveType(string $moveType): array
+    {
+        $uid = $this->obtenerUid();
+        if (!$uid) return [];
+
+        $hoy = now()->format('Y-m-d');
+        $porPartner = [];
+        $offset = 0;
+
+        do {
+            try {
+                $facturas = $this->ejecutarKw(
+                    $uid,
+                    'account.move',
+                    'search_read',
+                    [[
+                        ['move_type', '=', $moveType],
+                        ['state', '=', 'posted'],
+                        ['amount_residual', '>', 0],
+                    ]],
+                    [
+                        'fields' => ['partner_id', 'invoice_date_due', 'amount_residual'],
+                        'limit'  => self::LOTE_FACTURAS_CARTERA,
+                        'offset' => $offset,
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('[OdooService] Error en resumenGlobalPorMoveType (' . $moveType . ', offset ' . $offset . '): ' . $e->getMessage());
+                break;
+            }
+
+            if (!is_array($facturas) || empty($facturas)) break;
+
+            foreach ($facturas as $f) {
+                $partnerId = $this->extraerIdRelacion($f['partner_id'] ?? null);
+                if ($partnerId === null) continue;
+
+                $saldo = is_numeric($f['amount_residual'] ?? null) ? (float) $f['amount_residual'] : 0.0;
+                $fechaVence = $f['invoice_date_due'] ?? null;
+                $vencida = $fechaVence && $fechaVence < $hoy;
+
+                if (!isset($porPartner[$partnerId])) {
+                    $porPartner[$partnerId] = ['pendiente' => 0.0, 'vencida' => 0.0, 'facturas_vencidas' => 0, 'dias_max_vencido' => 0];
+                }
+
+                $porPartner[$partnerId]['pendiente'] += $saldo;
+                if ($vencida) {
+                    $porPartner[$partnerId]['vencida'] += $saldo;
+                    $porPartner[$partnerId]['facturas_vencidas']++;
+                    $dias = abs((int) now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($fechaVence)->startOfDay()));
+                    if ($dias > $porPartner[$partnerId]['dias_max_vencido']) {
+                        $porPartner[$partnerId]['dias_max_vencido'] = $dias;
+                    }
+                }
+            }
+
+            $offset += self::LOTE_FACTURAS_CARTERA;
+        } while (count($facturas) === self::LOTE_FACTURAS_CARTERA);
+
+        if (empty($porPartner)) return [];
+
+        // Resolver vat + nombre solo para los partners que quedaron con saldo pendiente.
+        $vatPorId = [];
+        $nombresPorId = [];
+        foreach (array_chunk(array_keys($porPartner), self::TAMANO_LOTE_CARTERA) as $lotePartnerIds) {
+            $partners = $this->ejecutarKw($uid, 'res.partner', 'read', [$lotePartnerIds], ['fields' => ['name', 'vat']]);
+            if (is_array($partners)) {
+                foreach ($partners as $p) {
+                    $vatPorId[$p['id']]     = !empty($p['vat']) ? trim((string) $p['vat']) : null;
+                    $nombresPorId[$p['id']] = $p['name'] ?? null;
+                }
+            }
+        }
+
+        $resultados = [];
+        foreach ($porPartner as $partnerId => $data) {
+            $doc = $vatPorId[$partnerId] ?? null;
+            $clave = $doc ?: "sin_documento_{$partnerId}";
+
+            if (!isset($resultados[$clave])) {
+                $resultados[$clave] = [
+                    'documento'         => $doc,
+                    'nombre_odoo'       => $nombresPorId[$partnerId] ?? null,
+                    'pendiente'         => 0.0,
+                    'vencida'           => 0.0,
+                    'facturas_vencidas' => 0,
+                    'dias_max_vencido'  => 0,
+                ];
+            }
+
+            $resultados[$clave]['pendiente']         += $data['pendiente'];
+            $resultados[$clave]['vencida']           += $data['vencida'];
+            $resultados[$clave]['facturas_vencidas'] += $data['facturas_vencidas'];
+            $resultados[$clave]['dias_max_vencido']   = max($resultados[$clave]['dias_max_vencido'], $data['dias_max_vencido']);
+        }
+
+        foreach ($resultados as $clave => $data) {
+            $resultados[$clave]['pendiente'] = round($data['pendiente'], 2);
+            $resultados[$clave]['vencida']   = round($data['vencida'], 2);
+        }
+
+        return $resultados;
+    }
+
     public function getCarteraGlobal(): array
     {
         $version = Cache::get('odoo_cartera_version', 1);
         $cacheKey = "odoo_cartera_global_v{$version}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () {
-            $uid = $this->obtenerUid();
-            if (!$uid) return [];
+        return Cache::remember($cacheKey, now()->addMinutes(30), fn() => $this->resumenGlobalPorMoveType('out_invoice'));
+    }
 
-            $hoy = now()->format('Y-m-d');
-            $porPartner = [];
-            $offset = 0;
+    /**
+     * Cuentas por pagar globales — mismo cálculo que getCarteraGlobal() pero
+     * sobre facturas de proveedor (move_type = in_invoice). Usado por el
+     * módulo Proveedores (/Gproveedores).
+     */
+    public function getCuentasPorPagarGlobal(): array
+    {
+        $version = Cache::get('odoo_cxp_version', 1);
+        $cacheKey = "odoo_cxp_global_v{$version}";
 
-            do {
-                try {
-                    $facturas = $this->ejecutarKw(
-                        $uid,
-                        'account.move',
-                        'search_read',
-                        [[
-                            ['move_type', '=', 'out_invoice'],
-                            ['state', '=', 'posted'],
-                            ['amount_residual', '>', 0],
-                        ]],
-                        [
-                            'fields' => ['partner_id', 'invoice_date_due', 'amount_residual'],
-                            'limit'  => self::LOTE_FACTURAS_CARTERA,
-                            'offset' => $offset,
-                        ]
-                    );
-                } catch (\Exception $e) {
-                    Log::warning('[OdooService] Error en getCarteraGlobal (offset ' . $offset . '): ' . $e->getMessage());
-                    break;
-                }
-
-                if (!is_array($facturas) || empty($facturas)) break;
-
-                foreach ($facturas as $f) {
-                    $partnerId = $this->extraerIdRelacion($f['partner_id'] ?? null);
-                    if ($partnerId === null) continue;
-
-                    $saldo = is_numeric($f['amount_residual'] ?? null) ? (float) $f['amount_residual'] : 0.0;
-                    $fechaVence = $f['invoice_date_due'] ?? null;
-                    $vencida = $fechaVence && $fechaVence < $hoy;
-
-                    if (!isset($porPartner[$partnerId])) {
-                        $porPartner[$partnerId] = ['pendiente' => 0.0, 'vencida' => 0.0, 'facturas_vencidas' => 0, 'dias_max_vencido' => 0];
-                    }
-
-                    $porPartner[$partnerId]['pendiente'] += $saldo;
-                    if ($vencida) {
-                        $porPartner[$partnerId]['vencida'] += $saldo;
-                        $porPartner[$partnerId]['facturas_vencidas']++;
-                        $dias = abs((int) now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($fechaVence)->startOfDay()));
-                        if ($dias > $porPartner[$partnerId]['dias_max_vencido']) {
-                            $porPartner[$partnerId]['dias_max_vencido'] = $dias;
-                        }
-                    }
-                }
-
-                $offset += self::LOTE_FACTURAS_CARTERA;
-            } while (count($facturas) === self::LOTE_FACTURAS_CARTERA);
-
-            if (empty($porPartner)) return [];
-
-            // Resolver vat + nombre solo para los partners que quedaron con saldo pendiente.
-            $vatPorId = [];
-            $nombresPorId = [];
-            foreach (array_chunk(array_keys($porPartner), self::TAMANO_LOTE_CARTERA) as $lotePartnerIds) {
-                $partners = $this->ejecutarKw($uid, 'res.partner', 'read', [$lotePartnerIds], ['fields' => ['name', 'vat']]);
-                if (is_array($partners)) {
-                    foreach ($partners as $p) {
-                        $vatPorId[$p['id']]     = !empty($p['vat']) ? trim((string) $p['vat']) : null;
-                        $nombresPorId[$p['id']] = $p['name'] ?? null;
-                    }
-                }
-            }
-
-            $resultados = [];
-            foreach ($porPartner as $partnerId => $data) {
-                $doc = $vatPorId[$partnerId] ?? null;
-                $clave = $doc ?: "sin_documento_{$partnerId}";
-
-                if (!isset($resultados[$clave])) {
-                    $resultados[$clave] = [
-                        'documento'         => $doc,
-                        'nombre_odoo'       => $nombresPorId[$partnerId] ?? null,
-                        'pendiente'         => 0.0,
-                        'vencida'           => 0.0,
-                        'facturas_vencidas' => 0,
-                        'dias_max_vencido'  => 0,
-                    ];
-                }
-
-                $resultados[$clave]['pendiente']         += $data['pendiente'];
-                $resultados[$clave]['vencida']           += $data['vencida'];
-                $resultados[$clave]['facturas_vencidas'] += $data['facturas_vencidas'];
-                $resultados[$clave]['dias_max_vencido']   = max($resultados[$clave]['dias_max_vencido'], $data['dias_max_vencido']);
-            }
-
-            foreach ($resultados as $clave => $data) {
-                $resultados[$clave]['pendiente'] = round($data['pendiente'], 2);
-                $resultados[$clave]['vencida']   = round($data['vencida'], 2);
-            }
-
-            return $resultados;
-        });
+        return Cache::remember($cacheKey, now()->addMinutes(30), fn() => $this->resumenGlobalPorMoveType('in_invoice'));
     }
 
     /**
@@ -708,21 +789,24 @@ class OdooService
      * parsearla, y aunque no reventara, no tendría sentido mandarle al
      * navegador un JSON de decenas de miles de filas para paginar en cliente.
      *
+     * $moveType: 'out_invoice' (facturas de cliente — Cartera) o
+     * 'in_invoice' (facturas de proveedor — Proveedores).
+     *
      * Retorna ['facturas' => [...], 'total' => int].
      */
-    public function getFacturasPorDocumentoPaginado(string $documento, int $pagina, int $porPagina, string $filtroEstado): array
+    public function getFacturasPorDocumentoPaginado(string $documento, int $pagina, int $porPagina, string $filtroEstado, string $moveType = 'out_invoice'): array
     {
         $version  = Cache::get("odoo_doc_version_{$documento}", 1);
-        $cacheKey = "odoo_facturas_pag_{$documento}_v{$version}_{$filtroEstado}_{$pagina}_{$porPagina}";
+        $cacheKey = "odoo_facturas_pag_{$documento}_v{$version}_{$moveType}_{$filtroEstado}_{$pagina}_{$porPagina}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $pagina, $porPagina, $filtroEstado) {
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $pagina, $porPagina, $filtroEstado, $moveType) {
             $uid = $this->obtenerUid();
             if (!$uid) return ['facturas' => [], 'total' => 0];
 
             $partnerIds = $this->buscarPartnerIds($uid, $documento);
             if (empty($partnerIds)) return ['facturas' => [], 'total' => 0];
 
-            $dominio = $this->dominioFacturasPorFiltro($partnerIds, $filtroEstado);
+            $dominio = $this->dominioFacturasPorFiltro($partnerIds, $filtroEstado, $moveType);
 
             $total = 0;
             try {
@@ -777,14 +861,14 @@ class OdooService
 
     /**
      * Dominio Odoo para cada pestaña de filtro del panel de detalle de
-     * Cartera. "vencida" no es un payment_state de Odoo, es una condición
-     * derivada (saldo pendiente + fecha de vencimiento pasada).
+     * Cartera/Proveedores. "vencida" no es un payment_state de Odoo, es una
+     * condición derivada (saldo pendiente + fecha de vencimiento pasada).
      */
-    private function dominioFacturasPorFiltro(array $partnerIds, string $filtroEstado): array
+    private function dominioFacturasPorFiltro(array $partnerIds, string $filtroEstado, string $moveType = 'out_invoice'): array
     {
         $dominio = [
             ['partner_id', 'in', $partnerIds],
-            ['move_type', '=', 'out_invoice'],
+            ['move_type', '=', $moveType],
             ['state', '!=', 'cancel'],
         ];
 
@@ -801,6 +885,163 @@ class OdooService
         }
 
         return $dominio;
+    }
+
+    /**
+     * Facturas de proveedor (in_invoice) que VENCEN dentro de un rango de
+     * fechas — para la pestaña "Por vencimiento" de Proveedores, pensada
+     * para hacerse una idea de presupuesto ("¿cuánto tengo que pagar entre
+     * estas dos fechas?"). A diferencia de getFacturasPorDocumentoPaginado
+     * (que filtra por un proveedor), acá el dominio no filtra por
+     * partner_id — recorre TODOS los proveedores cuya factura vence en el
+     * rango.
+     *
+     * El resumen (pendiente/vencida/facturas_vencidas/total_facturas) se
+     * calcula sobre el rango COMPLETO en lotes de LOTE_FACTURAS_CARTERA
+     * (mismo patrón anti-memory_limit que getCarteraGlobal), no solo sobre
+     * la página visible — si no, los totales cambiarían página a página.
+     * La tabla en sí (facturas) sí se pagina, con el nombre+documento del
+     * proveedor resuelto solo para los partners de la página actual.
+     *
+     * "vencida" acá sigue siendo relativo a HOY (no al rango elegido): si el
+     * usuario incluye fechas pasadas en el rango, esas facturas ya vencidas
+     * se marcan como tal aunque su fecha de vencimiento caiga dentro del
+     * rango consultado.
+     *
+     * Retorna ['facturas' => [...], 'total' => int, 'resumen' => [...]].
+     */
+    public function getVencimientosProveedorPorRango(string $fechaDesde, string $fechaHasta, int $pagina, int $porPagina): array
+    {
+        $version  = Cache::get('odoo_cxp_version', 1);
+        $cacheKey = "odoo_cxp_vencimientos_v{$version}_{$fechaDesde}_{$fechaHasta}_{$pagina}_{$porPagina}";
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($fechaDesde, $fechaHasta, $pagina, $porPagina) {
+            $vacio = ['facturas' => [], 'total' => 0, 'resumen' => ['pendiente' => 0.0, 'vencida' => 0.0, 'facturas_vencidas' => 0, 'total_facturas' => 0]];
+
+            $uid = $this->obtenerUid();
+            if (!$uid) return $vacio;
+
+            $dominio = [
+                ['move_type', '=', 'in_invoice'],
+                ['state', '!=', 'cancel'],
+                ['invoice_date_due', '>=', $fechaDesde],
+                ['invoice_date_due', '<=', $fechaHasta],
+            ];
+
+            // Resumen sobre el rango completo, en lotes.
+            $hoy = now()->format('Y-m-d');
+            $pendiente = 0.0;
+            $vencida = 0.0;
+            $facturasVencidas = 0;
+            $totalFacturas = 0;
+            $offset = 0;
+
+            do {
+                try {
+                    $lote = $this->ejecutarKw(
+                        $uid, 'account.move', 'search_read', [$dominio],
+                        [
+                            'fields' => ['amount_residual', 'invoice_date_due', 'state'],
+                            'limit'  => self::LOTE_FACTURAS_CARTERA,
+                            'offset' => $offset,
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('[OdooService] Error en getVencimientosProveedorPorRango resumen (offset ' . $offset . '): ' . $e->getMessage());
+                    break;
+                }
+
+                if (!is_array($lote) || empty($lote)) break;
+
+                foreach ($lote as $m) {
+                    $totalFacturas++;
+                    if (($m['state'] ?? null) !== 'posted') continue;
+
+                    $saldo = is_numeric($m['amount_residual'] ?? null) ? (float) $m['amount_residual'] : 0.0;
+                    $pendiente += $saldo;
+
+                    $fechaVence = $m['invoice_date_due'] ?? null;
+                    if ($saldo > 0 && $fechaVence && $fechaVence < $hoy) {
+                        $vencida += $saldo;
+                        $facturasVencidas++;
+                    }
+                }
+
+                $offset += self::LOTE_FACTURAS_CARTERA;
+            } while (count($lote) === self::LOTE_FACTURAS_CARTERA);
+
+            $resumen = [
+                'pendiente'         => round($pendiente, 2),
+                'vencida'           => round($vencida, 2),
+                'facturas_vencidas' => $facturasVencidas,
+                'total_facturas'    => $totalFacturas,
+            ];
+
+            // Página a mostrar.
+            $total = 0;
+            try {
+                $total = (int) $this->ejecutarKw($uid, 'account.move', 'search_count', [$dominio]);
+            } catch (\Exception $e) {
+                Log::warning('[OdooService] Error en search_count vencimientos: ' . $e->getMessage());
+            }
+
+            $facturas = [];
+            try {
+                $moves = $this->ejecutarKw(
+                    $uid, 'account.move', 'search_read', [$dominio],
+                    [
+                        'fields' => [
+                            'id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due',
+                            'amount_total', 'amount_residual', 'state', 'payment_state',
+                        ],
+                        'order'  => 'invoice_date_due asc',
+                        'limit'  => $porPagina,
+                        'offset' => max(0, ($pagina - 1) * $porPagina),
+                    ]
+                );
+
+                if (is_array($moves)) {
+                    $partnerIds = collect($moves)
+                        ->map(fn($m) => $this->extraerIdRelacion($m['partner_id'] ?? null))
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    $vatPorId = [];
+                    $nombresPorId = [];
+                    if (!empty($partnerIds)) {
+                        $partners = $this->ejecutarKw($uid, 'res.partner', 'read', [$partnerIds], ['fields' => ['name', 'vat']]);
+                        if (is_array($partners)) {
+                            foreach ($partners as $p) {
+                                $vatPorId[$p['id']]     = !empty($p['vat']) ? trim((string) $p['vat']) : null;
+                                $nombresPorId[$p['id']] = $p['name'] ?? null;
+                            }
+                        }
+                    }
+
+                    foreach ($moves as $m) {
+                        $partnerId = $this->extraerIdRelacion($m['partner_id'] ?? null);
+                        $facturas[] = [
+                            'id'              => $m['id'],
+                            'referencia'      => $m['name'],
+                            'proveedor'       => $partnerId !== null ? ($nombresPorId[$partnerId] ?? 'Sin nombre') : 'Sin nombre',
+                            'documento'       => $partnerId !== null ? ($vatPorId[$partnerId] ?? null) : null,
+                            'fecha'           => $m['invoice_date'] ?? null,
+                            'fecha_vence'     => $m['invoice_date_due'] ?? null,
+                            'total'           => is_numeric($m['amount_total']    ?? null) ? (float) $m['amount_total']    : 0,
+                            'saldo_pendiente' => is_numeric($m['amount_residual'] ?? null) ? (float) $m['amount_residual'] : 0,
+                            'estado'          => $m['state'] ?? 'Desconocido',
+                            'estado_pago'     => $m['payment_state'] ?? null,
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('[OdooService] Error en search_read vencimientos: ' . $e->getMessage());
+            }
+
+            return ['facturas' => $facturas, 'total' => $total, 'resumen' => $resumen];
+        });
     }
 
     /**

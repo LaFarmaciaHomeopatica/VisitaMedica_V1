@@ -4,11 +4,21 @@ namespace App\Http\Controllers\api_odoo;
 
 use Inertia\Inertia;
 use App\Http\Controllers\Controller;
+use App\Models\Medico;
+use App\Services\OdooService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class OdooController extends Controller
 {
+    private OdooService $odoo;
+
+    public function __construct(OdooService $odoo)
+    {
+        $this->odoo = $odoo;
+    }
+
     // =========================================================================
     //  VISTAS
     // =========================================================================
@@ -27,6 +37,40 @@ class OdooController extends Controller
         return Inertia::render('API_ODOO/Odoomedicos', [
             'conexionEstado' => $conexionEstado,
         ]);
+    }
+
+    /**
+     * Sugerencias de autocompletado para el buscador de /odoo/medicos —
+     * busca por nombre o documento contra TODOS los clientes de Odoo (estén
+     * o no registrados localmente como médico), igual que hace la vista de
+     * Cartera. Se marca 'registrado' para distinguir los que sí están en la
+     * tabla local.
+     */
+    public function buscarSugerencias(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $clientes = $this->odoo->buscarClientesPorTexto($q, 8);
+        if (empty($clientes)) {
+            return response()->json([]);
+        }
+
+        $documentos = collect($clientes)->pluck('documento')->all();
+        $registrados = Medico::whereIn('documento', $documentos)
+            ->pluck('documento')
+            ->map(fn($d) => trim((string) $d))
+            ->flip();
+
+        $resultado = collect($clientes)->map(fn($c) => [
+            'documento'  => $c['documento'],
+            'nombre'     => $c['nombre'],
+            'registrado' => $registrados->has($c['documento']),
+        ]);
+
+        return response()->json($resultado->values());
     }
 
     // =========================================================================

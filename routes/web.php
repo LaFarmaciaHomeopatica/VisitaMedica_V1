@@ -17,6 +17,7 @@ use App\Http\Controllers\administrador\ListasPreciosController;
 use App\Http\Controllers\administrador\ZonasController;
 use App\Http\Controllers\administrador\CategoriasController;
 use App\Http\Controllers\administrador\CarteraController;
+use App\Http\Controllers\administrador\ProveedoresController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
@@ -51,6 +52,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/Gcartera', [CarteraController::class, 'index'])->name('Gcartera.index');
         Route::post('/Gcartera/actualizar', [CarteraController::class, 'actualizar'])->name('Gcartera.actualizar');
         Route::get('/Gcartera/documento/{documento}', [CarteraController::class, 'detalle'])->name('Gcartera.detalle');
+
+        Route::get('/Gproveedores', [ProveedoresController::class, 'index'])->name('Gproveedores.index');
+        Route::post('/Gproveedores/actualizar', [ProveedoresController::class, 'actualizar'])->name('Gproveedores.actualizar');
+        Route::get('/Gproveedores/documento/{documento}', [ProveedoresController::class, 'detalle'])->name('Gproveedores.detalle');
 
         Route::get('/Gmetas', [MetasController::class, 'index'])->name('Gmetas.index');
         Route::post('/Gmetas/upsert', [MetasController::class, 'upsert'])->name('Gmetas.upsert');
@@ -177,6 +182,10 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
     */
     Route::get('/medicos', [OdooController::class, 'index'])
         ->name('medicos');
+
+    // Sugerencias de autocompletado (nombre o documento) para el buscador de arriba.
+    Route::get('/medicos/buscar', [OdooController::class, 'buscarSugerencias'])
+        ->name('medicos.buscar');
 
     // Sincronización — carga de tarifas/pricelists de Odoo hacia la app
     Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
