@@ -166,6 +166,16 @@ class OdooService
     }
 
     /**
+     * Invalida la caché del módulo Cartera (vista global, todos los
+     * médicos). Se llama desde el botón "Actualizar" de /Gcartera.
+     */
+    public function invalidarCarteraGlobal(): void
+    {
+        $version = Cache::get('odoo_cartera_version', 1);
+        Cache::put('odoo_cartera_version', $version + 1, now()->addDays(7));
+    }
+
+    /**
      * Resuelve el tipo de documento (Cédula de Ciudadanía, NIT, etc.) directo
      * desde Odoo (res.partner.l10n_latam_identification_type_id), en vez del
      * catálogo local — que puede quedar desactualizado frente al dato real
@@ -406,6 +416,148 @@ class OdooService
     }
 
     /**
+     * Cartera pendiente de cobro para MUCHOS médicos a la vez (módulo
+     * Cartera): resuelve documentos → partner_id en lotes
+     * (mapaPartnerIdsPorDocumentos, ya chunkeada de a 100) y trae las
+     * facturas con saldo pendiente en lotes de `TAMANO_LOTE_CARTERA`
+     * partner IDs por llamada — filtrando en el propio dominio de Odoo
+     * (solo `account.move` posteadas con `amount_residual > 0`) en vez de
+     * traer todo el histórico como hace obtenerTransacciones().
+     *
+     * Retorna solo los documentos con saldo pendiente > 0:
+     * [documento => ['pendiente'=>float,'vencida'=>float,'facturas_vencidas'=>int,'dias_max_vencido'=>int]]
+     */
+    private const TAMANO_LOTE_CARTERA = 300;
+
+    /**
+     * Cartera pendiente de cobro de TODOS los contactos con facturas
+     * impagas en Odoo — estén o no registrados localmente como médico
+     * (aseguradoras, empresas, etc. también facturan y también deben).
+     * A diferencia de la versión anterior (que solo miraba a los médicos
+     * ya registrados), acá se recorre `account.move` completo por lotes
+     * (paginado con offset/limit, sin filtrar por partner_id) y luego se
+     * resuelve documento (vat) + nombre de Odoo solo para los partners que
+     * sí aparecieron con saldo pendiente — mucho más liviano que resolver
+     * partner_id para todos los médicos de antemano.
+     *
+     * Un mismo documento puede repetirse en varios partner_id en Odoo (p.
+     * ej. una aseguradora con más de un contacto duplicado): se suman.
+     *
+     * Retorna [clave => ['documento'=>?string,'nombre_odoo'=>?string,'pendiente'=>float,'vencida'=>float,'facturas_vencidas'=>int,'dias_max_vencido'=>int]]
+     * (clave = documento si lo hay, si no "sin_documento_{partner_id}").
+     */
+    private const LOTE_FACTURAS_CARTERA = 2000;
+
+    public function getCarteraGlobal(): array
+    {
+        $version = Cache::get('odoo_cartera_version', 1);
+        $cacheKey = "odoo_cartera_global_v{$version}";
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () {
+            $uid = $this->obtenerUid();
+            if (!$uid) return [];
+
+            $hoy = now()->format('Y-m-d');
+            $porPartner = [];
+            $offset = 0;
+
+            do {
+                try {
+                    $facturas = $this->ejecutarKw(
+                        $uid,
+                        'account.move',
+                        'search_read',
+                        [[
+                            ['move_type', '=', 'out_invoice'],
+                            ['state', '=', 'posted'],
+                            ['amount_residual', '>', 0],
+                        ]],
+                        [
+                            'fields' => ['partner_id', 'invoice_date_due', 'amount_residual'],
+                            'limit'  => self::LOTE_FACTURAS_CARTERA,
+                            'offset' => $offset,
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('[OdooService] Error en getCarteraGlobal (offset ' . $offset . '): ' . $e->getMessage());
+                    break;
+                }
+
+                if (!is_array($facturas) || empty($facturas)) break;
+
+                foreach ($facturas as $f) {
+                    $partnerId = $this->extraerIdRelacion($f['partner_id'] ?? null);
+                    if ($partnerId === null) continue;
+
+                    $saldo = is_numeric($f['amount_residual'] ?? null) ? (float) $f['amount_residual'] : 0.0;
+                    $fechaVence = $f['invoice_date_due'] ?? null;
+                    $vencida = $fechaVence && $fechaVence < $hoy;
+
+                    if (!isset($porPartner[$partnerId])) {
+                        $porPartner[$partnerId] = ['pendiente' => 0.0, 'vencida' => 0.0, 'facturas_vencidas' => 0, 'dias_max_vencido' => 0];
+                    }
+
+                    $porPartner[$partnerId]['pendiente'] += $saldo;
+                    if ($vencida) {
+                        $porPartner[$partnerId]['vencida'] += $saldo;
+                        $porPartner[$partnerId]['facturas_vencidas']++;
+                        $dias = abs((int) now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($fechaVence)->startOfDay()));
+                        if ($dias > $porPartner[$partnerId]['dias_max_vencido']) {
+                            $porPartner[$partnerId]['dias_max_vencido'] = $dias;
+                        }
+                    }
+                }
+
+                $offset += self::LOTE_FACTURAS_CARTERA;
+            } while (count($facturas) === self::LOTE_FACTURAS_CARTERA);
+
+            if (empty($porPartner)) return [];
+
+            // Resolver vat + nombre solo para los partners que quedaron con saldo pendiente.
+            $vatPorId = [];
+            $nombresPorId = [];
+            foreach (array_chunk(array_keys($porPartner), self::TAMANO_LOTE_CARTERA) as $lotePartnerIds) {
+                $partners = $this->ejecutarKw($uid, 'res.partner', 'read', [$lotePartnerIds], ['fields' => ['name', 'vat']]);
+                if (is_array($partners)) {
+                    foreach ($partners as $p) {
+                        $vatPorId[$p['id']]     = !empty($p['vat']) ? trim((string) $p['vat']) : null;
+                        $nombresPorId[$p['id']] = $p['name'] ?? null;
+                    }
+                }
+            }
+
+            $resultados = [];
+            foreach ($porPartner as $partnerId => $data) {
+                $doc = $vatPorId[$partnerId] ?? null;
+                $clave = $doc ?: "sin_documento_{$partnerId}";
+
+                if (!isset($resultados[$clave])) {
+                    $resultados[$clave] = [
+                        'documento'         => $doc,
+                        'nombre_odoo'       => $nombresPorId[$partnerId] ?? null,
+                        'pendiente'         => 0.0,
+                        'vencida'           => 0.0,
+                        'facturas_vencidas' => 0,
+                        'dias_max_vencido'  => 0,
+                    ];
+                }
+
+                $resultados[$clave]['pendiente']         += $data['pendiente'];
+                $resultados[$clave]['vencida']           += $data['vencida'];
+                $resultados[$clave]['facturas_vencidas'] += $data['facturas_vencidas'];
+                $resultados[$clave]['dias_max_vencido']   = max($resultados[$clave]['dias_max_vencido'], $data['dias_max_vencido']);
+            }
+
+            foreach ($resultados as $clave => $data) {
+                $resultados[$clave]['pendiente'] = round($data['pendiente'], 2);
+                $resultados[$clave]['vencida']   = round($data['vencida'], 2);
+            }
+
+            return $resultados;
+        });
+    }
+
+    /**
      * Resumen agregado para MUCHOS médicos a la vez (dashboard admin): un
      * solo fetch a Odoo (vía obtenerLineasClasificadas) y agregación en PHP
      * de totales globales, tendencia mensual, por producto y por médico.
@@ -544,6 +696,111 @@ class OdooService
 
             return $this->obtenerTransacciones($uid, $partnerIds, $fechaDesde, $fechaHasta);
         });
+    }
+
+    /**
+     * Facturas paginadas de un documento para el panel de detalle de Cartera.
+     * A diferencia de getTransaccionesPorDocumento, pagina la consulta contra
+     * Odoo (limit/offset + search_count) en vez de traer todo el historial de
+     * una vez: hay clientes (aseguradoras, empresas) con decenas de miles de
+     * facturas — un solo search_read sin límite para esos casos devuelve una
+     * respuesta XML tan grande que revienta el memory_limit de PHP solo al
+     * parsearla, y aunque no reventara, no tendría sentido mandarle al
+     * navegador un JSON de decenas de miles de filas para paginar en cliente.
+     *
+     * Retorna ['facturas' => [...], 'total' => int].
+     */
+    public function getFacturasPorDocumentoPaginado(string $documento, int $pagina, int $porPagina, string $filtroEstado): array
+    {
+        $version  = Cache::get("odoo_doc_version_{$documento}", 1);
+        $cacheKey = "odoo_facturas_pag_{$documento}_v{$version}_{$filtroEstado}_{$pagina}_{$porPagina}";
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($documento, $pagina, $porPagina, $filtroEstado) {
+            $uid = $this->obtenerUid();
+            if (!$uid) return ['facturas' => [], 'total' => 0];
+
+            $partnerIds = $this->buscarPartnerIds($uid, $documento);
+            if (empty($partnerIds)) return ['facturas' => [], 'total' => 0];
+
+            $dominio = $this->dominioFacturasPorFiltro($partnerIds, $filtroEstado);
+
+            $total = 0;
+            try {
+                $total = (int) $this->ejecutarKw($uid, 'account.move', 'search_count', [$dominio]);
+            } catch (\Exception $e) {
+                Log::warning('[OdooService] Error en search_count facturas cartera: ' . $e->getMessage());
+            }
+
+            $facturas = [];
+            try {
+                $moves = $this->ejecutarKw(
+                    $uid,
+                    'account.move',
+                    'search_read',
+                    [$dominio],
+                    [
+                        'fields' => [
+                            'id', 'name', 'invoice_date', 'invoice_date_due',
+                            'amount_total', 'amount_untaxed', 'amount_tax', 'amount_residual',
+                            'state', 'payment_state',
+                        ],
+                        'order'  => 'invoice_date desc',
+                        'limit'  => $porPagina,
+                        'offset' => max(0, ($pagina - 1) * $porPagina),
+                    ]
+                );
+
+                if (is_array($moves)) {
+                    foreach ($moves as $m) {
+                        $facturas[] = [
+                            'origen'          => 'Odoo (Factura)',
+                            'id'              => $m['id'],
+                            'referencia'      => $m['name'],
+                            'fecha'           => $m['invoice_date'] ?? null,
+                            'fecha_vence'     => $m['invoice_date_due'] ?? null,
+                            'total'           => is_numeric($m['amount_total']    ?? null) ? (float) $m['amount_total']    : 0,
+                            'base_imponible'  => is_numeric($m['amount_untaxed']  ?? null) ? (float) $m['amount_untaxed']  : 0,
+                            'impuestos'       => is_numeric($m['amount_tax']      ?? null) ? (float) $m['amount_tax']      : 0,
+                            'saldo_pendiente' => is_numeric($m['amount_residual'] ?? null) ? (float) $m['amount_residual'] : 0,
+                            'estado'          => $m['state'] ?? 'Desconocido',
+                            'estado_pago'     => $m['payment_state'] ?? null,
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('[OdooService] Error en search_read facturas cartera: ' . $e->getMessage());
+            }
+
+            return ['facturas' => $facturas, 'total' => $total];
+        });
+    }
+
+    /**
+     * Dominio Odoo para cada pestaña de filtro del panel de detalle de
+     * Cartera. "vencida" no es un payment_state de Odoo, es una condición
+     * derivada (saldo pendiente + fecha de vencimiento pasada).
+     */
+    private function dominioFacturasPorFiltro(array $partnerIds, string $filtroEstado): array
+    {
+        $dominio = [
+            ['partner_id', 'in', $partnerIds],
+            ['move_type', '=', 'out_invoice'],
+            ['state', '!=', 'cancel'],
+        ];
+
+        switch ($filtroEstado) {
+            case 'vencida':
+                $dominio[] = ['amount_residual', '>', 0];
+                $dominio[] = ['invoice_date_due', '<', now()->format('Y-m-d')];
+                break;
+            case 'not_paid':
+            case 'partial':
+            case 'paid':
+                $dominio[] = ['payment_state', '=', $filtroEstado];
+                break;
+        }
+
+        return $dominio;
     }
 
     /**

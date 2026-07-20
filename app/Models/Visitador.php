@@ -34,6 +34,11 @@ class Visitador extends Model
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
     }
 
+    public function zona()
+    {
+        return $this->belongsTo(Zona::class, 'zona_id');
+    }
+
     /**
      * Relación con los Médicos
      * Un visitador tiene muchos médicos asignados
