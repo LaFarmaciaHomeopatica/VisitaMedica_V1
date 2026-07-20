@@ -56,7 +56,7 @@ const PendientesTab = ({ visitasPendientesFiltradas, medicos, irAEjecutarVisita 
                                 irAEjecutarVisita(visita.medico_id, visita.id);
                             }}
                             title="Realizar visita"
-                            className="w-9 h-9 bg-gradient-to-r from-[#02CFE3] to-[#1C85E8] text-white rounded-xl flex items-center justify-center transition-all shadow-md hover:scale-105 active:scale-90 shrink-0"
+                            className="w-9 h-9 bg-[#1C85E8] text-white rounded-xl flex items-center justify-center transition-all shadow-md hover:scale-105 active:scale-90 shrink-0"
                         >
                             {/* Ícono de 'Play/Acción' moderno que representa Realizar/Ejecutar */}
                             <FaPlay className="text-xs ml-0.5" />

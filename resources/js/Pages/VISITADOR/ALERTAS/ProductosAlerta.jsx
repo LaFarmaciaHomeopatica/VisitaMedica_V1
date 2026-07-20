@@ -258,7 +258,7 @@ const handleItemsPerPageBlur = () => {
 
                 {/* 🌟 BARRA DE PAGINACIÓN PEGAJOSA Y ADHERIDA AL HEADER (FUSIONADA AL BLANCO) */}
                 {datosListos && productosFiltrados.length > 0 && (
-                    <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] px-6 py-2 flex items-center justify-between text-white text-[10px] md:text-[11px] font-black uppercase tracking-wider select-none border-t border-white/10">
+                    <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] px-6 py-2 flex items-center justify-between text-white text-[10px] md:text-[11px] font-black uppercase tracking-wider select-none border-t border-white/10">
                         
                         {/* Izquierda */}
                         <div className="flex items-center gap-1">
@@ -319,7 +319,7 @@ const handleItemsPerPageBlur = () => {
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
 
                     {/* CARD HERO DEL MÉDICO */}
-                    <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-6 rounded-[30px] shadow-lg text-white relative">
+                    <section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-6 rounded-[30px] shadow-lg text-white relative">
                         <div className="flex items-start gap-4">
                             
                             {/* Avatar del Puesto Ranking */}
@@ -426,7 +426,7 @@ const handleItemsPerPageBlur = () => {
                                         key={prod.codigo}
                                         className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 hover:shadow-md transition-all duration-200 overflow-hidden flex text-left w-full relative"
                                     >
-                                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
+                                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#0A69C2]" />
                                         
                                         <div className="flex flex-col w-full">
                                             <div className="p-4 pl-5 bg-white/40 border-b border-gray-150/60">

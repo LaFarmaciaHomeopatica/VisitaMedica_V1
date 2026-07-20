@@ -205,46 +205,32 @@ Route::post('/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacio
     |--- GRUPO VISITADOR (id_rol 2) ---
     |----------------------------------------------------------------------------------------*/
         Route::middleware(['role:2'])->group(function () {
-       // 🚀 AHORA SÍ: El Panel pasa por el controlador y cargará los datos reales
-    Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
-    // Ruta principal para ver el Ranking (la que lee tu vista TopMedicos.jsx)
-    // o si están sueltas, agrégales el prefijo manualmente:
-Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
-Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+            // El Panel pasa por el controlador y carga los datos reales
+            Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
 
-Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
-Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
-        // Médicos
-        Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
-        Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
+            // Ranking de médicos (TopMedicos.jsx)
+            Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
+            Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+            // Alias sin "/detalle/": mismo controlador, sin nombre propio para no colisionar con el anterior.
+            Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop']);
+            Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])->name('visitador.refrescar-todo');
+            Route::post('/visitador/top-medicos/{documento}/refrescar', [TopMedicosController::class, 'refrescarMedico'])->name('visitador.top-medicos.refrescarMedico');
 
-        // Módulo de Visitas
-        Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
-        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
-        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('MisVisitas.  efectiva');
-        Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
+            Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
+            Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
 
-        Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+            // Médicos
+            Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
+            Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
-       
-        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
-        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
+            // Módulo de Visitas
+            Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
+            Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
+            Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
+            Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
 
-        Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
-Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-
-Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-
-Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
-
-Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])
-    ->name('visitador.refrescar-todo');
-
-
-
-
-    });
+            Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+        });
 
     /*
     |---------------------------------------------------------------------------------

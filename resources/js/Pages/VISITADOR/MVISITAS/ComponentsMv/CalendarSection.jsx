@@ -46,8 +46,8 @@ const CalendarSection = ({ logic }) => {
                     const seleccionado = isSameDay(dia, logic.fechaSeleccionada);
 
                     let claseDia = 'bg-gray-50/80 text-gray-400 hover:bg-blue-50 hover:text-[#1C85E8]';
-                    if (tieneVisita) claseDia = 'bg-gradient-to-br from-[#1C85E8]/10 to-[#02CFE3]/10 text-[#1C85E8] font-bold';
-                    if (seleccionado) claseDia = 'bg-gradient-to-br from-[#1C85E8] to-[#02CFE3] text-white shadow-md shadow-blue-200 scale-110 z-10';
+                    if (tieneVisita) claseDia = 'bg-[#1C85E8]/10 text-[#1C85E8] font-bold';
+                    if (seleccionado) claseDia = 'bg-[#1C85E8] text-white shadow-md shadow-blue-200 scale-110 z-10';
 
                     return (
                         <button

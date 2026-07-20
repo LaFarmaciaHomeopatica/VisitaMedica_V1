@@ -1,11 +1,25 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
-import { FaXmark, FaLocationDot } from 'react-icons/fa6'; // Añadido FaLocationDot para diseño limpio
+import { FaXmark, FaLocationDot, FaTriangleExclamation } from 'react-icons/fa6'; // Añadido FaLocationDot para diseño limpio
 
 const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showResults, setShowResults] = useState(false);
+    const [errorRed, setErrorRed] = useState(false);
     const wrapperRef = useRef(null);
+
+    // Modo de mala señal: una falla de red (sin respuesta del servidor) no
+    // dispara onError de Inertia -- solo el evento global "exception". Sin
+    // esto, el modal se queda sin avisar nada y el visitador puede creer
+    // que sí se guardó.
+    useEffect(() => {
+        if (!logic.modalNuevoAbierto) return;
+        return router.on('exception', (event) => {
+            event.preventDefault();
+            setErrorRed(true);
+        });
+    }, [logic.modalNuevoAbierto]);
 
     // Sincronizar buscador al abrir/resetear modal
     useEffect(() => {
@@ -62,6 +76,7 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setErrorRed(false);
         logic.formNueva.post(route('visitas.store'), {
             onSuccess: () => {
                 logic.setModalNuevoAbierto(false);
@@ -223,12 +238,22 @@ const ModalNuevaVisita = ({ logic, doctores, productos = [] }) => {
                         />
                     </div>
 
-                    {/* Errores */}
+                    {/* Errores de validación */}
                     {Object.keys(logic.formNueva.errors).length > 0 && (
                         <div className="p-3 bg-red-50 rounded-xl">
                             {Object.values(logic.formNueva.errors).map((err, i) => (
                                 <p key={i} className="text-[10px] text-red-600 font-bold uppercase">• {err}</p>
                             ))}
+                        </div>
+                    )}
+
+                    {/* Falla de red (sin respuesta del servidor) */}
+                    {errorRed && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                            <FaTriangleExclamation className="text-amber-500 text-xs mt-0.5 shrink-0" />
+                            <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed">
+                                No se pudo guardar — revisa tu conexión e intenta de nuevo. Tus datos siguen aquí.
+                            </p>
                         </div>
                     )}
 

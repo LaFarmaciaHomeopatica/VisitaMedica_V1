@@ -373,7 +373,7 @@ public function show(Request $request, $id)
             }
 
 $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $linea['subtotal'] ?? 0);
-            $productosUnificados[$clave]['unidades_formuladas'] += (int) ($linea['cantidad'] ?? 0);
+            $productosUnificados[$clave]['unidades_formuladas'] += (float) ($linea['cantidad'] ?? 0);
         }
 
         // 2. Extraer laboratorios de la DB Local e inyectarlos
@@ -592,7 +592,7 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             }
 
             $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $linea['subtotal'] ?? 0);
-            $productosUnificados[$clave]['unidades_formuladas'] += (int) ($linea['cantidad'] ?? 0);
+            $productosUnificados[$clave]['unidades_formuladas'] += (float) ($linea['cantidad'] ?? 0);
         }
 
         $codigosProductos = collect($productosUnificados)->pluck('codigo')->filter(fn($c) => $c !== '—')->unique()->toArray();

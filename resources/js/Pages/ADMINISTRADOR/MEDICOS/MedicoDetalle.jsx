@@ -19,6 +19,30 @@ function TendenciaCategoria({ tendencia }) {
     return null;
 }
 
+// Compara dos snapshots consecutivos de categoriaHistorial por valor_minimo.
+function tendenciaEntre(anterior, actual) {
+    if (!anterior || !actual) return null;
+    const vAnterior = parseFloat(anterior?.categoria?.valor_minimo);
+    const vActual   = parseFloat(actual?.categoria?.valor_minimo);
+    if (Number.isNaN(vAnterior) || Number.isNaN(vActual)) return null;
+    if (vActual > vAnterior) return 'subio';
+    if (vActual < vAnterior) return 'bajo';
+    return 'igual';
+}
+
+const CATEGORIA_TIER_COLORS = ['#f59e0b', '#4184F0', '#8b5cf6', '#10b981', '#94a3b8'];
+
+// Asigna un color por nivel de categoría (mayor valor_minimo = primero en la paleta),
+// relativo a las categorías que aparecen en el historial de este médico.
+function colorPorNivelCategoria(historial) {
+    const valores = [...new Set(
+        historial.map(h => parseFloat(h.categoria?.valor_minimo)).filter(v => !Number.isNaN(v))
+    )].sort((a, b) => b - a);
+    const mapa = new Map();
+    valores.forEach((v, i) => mapa.set(v, CATEGORIA_TIER_COLORS[i % CATEGORIA_TIER_COLORS.length]));
+    return mapa;
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
 // Valor completo en pesos, sin abreviar a K/M/B.
@@ -364,28 +388,47 @@ export default function MedicoDetalle({
                 <div className="px-8 pt-7 space-y-7">
 
                     {/* ── HISTORIAL DE CATEGORÍA ─────────────────────────── */}
-                    {categoriaHistorial.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                                Historial de categoría (mes a mes)
-                            </p>
-                            <div className="flex gap-2 flex-wrap">
-                                {[...categoriaHistorial].reverse().map((h) => (
-                                    <div key={h.id} className="flex flex-col items-center gap-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 min-w-[74px]">
-                                        <span className="text-[8px] font-black text-slate-400 uppercase">
-                                            {h.mes?.slice(0, 7)}
-                                        </span>
-                                        <span className="text-[11px] font-black text-amber-700">
-                                            {h.categoria?.nombre ?? '—'}
-                                        </span>
-                                        <span className="text-[8px] text-slate-400 font-bold">
-                                            {fmtM(h.valor_total)}
-                                        </span>
-                                    </div>
-                                ))}
+                    {categoriaHistorial.length > 0 && (() => {
+                        const cronologico = [...categoriaHistorial].reverse();
+                        const tierColors = colorPorNivelCategoria(cronologico);
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                    Historial de categoría (mes a mes)
+                                </p>
+                                <div className="flex gap-1 flex-wrap items-center">
+                                    {cronologico.map((h, idx) => {
+                                        const color = tierColors.get(parseFloat(h.categoria?.valor_minimo)) ?? '#94a3b8';
+                                        const trend = idx > 0 ? tendenciaEntre(cronologico[idx - 1], h) : null;
+                                        return (
+                                            <React.Fragment key={h.id}>
+                                                {idx > 0 && (
+                                                    <div className="flex items-center justify-center w-4 shrink-0">
+                                                        <TendenciaCategoria tendencia={trend} />
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 min-w-[74px] border shrink-0"
+                                                    style={{ borderColor: `${color}55`, background: `${color}12` }}
+                                                    title={`Comprado: ${fmtM(h.valor_comprado)} · Formulado: ${fmtM(h.valor_formulado)}`}
+                                                >
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase">
+                                                        {h.mes?.slice(0, 7)}
+                                                    </span>
+                                                    <span className="text-[11px] font-black" style={{ color }}>
+                                                        {h.categoria?.nombre ?? '—'}
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-400 font-bold">
+                                                        {fmtM(h.valor_total)}
+                                                    </span>
+                                                </div>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* ── KPIs ─────────────────────────────────────────── */}
                     {/* Val./Unidades/Productos dependen de Odoo → skeleton mientras cargan.

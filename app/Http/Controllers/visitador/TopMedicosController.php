@@ -8,6 +8,7 @@ use App\Models\Medico;
 use App\Models\MedicoTemporal;
 use App\Models\Transaccion;
 use App\Models\OdooSnapshot;
+use App\Models\Visita;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -103,7 +104,7 @@ class TopMedicosController extends Controller
                 'id'                 => $medico->id,
                 'documento'          => $medico->documento,
                 'nombre'             => trim($medico->nombre),
-                'especialidad'       => $medico->especialidad ?? 'General',
+                'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
                 'direccion_detalles' => $medico->direccion_detalles,
                 'telefono_contacto'  => $medico->telefono_contacto,
                 'horario_atencion'   => $medico->horario_atencion,
@@ -119,6 +120,14 @@ class TopMedicosController extends Controller
             'vistaAnterior'    => $vistaParam,
             'limitAnterior'    => $limitAnterior,
             'searchAnterior'   => $searchAnterior,
+
+            // Historial de MIS visitas a este médico -- dato local, no depende
+            // de Odoo, así que va directo (no lazy) y pinta al instante.
+            'historialVisitas' => Visita::where('medico_id', $medico->id)
+                ->where('visitador_id', $visitador->id)
+                ->orderByDesc('fecha_programada')
+                ->take(15)
+                ->get(['id', 'fecha_programada', 'fecha_realizada', 'fecha_fin_real', 'estado', 'comentarios', 'muestras']),
 
             'odooDatosPesados' => $snapshot
                 ? array_merge($snapshot->payload, [
@@ -160,6 +169,24 @@ class TopMedicosController extends Controller
     }
 
     /**
+     * Refresco puntual: borra el caché de Odoo de un solo médico (no de toda
+     * la cartera). Pensado para el botón de refrescar dentro del detalle del
+     * médico, cuando no hace falta recalcular a todos los demás.
+     */
+    public function refrescarMedico(Request $request, string $documento)
+    {
+        $visitador = Visitador::where('usuario_id', Auth::id())->firstOrFail();
+
+        // Confirma que el documento pertenece a un médico de este visitador
+        // antes de borrar nada.
+        $visitador->medicos()->where('documento', $documento)->firstOrFail();
+
+        OdooSnapshot::where('documento', $documento)->delete();
+
+        return back()->with('success', 'Datos de este médico actualizados.');
+    }
+
+    /**
      * Lógica pesada de cálculo del ranking grupal.
      */
     private function calcularRankingGrupal(Visitador $visitador, string $mes): array
@@ -179,16 +206,24 @@ class TopMedicosController extends Controller
                 $fin->format('Y-m-d')
             );
 
-            $topMedicos = collect($odooKpis)->map(function ($kpis, $doc) use ($medicos) {
+            // Especialidad resuelta desde Odoo (igual que el admin), no la
+            // columna local 'especialidad' (legado) — una sola llamada
+            // agrupada para todo el ranking, no una por médico.
+            $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
+
+            $topMedicos = collect($odooKpis)->map(function ($kpis, $doc) use ($medicos, $especialidades) {
                 $medicoModel = $medicos->firstWhere('documento', $doc);
                 return [
                     'documento'              => $doc,
                     'nombre'                 => $medicoModel ? $medicoModel->nombre : 'Médico No Registrado',
-                    'especialidad'           => $medicoModel->especialidad ?? 'General',
+                    'especialidad'           => $especialidades[$doc] ?? 'General',
                     'total_comprado'         => (float) ($kpis['total_comprado'] ?? 0),
-                    'total_formulado'        => 0.0,
+                    // OdooService::getKpisGrupales() ya calcula esto -- antes
+                    // se ignoraba y se dejaba fijo en 0.0/null, lo que hacía
+                    // ver "sin formulación" a médicos que sí tenían.
+                    'total_formulado'        => (float) ($kpis['total_formulado'] ?? 0),
                     'producto_mas_comprado'  => $kpis['producto_mas_comprado'] ?? '—',
-                    'producto_mas_formulado' => null,
+                    'producto_mas_formulado' => $kpis['producto_mas_formulado'] ?? '—',
                 ];
             })->sortByDesc('total_comprado')->values();
         }
@@ -316,8 +351,13 @@ class TopMedicosController extends Controller
         'totales' => [
             'total_comprado'      => (float) $totalCompradoReal,
             'total_formulado'     => (float) $totalFormuladoReal,
-            'unidades_compradas'  => (int) $unidadesCompradasReal,
-            'unidades_formuladas' => (int) $unidadesFormuladasReal,
+            // Sin truncar a (int): igual que en Medico2Controller (admin), el
+            // valor se deja en punto flotante y solo se redondea al mostrarlo
+            // en el frontend. Truncar acá hacía que, con cantidades no
+            // enteras, el visitador mostrara un número distinto al del admin
+            // para el mismo médico y período.
+            'unidades_compradas'  => (float) $unidadesCompradasReal,
+            'unidades_formuladas' => (float) $unidadesFormuladasReal,
             'transacciones'       => (int) ($odooData['total_transacciones'] ?? 0) + count($formulacionOdoo),
         ],
         'productosComprados'     => $productosComprados,

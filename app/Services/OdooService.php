@@ -204,6 +204,19 @@ class OdooService
     }
 
     /**
+     * Atajo de getEspecialidadesPorDocumentos() para un único documento.
+     * Mismo criterio que usa el admin (Medico2Controller::resolverEspecialidadOdoo):
+     * la columna local 'especialidad' de medicos es legado, la fuente de
+     * verdad es el tag de Odoo. Retorna null si Odoo no tiene un tag
+     * reconocido para ese documento.
+     */
+    public function resolverEspecialidadPorDocumento(?string $documento): ?string
+    {
+        if (empty($documento)) return null;
+        return $this->getEspecialidadesPorDocumentos([$documento])[trim($documento)] ?? null;
+    }
+
+    /**
      * Trae los productos (líneas de venta y factura) de un médico por documento.
      * Retorna array vacío si no hay datos o falla la conexión.
      *

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { router } from '@inertiajs/react';
-import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark, FaLocationDot } from 'react-icons/fa6'; // Añadida FaLocationDot
+import { FaCircleCheck, FaCircleXmark, FaClock, FaBan, FaXmark, FaLocationDot, FaTriangleExclamation } from 'react-icons/fa6'; // Añadida FaLocationDot
 import { format } from 'date-fns';
 
 const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
@@ -10,6 +10,18 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
     const [dateWarning, setDateWarning] = useState('');
     const [coordenadas, setCoordenadas] = useState({ latitud: null, longitud: null });
     const [gpsStatus, setGpsStatus] = useState('');
+    const [errorRed, setErrorRed] = useState(false);
+
+    // Modo de mala señal: igual que en ModalNuevaVisita -- una falla de red
+    // no dispara el onError de abajo (ese es solo para validación 422), así
+    // que hay que escuchar el evento global "exception" de Inertia.
+    useEffect(() => {
+        if (!logic.modalGestionAbierto) return;
+        return router.on('exception', (event) => {
+            event.preventDefault();
+            setErrorRed(true);
+        });
+    }, [logic.modalGestionAbierto]);
 
     const capturarUbicacion = () => {
         if (!navigator.geolocation) {
@@ -114,6 +126,7 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
     };
 
     const handleActualizar = () => {
+        setErrorRed(false);
         router.post(route('visitas.marcarEfectiva', logic.visitaSeleccionada.id), {
             ...logic.formReporte.data,
             latitud:  coordenadas.latitud,
@@ -389,12 +402,22 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                         />
                     </div>
 
-                    {/* Errores */}
+                    {/* Errores de validación */}
                     {Object.keys(logic.formReporte.errors).length > 0 && (
                         <div className="p-3 bg-red-50 rounded-xl">
                             {Object.values(logic.formReporte.errors).map((err, i) => (
                                 <p key={i} className="text-[10px] text-red-600 font-bold uppercase">• {err}</p>
                             ))}
+                        </div>
+                    )}
+
+                    {/* Falla de red (sin respuesta del servidor) */}
+                    {errorRed && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                            <FaTriangleExclamation className="text-amber-500 text-xs mt-0.5 shrink-0" />
+                            <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed">
+                                No se pudo guardar — revisa tu conexión e intenta de nuevo. Tus datos siguen aquí.
+                            </p>
                         </div>
                     )}
 
