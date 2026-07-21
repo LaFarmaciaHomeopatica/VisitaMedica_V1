@@ -5,20 +5,16 @@ import {
     AreaChart, Area, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { FaArrowRight } from 'react-icons/fa6';
+import { FaArrowRight, FaRotate } from 'react-icons/fa6';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
-const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
-const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16'];
 const COLORS_ESTADO = {
     efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
     cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
@@ -38,7 +34,7 @@ function KpiCard({ icon, label, value, sub, accent, href }) {
             )}
             <div className="min-w-0">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-                <p className="text-[20px] font-black text-slate-800 leading-none">{value}</p>
+                <p className="text-[20px] font-black text-slate-800 leading-none break-words">{value}</p>
                 {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
             </div>
             {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[10px] shrink-0" />}
@@ -141,12 +137,16 @@ function MedicoSearch({ medicos, value, onChange }) {
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function Ginicio({
-    auth, stats, visitadoresResumen, visitasPorEstado,
+    auth, statsLocales, stats, tendencia, topProductos, topMedicos = [],
+    visitadoresResumen, visitadoresAnalisis, visitasPorEstado,
     filtros, medicos = [],
 }) {
     const [fechaInicio, setFechaInicio] = useState(filtros.fecha_inicio);
     const [fechaFin,    setFechaFin]    = useState(filtros.fecha_fin);
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
+    const [actualizando, setActualizando] = useState(false);
+    const [limProductos, setLimProductos] = useState(10);
+    const [limMedicos,   setLimMedicos]   = useState(10);
 
     const [odooStats, setOdooStats] = useState({
         total_transacciones: 0, valor_comprado: 0, valor_formulado: 0,
@@ -199,18 +199,35 @@ export default function Ginicio({
         }, 500);
     }, [fechaInicio, fechaFin, medicoDoc]);
 
-    
+    // ── Datos que vienen de Odoo (lentos): llegan por Inertia::lazy, se
+    // piden aparte para no bloquear el render inicial (conteos locales y
+    // filtros ya llegaron con la carga normal). Si el controller ya los
+    // mandó (stats truthy), no se vuelven a pedir.
+    const odooLoading = !stats;
+
+    useEffect(() => {
+        if (stats) return; // ya llegaron
+        router.reload({ only: ['stats', 'tendencia', 'topProductos', 'topMedicos', 'visitadoresAnalisis'] });
+    }, [stats, fechaInicio, fechaFin, medicoDoc]);
+
     const limpiar = () => {
         clearTimeout(timerRef.current);
         router.get(route('Ginicio'));
     };
 
-    const statsMerged = { ...stats, ...odooStats };
+    const actualizar = () => {
+        setActualizando(true);
+        router.post(route('Ginicio.actualizar'), { medico_documento: medicoDoc || undefined }, {
+            preserveScroll: true,
+            onFinish: () => setActualizando(false),
+        });
+    };
 
-    const ticketPromedio = (statsMerged.total_transacciones ?? 0) > 0
-        ? (statsMerged.valor_comprado / statsMerged.total_transacciones) : 0;
+    const statsCombinado = { ...statsLocales, ...(stats ?? {}) };
 
-    const tendenciaData = odooTendencia.map(d => ({
+    const ticketPromedio = (statsCombinado.total_transacciones ?? 0) > 0
+        ? (statsCombinado.valor_comprado / statsCombinado.total_transacciones) : 0;
+    const tendenciaData = (tendencia ?? []).map(d => ({
         label:    d.mes?.slice(0, 7),
         comprado: Number(d.valor_comprado),
         formulado:Number(d.valor_formulado),
@@ -222,16 +239,16 @@ export default function Ginicio({
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    const medicosData    = odooTopMedicos;
-    const topProductos   = odooTopProductos;
-    const visitadoresAnalisis = odooVisitadoresAnalisis;
+    const productosData = (topProductos ?? []).slice(0, limProductos === Infinity ? undefined : limProductos);
+    const medicosData = (topMedicos ?? []).slice(0, limMedicos === Infinity ? undefined : limMedicos);
+    const visitadoresAnalisisData = visitadoresAnalisis ?? [];
 
 
     return (
         <PanelAdmin user={auth?.user}>
             <Head title="Panel de Control" />
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── MODAL DE CARGA (OVERLAY GLOBAL) ──────────────── */}
                 {odooLoading && (
@@ -255,10 +272,18 @@ export default function Ginicio({
                 )}
 
                 {/* ── ENCABEZADO / FILTROS ───────────────────────── */}
-                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-[80px] z-40 shadow-sm">
+                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 flex flex-wrap items-end gap-4 sticky top-14 z-40 shadow-sm">
                     <div className="flex-1 min-w-0">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Visión global</p>
-                        <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-[18px] font-black text-slate-800 leading-none">Panel de Control</h1>
+                            {(odooLoading || actualizando) && (
+                                <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-blue-500 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full animate-pulse">
+                                    <FaRotate className="animate-spin text-[9px]" />
+                                    Consultando datos de Odoo...
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <div className="flex flex-wrap items-end gap-3">
                         <div>
@@ -279,6 +304,11 @@ export default function Ginicio({
                                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition">
                             Limpiar
                         </button>
+                        <button onClick={actualizar} disabled={actualizando}
+                                className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-600 hover:text-blue-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition disabled:opacity-50">
+                            <FaRotate className={actualizando ? 'animate-spin' : ''} />
+                            {actualizando ? 'Actualizando...' : 'Actualizar'}
+                        </button>
                     </div>
                 </div>
 
@@ -286,14 +316,14 @@ export default function Ginicio({
 
                     {/* ── KPI CARDS ────────────────────────────────── */}
                     <div className="grid grid-cols-2 xl:grid-cols-8 gap-3">
-                        <KpiCard label="Visitadores"     value={fmt(statsMerged.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
-                        <KpiCard label="Médicos"         value={fmt(statsMerged.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
-                        <KpiCard label="Méd. Temporales" value={fmt(statsMerged.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
-                        <KpiCard label="unidades compradas" value={fmt(statsMerged.unidades_compradas)} accent="#ef4444" />
-                        <KpiCard label="unidades formuladas" value={fmt(statsMerged.unidades_formuladas)} accent="#ec4899" />
-                        <KpiCard label="Ticket Promedio" value={fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
-                        <KpiCard label="Valor Comprado"  value={fmtM(statsMerged.valor_comprado)}  sub={`${fmt(statsMerged.unidades_compradas)} un.`} accent="#10b981" />
-                        <KpiCard label="Valor Formulado" value={fmtM(statsMerged.valor_formulado)} sub={`${fmt(statsMerged.unidades_formuladas)} un.`} accent="#8b5cf6" />
+                        <KpiCard label="Visitadores"     value={fmt(statsCombinado.visitadores)}         accent="#4184F0" href="/Gvisitadores" />
+                        <KpiCard label="Médicos"         value={fmt(statsCombinado.medicos)}             accent="#3D3FD8" href="/Gmedicos" />
+                        <KpiCard label="Méd. Temporales" value={fmt(statsCombinado.medicos_temporales)}  accent="#f59e0b" href="/GmedicosTemporales" />
+                        <KpiCard label="unidades compradas" value={odooLoading ? '…' : fmt(statsCombinado.unidades_compradas)} accent="#ef4444" />
+                        <KpiCard label="unidades formuladas" value={odooLoading ? '…' : fmt(statsCombinado.unidades_formuladas)} accent="#ec4899" />
+                        <KpiCard label="Ticket Promedio" value={odooLoading ? '…' : fmtM(ticketPromedio)} sub="por transacción" accent="#06b6d4" />
+                        <KpiCard label="Valor Comprado"  value={odooLoading ? '…' : fmtM(statsCombinado.valor_comprado)}  sub={odooLoading ? '' : `${fmt(statsCombinado.unidades_compradas)} un.`} accent="#10b981" />
+                        <KpiCard label="Valor Formulado" value={odooLoading ? '…' : fmtM(statsCombinado.valor_formulado)} sub={odooLoading ? '' : `${fmt(statsCombinado.unidades_formuladas)} un.`} accent="#8b5cf6" />
                     </div>
 
                     {/* ── FILA 1: Tendencia + Visitas ──────────────── */}
@@ -301,7 +331,9 @@ export default function Ginicio({
 
                         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <SectionHeader label="Histórico" title="Tendencia de valor en el período" />
-                            {tendenciaData.length === 0 ? (
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-56 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : tendenciaData.length === 0 ? (
                                 <div className="flex items-center justify-center h-56 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
                                 <ResponsiveContainer width="100%" height={240}>
@@ -362,101 +394,108 @@ export default function Ginicio({
 
                         {/* Top productos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Productos · período" title="Top productos por valor" />
-                            {(topProductos?.length === 0) ? (
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <SectionHeader label="Productos · período" title="Top productos por valor" />
+                                <div className="flex items-center gap-3">
+                                    <LeyendaCompradoFormulado />
+                                    <span className="text-[9px] text-slate-400">Mostrar</span>
+                                    <select
+                                        value={limProductos}
+                                        onChange={e => setLimProductos(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                                        <option value="all">Todos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : (topProductos?.length === 0) ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
-                            ) : (() => {
-                                const maxC = topProductos[0]?.valor_comprado ?? 1;
-                                const maxF = Math.max(...(topProductos.map(x => x.valor_formulado ?? 0)), 1);
-                                return (
+                            ) : (
                                     <div className="space-y-4">
-                                        {(topProductos ?? []).map((p, i) => {
-                                            const pctC = Math.round((p.valor_comprado / maxC) * 100);
-                                            const pctF = Math.round(((p.valor_formulado ?? 0) / maxF) * 100);
-                                            return (
+                                        {productosData.map((p, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-1.5">
-                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                              style={{ background: PROD_COLORS[i] }}>{i + 1}</span>
-                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{p.nombre}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${pctC}%`, background: PROD_COLORS[i] }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-slate-700 w-14 text-right shrink-0">{fmtM(p.valor_comprado)}</span>
+                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">{i + 1}</span>
+                                                        <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">
+                                                            {p.nombre}
+                                                            {p.codigo && (
+                                                                <span className="text-slate-400 font-medium"> ({p.codigo})</span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${pctF}%`, background: '#8b5cf6' }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-purple-600 w-14 text-right shrink-0">{fmtM(p.valor_formulado ?? 0)}</span>
+                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
+                                                        <BarraComparativa comprado={p.valor_comprado} formulado={p.valor_formulado ?? 0} />
+                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(p.valor_formulado ?? 0)}</span>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                        ))}
                                     </div>
-                                );
-                            })()}
+                                )}
                         </div>
 
                         {/* Top médicos */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <SectionHeader label="Ranking" title="Top médicos por unidades" />
-                            {medicosData.length === 0 ? (
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <SectionHeader label="Ranking" title="Top médicos por unidades" />
+                                <div className="flex items-center gap-3">
+                                    <LeyendaCompradoFormulado />
+                                    <span className="text-[9px] text-slate-400">Mostrar</span>
+                                    <select
+                                        value={limMedicos}
+                                        onChange={e => setLimMedicos(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                                        <option value="all">Todos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            {odooLoading ? (
+                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                            ) : medicosData.length === 0 ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
-                            ) : (() => {
-                                const maxC = Math.max(...medicosData.map(m => m.compradas), 1);
-                                const maxF = Math.max(...medicosData.map(m => m.formuladas), 1);
-                                return (
+                            ) : (
                                     <div className="space-y-4">
                                         {medicosData.map((m, i) => (
                                             <div key={i} className="flex items-start gap-3">
-                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">
                                                     {i + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-[10px] font-black text-slate-700 uppercase leading-tight mb-1.5">{m.nombre}</p>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Compradas</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-[#4184F0] rounded-full" style={{ width: `${(m.compradas / maxC) * 100}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-[#4184F0] w-10 text-right shrink-0">{fmt(m.compradas)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-bold text-slate-400 w-16 shrink-0 uppercase">Formuladas</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-[#8b5cf6] rounded-full" style={{ width: `${(m.formuladas / maxF) * 100}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-[#8b5cf6] w-10 text-right shrink-0">{fmt(m.formuladas)}</span>
+                                                        <span className="text-[9px] font-black w-10 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmt(m.compradas)}</span>
+                                                        <BarraComparativa comprado={m.compradas} formulado={m.formuladas} />
+                                                        <span className="text-[9px] font-black w-10 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmt(m.formuladas)}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                );
-                            })()}
+                                )}
                         </div>
                     </div>
 
                     {/* ── ANÁLISIS VISITADORES ──────────────────────── */}
-                    {visitadoresAnalisis.length > 0 && (() => {
-                        const maxVal = Math.max(...visitadoresAnalisis.map(v => v.valor_comprado), 1);
-                        return (
+                    {odooLoading ? (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                            <div className="flex items-center justify-center h-32 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
+                        </div>
+                    ) : visitadoresAnalisisData.length > 0 && (
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                                <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
+                                    <LeyendaCompradoFormulado />
+                                </div>
                                 <div className="space-y-5">
-                                    {visitadoresAnalisis.map((v, i) => {
-                                        const pctC = Math.round((v.valor_comprado  / maxVal) * 100);
-                                        const pctF = Math.round((v.valor_formulado / maxVal) * 100);
-                                        return (
+                                    {visitadoresAnalisisData.map((v, i) => (
                                             <div key={i} className="flex items-start gap-3">
-                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
-                                                      style={{ background: COLORS[i % COLORS.length] }}>
+                                                <span className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 bg-slate-400">
                                                     {i + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
@@ -464,28 +503,17 @@ export default function Ginicio({
                                                         <p className="text-[11px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
                                                         <span className="text-[9px] text-slate-400 font-bold">{v.medicos_activos} méd. · {v.total_visitas} visitas</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pctC}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-indigo-600 w-16 text-right shrink-0">{fmtM(v.valor_comprado)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-purple-400" style={{ width: `${pctF}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-purple-600 w-16 text-right shrink-0">{fmtM(v.valor_formulado)}</span>
+                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(v.valor_comprado)}</span>
+                                                        <BarraComparativa comprado={v.valor_comprado} formulado={v.valor_formulado} />
+                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(v.valor_formulado)}</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                    ))}
                                 </div>
                             </div>
-                        );
-                    })()}
+                    )}
 
                 </div>
             </div>

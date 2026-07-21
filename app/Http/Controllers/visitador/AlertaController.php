@@ -65,6 +65,10 @@ class AlertaController extends Controller
                         $periodoB
                     );
 
+                    // Especialidad resuelta desde Odoo (igual que el admin),
+                    // no la columna local 'especialidad' (legado).
+                    $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
+
                     foreach ($medicos as $medico) {
                         $doc = (string) $medico->documento;
 
@@ -91,7 +95,7 @@ class AlertaController extends Controller
                         $medicosAlertas[] = [
                             'documento'    => $doc,
                             'nombre'       => trim($medico->nombre),
-                            'especialidad' => $medico->especialidad ?? 'General',
+                            'especialidad' => $especialidades[$doc] ?? 'General',
                             'totales'      => $totalesUnificados,
                             'productos'    => $medAlert['productos'],
                         ];
@@ -131,7 +135,7 @@ class AlertaController extends Controller
                 'id'                 => $medico->id,
                 'documento'          => $medico->documento,
                 'nombre'             => trim($medico->nombre),
-                'especialidad'       => $medico->especialidad ?? 'General',
+                'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
                 'telefono_contacto'  => $medico->telefono_contacto,
                 'direccion_detalles' => $medico->direccion_detalles,
                 'horario_atencion'   => $medico->horario_atencion,

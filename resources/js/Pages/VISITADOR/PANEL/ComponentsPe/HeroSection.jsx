@@ -1,10 +1,9 @@
 import React from 'react';
 import { usePage } from '@inertiajs/react';
 import MetricasCard from './MetricasCard';
-import TabNav from './TabNav';
 
 /**
- * Sección hero con saludo, métricas y navegación de pestañas.
+ * Sección hero con saludo y métricas del visitador.
  */
 const HeroSection = ({
     porcentaje,
@@ -13,15 +12,11 @@ const HeroSection = ({
     meta,
     ventasActuales,
     metaDinero,
-    tabActiva,
-    setTabActiva,
-    totalMedicos,
-    totalPendientes,
 }) => {
     const { auth } = usePage().props;
 
     return (
-        <section className="bg-gradient-to-br from-[#1C85E8] via-[#02CFE3] to-[#24C765] p-3 rounded-b-[40px] w-full md:max-w-none shadow-lg relative text-white border-none">
+        <section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-3 rounded-b-[40px] w-full md:max-w-none shadow-lg relative text-white border-none">
          <div className="flex items-center gap-4 mb-6">
     <div>
         <h1 className="text-2xl font-bold text-white leading-tight">
@@ -41,13 +36,6 @@ const HeroSection = ({
                 meta={meta}
                 ventasActuales={ventasActuales}
                 metaDinero={metaDinero}
-            />
-
-            <TabNav
-                tabActiva={tabActiva}
-                setTabActiva={setTabActiva}
-                totalMedicos={totalMedicos}
-                totalPendientes={totalPendientes}
             />
         </section>
     );

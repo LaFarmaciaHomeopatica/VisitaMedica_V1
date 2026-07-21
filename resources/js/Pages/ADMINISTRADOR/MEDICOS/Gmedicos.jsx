@@ -145,7 +145,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                 processing={form.processing}
                 onSubmit={form.handleSubmit}
                 tiposDocumento={tiposDocumento}
-                categorias={categorias}
                 visitadorNombre={form.visitadorNombre}
             />
 

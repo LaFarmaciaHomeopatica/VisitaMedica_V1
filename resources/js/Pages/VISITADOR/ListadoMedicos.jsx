@@ -121,7 +121,7 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                 </div>
 
                 {/* Fila 2: paginador — con gradiente del sistema */}
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px]">
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px]">
                     <div className="max-w-[1440px] mx-auto px-5 py-2.5 flex items-center justify-between gap-3">
 
                         {/* Total */}
@@ -203,7 +203,7 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                                         className="bg-white/80 backdrop-blur-md rounded-[24px] flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md transition-shadow duration-300 overflow-hidden"
                                     >
                                         {/* Acento lateral con gradiente — igual al hero del panel */}
-                                        <div className="w-1.5 shrink-0 bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-l-[24px]" />
+                                        <div className="w-1.5 shrink-0 bg-gradient-to-b from-[#1C85E8] to-[#0A69C2] rounded-l-[24px]" />
 
                                         {/* Ícono especialidad */}
                                         <div className="flex items-center justify-center px-3.5 shrink-0">
@@ -226,7 +226,7 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                                                 {medico.direccion_detalles || medico.direccion || 'Dirección no registrada'}
                                             </p>
                                             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                                <span className="bg-gradient-to-r from-[#1C85E8]/10 to-[#02CFE3]/10 text-[#1C85E8] text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight border border-[#1C85E8]/10">
+                                                <span className="bg-[#1C85E8]/10 text-[#1C85E8] text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight border border-[#1C85E8]/10">
                                                     {medico.tipo_documento?.nombre || 'Doc'}: {medico.documento || '---'}
                                                 </span>
                                                 <span className="text-[11px] font-bold text-gray-400">
@@ -239,7 +239,7 @@ const ListadoMedicos = ({ medicosDb = {}, filters = {} }) => {
                                         <div className="flex items-center gap-2 shrink-0 pr-4">
                                             <Link
                                                 href={`/MisVisitas?medico_id=${medico.id}`}
-                                                className="bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] hover:from-[#156DBF] hover:to-[#02B2C4] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm shadow-blue-100 hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                                                className="bg-[#1C85E8] hover:bg-[#156DBF] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm shadow-blue-100 hover:scale-105 active:scale-95 flex items-center gap-1.5"
                                             >
                                                 <FaCalendarDays className="text-[10px]" />
                                                 <span className="hidden sm:inline">Agendar</span>

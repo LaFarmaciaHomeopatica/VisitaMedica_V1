@@ -3,9 +3,9 @@ import { useForm } from '@inertiajs/react';
 
 const initialState = {
     id: '', nombre: '', documento: '',
-    especialidad: '', geolocalizacion: '', direccion_detalles: '',
+    geolocalizacion: '', direccion_detalles: '',
     telefono_contacto: '', horario_atencion: '', visitador_id: '',
-    fecha_inicio_relacion: '', tipo_documento_id: '', categoria_id: '',
+    fecha_inicio_relacion: '', tipo_documento_id: '',
 };
 
 export const useMedicoForm = (visitadores) => {
@@ -37,14 +37,12 @@ export const useMedicoForm = (visitadores) => {
             id: medico.id,
             nombre: medico.nombre,
             documento: medico.documento,
-            especialidad: medico.especialidad || '',
             geolocalizacion: medico.geolocalizacion || '',
             direccion_detalles: medico.direccion_detalles || '',
             telefono_contacto: medico.telefono_contacto || '',
             horario_atencion: medico.horario_atencion || '',
             visitador_id: medico.visitador_id || '',
             tipo_documento_id: medico.tipo_documento_id || '',
-            categoria_id: medico.categoria_id || '',
             fecha_inicio_relacion: medico.fecha_inicio_relacion
                 ? medico.fecha_inicio_relacion.substring(0, 10)
                 : '',

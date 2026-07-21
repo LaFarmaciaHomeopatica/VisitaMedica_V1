@@ -112,7 +112,7 @@ const TopMedicos = ({
                 </div>
 
                 {/* Fila 2: Gradiente Corporativo con Selector Numérico y Botonera Integrada */}
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
                     <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
                         
                         <div className="flex items-center justify-between">
@@ -161,12 +161,6 @@ const TopMedicos = ({
                 style={{ paddingTop: `${headerHeight}px` }}
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
-                    {vistaTipo === 'formuladores' && (
-                        <div className="bg-blue-50/80 border border-blue-200 text-blue-700 text-[10px] font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider text-center max-w-md mx-auto">
-                            💡 La formulación no está registrada en Odoo (valores en $0)
-                        </div>
-                    )}
-                    
                     {/* ── VALIDACIÓN DEL ESTADO DE CARGA LAZY ── */}
                     {!odooDatosPesados ? (
                         /* Shimmer / Loader elegante para mitigar el tiempo de espera */
@@ -209,9 +203,7 @@ const TopMedicos = ({
                                                 {/* Puesto del Ranking */}
                                                 <div className="flex flex-col items-center justify-center px-2.5 shrink-0 bg-blue-50/25 border-r border-gray-100/40 min-w-[44px]">
                                                     <span className="text-[8px] font-black text-gray-400/80 uppercase tracking-wider leading-none mb-0.5">TOP</span>
-                                                    <span className={`text-xs font-black leading-none ${
-                                                        puesto === 1 ? 'text-[#24C765]' : puesto === 2 ? 'text-[#02CFE3]' : puesto === 3 ? 'text-[#1C85E8]' : 'text-slate-400'
-                                                    }`}>
+                                                    <span className="text-xs font-black leading-none text-slate-400">
                                                         #{puesto}
                                                     </span>
                                                 </div>

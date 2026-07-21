@@ -4,7 +4,7 @@ export default function MedicoFormModal({
     isOpen, onClose,
     isEditing, data, setData, errors,
     processing, onSubmit,
-    tiposDocumento, categorias,
+    tiposDocumento,
     visitadorNombre,
 }) {
     if (!isOpen) return null;
@@ -37,18 +37,6 @@ export default function MedicoFormModal({
                                 </div>
                             )}
 
-                        <div className="col-span-1 md:col-span-2">
-                            <label className="text-[9px] font-black text-slate-500 uppercase block mb-1 tracking-widest">Categoría del Médico</label>
-                            <select value={data.categoria_id} onChange={e => setData('categoria_id', e.target.value)}
-                                className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Sin Categoría / Seleccionar...</option>
-                                {categorias.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
-                            </select>
-                            {errors.categoria_id && <div className="text-red-500 text-[9px] mt-1 font-bold">{errors.categoria_id}</div>}
-                        </div>
-
-                        <input placeholder="Especialidad" value={data.especialidad} onChange={e => setData('especialidad', e.target.value)}
-                            className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
                         <input placeholder="Teléfono" value={data.telefono_contacto} onChange={e => setData('telefono_contacto', e.target.value)}
                             className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm" />
                         <input placeholder="Horario" value={data.horario_atencion} onChange={e => setData('horario_atencion', e.target.value)}

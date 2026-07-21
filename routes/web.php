@@ -11,10 +11,13 @@ use App\Http\Controllers\administrador\UsuarioController;
 use App\Http\Controllers\administrador\Medico2Controller;
 use App\Http\Controllers\administrador\VisitasController;
 use App\Http\Controllers\administrador\ProductosController;
-use App\Http\Controllers\administrador\TransaccionesController;
 use App\Http\Controllers\administrador\MedicoTemporalController;
-use App\Http\Controllers\administrador\MetricasController;
 use App\Http\Controllers\administrador\MetasController;
+use App\Http\Controllers\administrador\ListasPreciosController;
+use App\Http\Controllers\administrador\ZonasController;
+use App\Http\Controllers\administrador\CategoriasController;
+use App\Http\Controllers\administrador\CarteraController;
+use App\Http\Controllers\administrador\ProveedoresController;
 use App\Http\Controllers\visitador\TopMedicosController;
 use App\Http\Controllers\visitador\AlertaController;
 use App\Http\Controllers\api_odoo\OdooController;
@@ -44,8 +47,15 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:1'])->group(function () {
         Route::get('/PanelAdmin', [GinicioController::class, 'index']);
         Route::get('/Ginicio',   [GinicioController::class, 'index'])->name('Ginicio');
+        Route::post('/Ginicio/actualizar', [GinicioController::class, 'actualizarGinicio'])->name('Ginicio.actualizar');
 
-Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
+        Route::get('/Gcartera', [CarteraController::class, 'index'])->name('Gcartera.index');
+        Route::post('/Gcartera/actualizar', [CarteraController::class, 'actualizar'])->name('Gcartera.actualizar');
+        Route::get('/Gcartera/documento/{documento}', [CarteraController::class, 'detalle'])->name('Gcartera.detalle');
+
+        Route::get('/Gproveedores', [ProveedoresController::class, 'index'])->name('Gproveedores.index');
+        Route::post('/Gproveedores/actualizar', [ProveedoresController::class, 'actualizar'])->name('Gproveedores.actualizar');
+        Route::get('/Gproveedores/documento/{documento}', [ProveedoresController::class, 'detalle'])->name('Gproveedores.detalle');
 
         Route::get('/Gmetas', [MetasController::class, 'index'])->name('Gmetas.index');
         Route::post('/Gmetas/upsert', [MetasController::class, 'upsert'])->name('Gmetas.upsert');
@@ -55,7 +65,26 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
 
         Route::get('/Ginicio/odoo-resumen', [GinicioController::class, 'odooResumen'])->name('Ginicio.odooResumen');
 
-        Route::get('/Gusuarios', [UsuarioController::class, 'index'])->name('Gusuarios.index');
+        // Configuración de listas de precios (Compra / Formulación / etc.)
+        Route::get('/Gtarifas', [ListasPreciosController::class, 'index'])->name('Gtarifas.index');
+        Route::post('/Gtarifas', [ListasPreciosController::class, 'store'])->name('Gtarifas.store');
+        Route::put('/Gtarifas/{listaPrecio}', [ListasPreciosController::class, 'update'])->name('Gtarifas.update');
+        Route::delete('/Gtarifas/{listaPrecio}', [ListasPreciosController::class, 'destroy'])->name('Gtarifas.destroy');
+        Route::post('/Gtarifas/sincronizar', [ListasPreciosController::class, 'sincronizar'])->name('Gtarifas.sincronizar');
+        Route::post('/Gtarifas/odoo-config', [ListasPreciosController::class, 'odooConfigSave'])->name('Gtarifas.odooConfigSave');
+
+        // Zonas de visita (pestaña "Zonas" en Configuración)
+        Route::post('/Gzonas', [ZonasController::class, 'store'])->name('Gzonas.store');
+        Route::put('/Gzonas/{zona}', [ZonasController::class, 'update'])->name('Gzonas.update');
+        Route::delete('/Gzonas/{zona}', [ZonasController::class, 'destroy'])->name('Gzonas.destroy');
+
+        // Categorías de médicos por desempeño mensual (pestaña "Categorías" en Configuración)
+        Route::post('/Gcategorias', [CategoriasController::class, 'store'])->name('Gcategorias.store');
+        Route::put('/Gcategorias/{categoria}', [CategoriasController::class, 'update'])->name('Gcategorias.update');
+        Route::delete('/Gcategorias/{categoria}', [CategoriasController::class, 'destroy'])->name('Gcategorias.destroy');
+
+        // El listado de usuarios ahora vive en Configuración (pestaña "Usuarios").
+        Route::get('/Gusuarios', fn() => redirect('/Gtarifas?tab=usuarios'))->name('Gusuarios.index');
         Route::post('/Gusuarios', [UsuarioController::class, 'store'])->name('Gusuarios.store');
         Route::put('/Gusuarios/{id}', [UsuarioController::class, 'update'])->name('Gusuarios.update');
         Route::delete('/Gusuarios/{id}', [UsuarioController::class, 'destroy'])->name('Gusuarios.destroy');
@@ -106,14 +135,6 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
    
 
 
-    Route::get('/Gtransacciones', [TransaccionesController::class, 'index'])->name('Gtransacciones.index');
-    Route::post('/Gtransacciones', [TransaccionesController::class, 'store'])->name('Gtransacciones.store');
-    Route::put('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'update'])->name('Gtransacciones.update');
-    Route::delete('/Gtransacciones/{transaccion}', [TransaccionesController::class, 'destroy'])->name('Gtransacciones.destroy');
-
-    Route::delete('/Gtransacciones-multiple', [TransaccionesController::class, 'destroyMultiple'])->name('Gtransacciones.destroy_multiple');
-
-
     Route::get('/GmedicosTemporales', [MedicoTemporalController::class, 'index'])->name('GmedicosTemporales.index');
     Route::get('/GmedicosTemporales/{id}/estadisticas', [MedicoTemporalController::class, 'estadisticas'])->name('GmedicosTemporales.estadisticas');
     Route::post('/GmedicosTemporales/{id}/promover', [MedicoTemporalController::class, 'promover'])->name('GmedicosTemporales.promover');
@@ -126,12 +147,6 @@ Route::get('/Metricas', fn() => redirect('/Ginicio'))->name('Metricas.index');
     // Cambia el ->name(...) para que coincida con tu estructura actual
 Route::post('/medicos-temporales/importar', [MedicoTemporalController::class, 'importar'])
     ->name('GmedicosTemporales.importar');
-
-   // Ejemplo de cómo deberían estar tus rutas
-Route::get('/Gtransacciones/exportar',  [TransaccionesController::class, 'exportar'])->name('Gtransacciones.exportar');
-Route::get('/Gtransacciones/plantilla', [TransaccionesController::class, 'plantilla'])->name('Gtransacciones.plantilla');
-Route::post('/Gtransacciones/importar', [TransaccionesController::class, 'importar'])->name('Gtransacciones.importar');
-
 
 Route::get('administrador/medicos/{id}/alertas-productos', [
     Medico2Controller::class, 
@@ -148,72 +163,35 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
     Route::get('/medicos/documento/{documento}/alertas', [Medico2Controller::class, 'alertasPorDocumento'])
     ->name('Gmedicos.alertasPorDocumento');
 
-    // Ejemplo en routes/web.php
-Route::post('/medicos/previsualizar', [Medico2Controller::class, 'previsualizarImportacion'])
-    ->name('Gmedicos.previsualizar');
-
+    Route::post('/medicos/documento/{documento}/sincronizar-categoria', [Medico2Controller::class, 'sincronizarCategoriaPorDocumento'])
+    ->name('Gmedicos.sincronizarCategoria');
 
  });
 
 Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(function () {
- 
+
     /*
     |------------------------------------------------------------------
-    | Vista principal: Consulta de Médicos en Odoo
+    | Vista principal: Consulta de Clientes en Odoo
     |------------------------------------------------------------------
     | GET /odoo/medicos
-    | Renderiza la vista con el buscador por número de documento.
-    | La búsqueda real se ejecuta desde el mismo controlador
-    | cuando se envía el parámetro ?documento=...
+    | Buscador por número de documento — al enviar el formulario navega
+    | directo al panel gerencial del cliente (Gmedicos.showPorDocumento),
+    | que funciona para cualquier documento esté o no registrado.
     |------------------------------------------------------------------
     */
     Route::get('/medicos', [OdooController::class, 'index'])
         ->name('medicos');
- 
-    Route::post('/medicos/buscar', [OdooSyncController::class, 'buscarPorDocumento'])
+
+    // Sugerencias de autocompletado (nombre o documento) para el buscador de arriba.
+    Route::get('/medicos/buscar', [OdooController::class, 'buscarSugerencias'])
         ->name('medicos.buscar');
-    /*
-    |------------------------------------------------------------------
-    | Vista de configuración: Parámetros de conexión (.env)
-    |------------------------------------------------------------------
-    | GET  /odoo/config          → muestra el formulario de ajustes
-    | POST /odoo/config/guardar  → persiste los valores en .env
-    |                              (implementación pendiente)
-    |------------------------------------------------------------------
-    */
-    Route::get('/config', [OdooController::class, 'config'])
-        ->name('config');
- 
-    // POST deshabilitado hasta implementación supervisada
-    // Route::post('/config/guardar', [OdooController::class, 'configSave'])
-    //     ->name('config.save');
-    Route::post('/config/guardar', [OdooController::class, 'configSave'])->name('config.save');
 
-// Sincronización — nuevas
-Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
-Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
-Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
+    // Sincronización — carga de tarifas/pricelists de Odoo hacia la app
+    Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
+    Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
+    Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
 
-
-
-        Route::get('/productos',         [OdooSyncController::class, 'indexProductos'])
-            ->name('productos');
-        Route::post('/productos/buscar', [OdooSyncController::class, 'buscarProductos'])
-            ->name('productos.buscar');
-
-
-            Route::get('/Gmedicos/{id}/odoo-stats', [Medico2Controller::class, 'odooStats'])
-     ->name('Gmedicos.odooStats');
-
-     
-// Cambia esto:
-// Route::get('/odoo/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('odoo.formulacion');
-// Route::post('/odoo/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('odoo.formulacion.buscar');
-
-// Por esto:
-Route::get('/formulacion', [OdooSyncController::class, 'indexFormulacion'])->name('formulacion');
-Route::post('/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacion'])->name('formulacion.buscar');
- 
 });
 
 
@@ -225,55 +203,32 @@ Route::post('/formulacion/buscar', [OdooSyncController::class, 'buscarFormulacio
     |--- GRUPO VISITADOR (id_rol 2) ---
     |----------------------------------------------------------------------------------------*/
         Route::middleware(['role:2'])->group(function () {
-       // 🚀 AHORA SÍ: El Panel pasa por el controlador y cargará los datos reales
-    Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
-    // Ruta principal para ver el Ranking (la que lee tu vista TopMedicos.jsx)
-    // o si están sueltas, agrégales el prefijo manualmente:
-Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
-Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+            // El Panel pasa por el controlador y carga los datos reales
+            Route::get('/panel', [VisitadorController::class, 'index'])->name('panel');
 
-Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
-Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
-        // Médicos
-        Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
-        Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
+            // Ranking de médicos (TopMedicos.jsx)
+            Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
+            Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
+            // Alias sin "/detalle/": mismo controlador, sin nombre propio para no colisionar con el anterior.
+            Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop']);
+            Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])->name('visitador.refrescar-todo');
+            Route::post('/visitador/top-medicos/{documento}/refrescar', [TopMedicosController::class, 'refrescarMedico'])->name('visitador.top-medicos.refrescarMedico');
 
-        // Módulo de Visitas
-        Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
-        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
-        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('MisVisitas.  efectiva');
-        Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
-        Route::post('/MisVisitas/{id}/cancelar', [VisitaController::class, 'cancelar'])->name('MisVisitas.cancelar');
+            Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
+            Route::get('/visitador/alertas/{documento}', [AlertaController::class, 'detalle'])->name('visitador.alertas.detalle');
 
-        Route::get('/perfil-visitador', [VisitaController::class, 'perfil'])->name('visitador.perfil');
+            // Médicos
+            Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
+            Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
-        Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+            // Módulo de Visitas
+            Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
+            Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
+            Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
+            Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
 
-       
-        Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
-        Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
-
-        Route::get('/visitador/top-medicos', [TopMedicosController::class, 'index'])->name('visitador.top-medicos');
-Route::get('/visitador/top-medicos/detalle/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-
-Route::get('/visitador/top-medicos/{documento}', [TopMedicosController::class, 'detalleTop'])->name('visitador.top-medicos.detalle');
-
-// ── Botón "Actualizar período actual" (fuerza consulta fresca a Odoo) ──
-Route::post('/visitador/top-medicos/refrescar', [TopMedicosController::class, 'refrescarIndex'])
-    ->name('visitador.top-medicos.refrescar');
-Route::post('/visitador/top-medicos/{documento}/refrescar', [TopMedicosController::class, 'refrescarDetalle'])
-    ->name('visitador.top-medicos.detalle.refrescar');
-
-Route::get('/visitador/alertas', [AlertaController::class, 'index'])->name('visitador.alertas');
-
-Route::post('/visitador/refrescar-todo', [TopMedicosController::class, 'actualizarTodo'])
-    ->name('visitador.refrescar-todo');
-
-
-
-
-    });
+            Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+        });
 
     /*
     |---------------------------------------------------------------------------------

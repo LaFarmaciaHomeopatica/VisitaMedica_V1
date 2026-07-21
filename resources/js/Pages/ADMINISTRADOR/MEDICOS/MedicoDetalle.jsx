@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
@@ -8,16 +8,48 @@ import {
 import {
     FaArrowLeft, FaUserDoctor, FaCalendarCheck,
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
+    FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus, FaReceipt,
+    FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,
 } from 'react-icons/fa6';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
+
+function TendenciaCategoria({ tendencia }) {
+    if (tendencia === 'subio') return <FaArrowTrendUp className="text-emerald-500 text-[10px]" title="Subió de categoría" />;
+    if (tendencia === 'bajo') return <FaArrowTrendDown className="text-rose-500 text-[10px]" title="Bajó de categoría" />;
+    if (tendencia === 'igual') return <FaMinus className="text-slate-300 text-[8px]" title="Se mantuvo" />;
+    return null;
+}
+
+// Compara dos snapshots consecutivos de categoriaHistorial por valor_minimo.
+function tendenciaEntre(anterior, actual) {
+    if (!anterior || !actual) return null;
+    const vAnterior = parseFloat(anterior?.categoria?.valor_minimo);
+    const vActual   = parseFloat(actual?.categoria?.valor_minimo);
+    if (Number.isNaN(vAnterior) || Number.isNaN(vActual)) return null;
+    if (vActual > vAnterior) return 'subio';
+    if (vActual < vAnterior) return 'bajo';
+    return 'igual';
+}
+
+const CATEGORIA_TIER_COLORS = ['#f59e0b', '#4184F0', '#8b5cf6', '#10b981', '#94a3b8'];
+
+// Asigna un color por nivel de categoría (mayor valor_minimo = primero en la paleta),
+// relativo a las categorías que aparecen en el historial de este médico.
+function colorPorNivelCategoria(historial) {
+    const valores = [...new Set(
+        historial.map(h => parseFloat(h.categoria?.valor_minimo)).filter(v => !Number.isNaN(v))
+    )].sort((a, b) => b - a);
+    const mapa = new Map();
+    valores.forEach((v, i) => mapa.set(v, CATEGORIA_TIER_COLORS[i % CATEGORIA_TIER_COLORS.length]));
+    return mapa;
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 10_000_000_000) return `$${(n / 10_000_000_000).toFixed(1)}M`;
-    if (n >= 10_000_000_000_000)     return `$${(n /10_000_000_000_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 const ESTADO_COLOR = {
     efectiva:        '#10b981',
@@ -35,7 +67,7 @@ const PROD_COLORS = ['#3D3FD8', '#4184F0', '#06b6d4', '#10b981', '#f59e0b', '#8b
 // ── subcomponents ─────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, accent }) {
     return (
-        <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-4"
+        <div className="flex-1 min-w-0 bg-white px-4 py-4"
              style={{ borderTopColor: accent, borderTopWidth: 4 }}>
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
             <p className="text-[22px] font-black text-slate-800 leading-none">{value}</p>
@@ -56,7 +88,7 @@ function EstadoBadge({ estado }) {
 
 function KpiSkeleton({ accent }) {
     return (
-        <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-4 animate-pulse"
+        <div className="flex-1 min-w-0 bg-white px-4 py-4 animate-pulse"
              style={{ borderTopColor: accent, borderTopWidth: 4 }}>
             <div className="h-2 w-16 bg-slate-100 rounded mb-3" />
             <div className="h-5 w-20 bg-slate-200 rounded" />
@@ -67,7 +99,7 @@ function KpiSkeleton({ accent }) {
 function ChartSkeleton({ height = 320 }) {
     return (
         <div className="animate-pulse flex flex-col justify-end gap-2" style={{ height }}>
-            <div className="flex-1 bg-slate-100 rounded-xl" />
+            <div className="flex-1 bg-slate-100 rounded-md" />
             <div className="h-2 w-1/2 bg-slate-100 rounded mx-auto" />
         </div>
     );
@@ -113,7 +145,7 @@ function OdooStatusBadge({ loading, error }) {
 function ChartTooltip({ active, payload, label }) {
     if (!active || !payload?.length) return null;
     return (
-        <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-[10px]">
+        <div className="bg-white rounded-md px-4 py-3 text-[10px]">
             <p className="font-black text-slate-500 mb-1 uppercase">{label}</p>
             {payload.map((p, i) => (
                 <p key={i} style={{ color: p.color }} className="font-bold">
@@ -126,76 +158,74 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────
 const PERIODOS = [
-    { key: 'all', label: 'Todo' },
-    { key: '2y',  label: '2 años' },
-    { key: '1y',  label: '1 año' },
-    { key: '6m',  label: '6 meses' },
-    { key: '3m',  label: '3 meses' },
     { key: 'mes', label: 'Mes Actual' },
-
+    { key: 'all', label: 'Todo' },
 ]; // Se puede agregar más períodos según sea necesario
 
 export default function MedicoDetalle({
-    auth, medico, periodoActivo = 'all', esTemporal = false, documentoBase,
+    auth, medico, tipoDocumentoOdoo = null, periodoActivo = 'mes', fechaDesdeActiva = null, fechaHastaActiva = null,
+    esTemporal = false, documentoBase,
     txStats, tendencia, topProductos,
-    porLaboratorio, todosProductos,
+    porLaboratorio, todosProductos, transacciones = [],
+    tarifasSinClasificar = { total: 0, lineas: 0, tarifas: [] },
     visitasStats, visitas, visitadoresAsignados,
+    categoriaHistorial = [],
 })  {
     const [tabActiva, setTabActiva] = useState('visitadores');
+    const tabsRef = useRef(null);
     const [limLab, setLimLab]       = useState(50);
     const [limProd, setLimProd]     = useState(50);
     const [busquedaProd, setBusquedaProd] = useState('');
     const [ordenProd, setOrdenProd]       = useState('valor_desc'); // 'valor_desc' | 'valor_asc' | 'alfa'
+    const [mostrarCalendario, setMostrarCalendario] = useState(false);
+    const [fechaDesdeInput, setFechaDesdeInput] = useState(fechaDesdeActiva || '');
+    const [fechaHastaInput, setFechaHastaInput] = useState(fechaHastaActiva || '');
 
-    // ── Datos que vienen de Odoo (lentos): se piden aparte para no bloquear
-    // el render inicial, que solo depende de datos locales (médico, visitas,
-    // visitadores). Si el controller ya los mandó en la carga inicial
-    // (txStats truthy), no se vuelven a pedir.
-    const [odoo, setOdoo] = useState({
+    // ── Tab Transacciones (órdenes/facturas Odoo) ───────────────────
+    const [filtroTx, setFiltroTx]                   = useState('venta');
+    const [excluirCanceladosTx, setExcluirCanceladosTx] = useState(true);
+    const [fechaDesdeTx, setFechaDesdeTx]           = useState('');
+    const [fechaHastaTx, setFechaHastaTx]           = useState('');
+    const [filtroCobro, setFiltroCobro]             = useState('todos'); // 'todos' | 'pendiente' | 'vencida' — disparado desde la tarjeta Cartera
+
+    const [sincronizando, setSincronizando] = useState(false);
+    const [syncMsg, setSyncMsg] = useState(null); // { tipo: 'ok' | 'error', texto: string }
+
+    const handleSincronizarCategoria = () => {
+        setSincronizando(true);
+        setSyncMsg(null);
+        router.post(route('Gmedicos.sincronizarCategoria', documentoBase ?? medico.documento), {}, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const flash = page.props.flash ?? {};
+                setSyncMsg(flash.success ? { tipo: 'ok', texto: flash.success } : { tipo: 'error', texto: flash.error ?? 'No se pudo sincronizar.' });
+            },
+            onError: () => setSyncMsg({ tipo: 'error', texto: 'No se pudo sincronizar.' }),
+            onFinish: () => setSincronizando(false),
+        });
+    };
+
+    const handlePeriodoPersonalizado = () => {
+        if (!fechaDesdeInput || !fechaHastaInput) return;
+        router.get(
+            route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
+            { periodo: 'custom', fecha_desde: fechaDesdeInput, fecha_hasta: fechaHastaInput },
+            { preserveScroll: true, onSuccess: () => setMostrarCalendario(false) }
+        );
+    };
+
+    // Los datos de Odoo (txStats, tendencia, productos...) siempre vienen
+    // resueltos desde el controller en la carga inicial (show/showPorDocumento),
+    // no hay una carga diferida del lado del cliente.
+    const odoo = {
         txStats:        txStats ?? null,
         tendencia:      tendencia ?? [],
         topProductos:   topProductos ?? [],
         porLaboratorio: porLaboratorio ?? [],
         todosProductos: todosProductos ?? [],
-    });
-    const [odooLoading, setOdooLoading] = useState(!txStats);
-    const [odooError, setOdooError]     = useState(false);
-
-    useEffect(() => {
-        if (txStats) return; // ya vino con la carga inicial
-
-        let cancelado = false;
-        setOdooLoading(true);
-        setOdooError(false);
-
-        fetch(
-            route('Gmedicos.odooStats', documentoBase ?? medico.documento) +
-            `?periodo=${periodoActivo}`,
-            { headers: { Accept: 'application/json' } }
-        )
-            .then(r => {
-                if (!r.ok) throw new Error('odoo-stats request failed');
-                return r.json();
-            })
-            .then(data => {
-                if (cancelado) return;
-                setOdoo({
-                    txStats:        data.txStats ?? null,
-                    tendencia:      data.tendencia ?? [],
-                    topProductos:   data.topProductos ?? [],
-                    porLaboratorio: data.porLaboratorio ?? [],
-                    todosProductos: data.todosProductos ?? [],
-                });
-                setOdooLoading(false);
-            })
-            .catch(() => {
-                if (cancelado) return;
-                setOdooError(true);
-                setOdooLoading(false);
-            });
-
-        return () => { cancelado = true; };
-    }, [documentoBase, medico.documento, periodoActivo]);
+    };
+    const odooLoading = false;
+    const odooError   = false;
 
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },
@@ -225,105 +255,292 @@ export default function MedicoDetalle({
         return { lat, lng };
     })();
 
+    const hoyISO = new Date().toISOString().split('T')[0];
+    const esFacturaVencida = tx => (Number(tx.saldo_pendiente) || 0) > 0 && tx.fecha_vence && tx.fecha_vence < hoyISO;
+
+    const transaccionesFiltradas = (transacciones ?? []).filter(tx => {
+        if (filtroTx === 'venta'   ? !tx.origen.includes('Venta') : !tx.origen.includes('Factura')) return false;
+        if (excluirCanceladosTx && tx.estado === 'cancel') return false;
+        if (filtroCobro === 'pendiente' && !((Number(tx.saldo_pendiente) || 0) > 0)) return false;
+        if (filtroCobro === 'vencida'   && !esFacturaVencida(tx)) return false;
+        if (tx.fecha) {
+            const txDate = new Date(tx.fecha).toISOString().split('T')[0];
+            if (fechaDesdeTx && txDate < fechaDesdeTx) return false;
+            if (fechaHastaTx && txDate > fechaHastaTx) return false;
+        } else if (fechaDesdeTx || fechaHastaTx) {
+            return false;
+        }
+        return true;
+    });
+    const totalTxFiltrado = transaccionesFiltradas.reduce((acc, tx) => acc + (Number(tx.total) || 0), 0);
+    const baseTxFiltrada   = transaccionesFiltradas.reduce((acc, tx) => acc + (Number(tx.base_imponible) || 0), 0);
+    const impuestosTxFiltrados = transaccionesFiltradas.reduce((acc, tx) => acc + (Number(tx.impuestos) || 0), 0);
+
+    // ── Cartera (cuentas por cobrar) — vista general de facturas, no
+    // depende del pill Ventas/Facturas, refleja el estado ACTUAL de cobro. ──
+    const facturasCartera = (transacciones ?? []).filter(tx => tx.origen.includes('Factura') && tx.estado !== 'cancel');
+    const carteraPendiente = facturasCartera.reduce((acc, tx) => acc + (Number(tx.saldo_pendiente) || 0), 0);
+    const facturasVencidas = facturasCartera.filter(esFacturaVencida);
+    const carteraVencida = facturasVencidas.reduce((acc, tx) => acc + (Number(tx.saldo_pendiente) || 0), 0);
+
+    const irACartera = (filtro = 'pendiente') => {
+        setTabActiva('transacciones');
+        setFiltroTx('factura');
+        setFiltroCobro(filtro);
+        tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const ESTADO_PAGO_BADGE = {
+        paid:             { label: 'Pagada',   className: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+        in_payment:       { label: 'En pago',  className: 'text-blue-500 bg-blue-50 border-blue-100' },
+        partial:          { label: 'Parcial',  className: 'text-amber-600 bg-amber-50 border-amber-100' },
+        not_paid:         { label: 'Pendiente', className: 'text-slate-500 bg-slate-100 border-slate-200' },
+        reversed:         { label: 'Revertida', className: 'text-slate-400 bg-slate-50 border-slate-100' },
+        invoicing_legacy: { label: 'Legado',    className: 'text-slate-400 bg-slate-50 border-slate-100' },
+    };
+    const badgeEstadoPago = (tx) => {
+        if (!tx.origen.includes('Factura')) return null;
+        const vencida = (Number(tx.saldo_pendiente) || 0) > 0 && tx.fecha_vence && tx.fecha_vence < hoyISO;
+        if (vencida) return { label: 'Vencida', className: 'text-red-600 bg-red-50 border-red-100' };
+        return ESTADO_PAGO_BADGE[tx.estado_pago] ?? { label: tx.estado_pago ?? '—', className: 'text-slate-400 bg-slate-50 border-slate-100' };
+    };
+
     return (
         <PanelAdmin user={auth?.user}>
             <Head title={`${medico.nombre} ${medico.apellido} · Detalle`} />
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── HEADER ───────────────────────────────────────── */}
-                <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">
+                <div className="w-full bg-white px-6 py-3">
                     <Link href={route('Gmedicos.index')}
-                          className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition mb-3">
+                          className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition mb-1.5">
                         <FaArrowLeft className="text-[8px]" /> Volver a Médicos
                     </Link>
                     <div className="flex items-start justify-between gap-4 flex-wrap">
-                        <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Perfil del médico</p>
-                            <h1 className="text-[22px] font-black text-slate-800 leading-none uppercase">
-                                {medico.nombre} {medico.apellido}
-                            </h1>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                                {medico.tipo_documento?.nombre ?? 'Doc.'}: {medico.documento}
+                        <div className="min-w-0">
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                                <h1 className="text-[19px] font-black text-slate-800 leading-none uppercase">
+                                    {medico.nombre} {medico.apellido}
+                                </h1>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Perfil del médico</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span>{tipoDocumentoOdoo ?? medico.tipo_documento?.nombre ?? 'Doc.'}: {medico.documento}</span>
                                 {medico.especialidad && (
-                                    <span className="ml-2 text-blue-500 font-bold uppercase">· {medico.especialidad}</span>
+                                    <span className="text-blue-500 font-bold uppercase">{medico.especialidad}</span>
+                                )}
+                                {medico.telefono_contacto && (
+                                    <span className="flex items-center gap-1"><FaPhone className="text-blue-400" /> {medico.telefono_contacto}</span>
+                                )}
+                                {medico.horario_atencion && (
+                                    <span className="flex items-center gap-1"><FaClock className="text-amber-400" /> {medico.horario_atencion}</span>
+                                )}
+                                {medico.direccion_detalles && (
+                                    <span className="flex items-center gap-1"><FaLocationDot className="text-rose-400" /> {medico.direccion_detalles}</span>
+                                )}
+                                {geoCoords && (
+                                    <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
+                                       target="_blank" rel="noopener noreferrer"
+                                       className="flex items-center gap-1 text-blue-500 hover:text-blue-700 font-bold transition">
+                                        <FaLocationDot className="text-blue-400" /> ver mapa
+                                    </a>
                                 )}
                             </p>
                         </div>
-                        
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                            {medico.categoria && (
-                                <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 uppercase">
-                                    {medico.categoria.nombre}
+
+                        {/* ── CARTERA ──────────────────────────────────────── */}
+                        {carteraPendiente > 0 && (
+                            <div className="flex items-center gap-5 rounded-md bg-white px-4 py-2 shrink-0">
+                                <span className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest shrink-0 ${carteraVencida > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                    <FaFileInvoiceDollar className="text-xs" /> Cartera
                                 </span>
+                                <button type="button" onClick={() => irACartera('pendiente')}
+                                    className="text-left hover:opacity-70 transition-opacity">
+                                    <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Pendiente de cobro</p>
+                                    <p className="text-[13px] font-black text-slate-800 leading-none">{fmtM(carteraPendiente)}</p>
+                                </button>
+                                <button type="button" onClick={() => irACartera('vencida')}
+                                    className="text-left hover:opacity-70 transition-opacity">
+                                    <p className="text-[8px] font-black uppercase text-red-400 tracking-widest mb-0.5">Vencida</p>
+                                    <p className={`text-[13px] font-black leading-none ${carteraVencida > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                                        {fmtM(carteraVencida)}
+                                    </p>
+                                </button>
+                                <button type="button" onClick={() => irACartera('vencida')}
+                                    className="text-left hover:opacity-70 transition-opacity">
+                                    <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Facturas vencidas</p>
+                                    <p className="text-[13px] font-black text-slate-800 leading-none">{facturasVencidas.length}</p>
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap items-stretch gap-3">
+                            {/* Clasificación: categoría + visitador asignado */}
+                            {(medico.categoria || medico.visitador) && (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {medico.categoria && (
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 uppercase">
+                                            {medico.categoria.nombre}
+                                            <TendenciaCategoria tendencia={medico.categoria_tendencia} />
+                                        </span>
+                                    )}
+                                    {medico.visitador && (
+                                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase">
+                                            {medico.visitador.nombre} {medico.visitador.apellido}
+                                        </span>
+                                    )}
+                                </div>
                             )}
 
-<Link
-    href={route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento)}
-    className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
->
-    <FaFlask className="text-xs" /> Analizar Alertas
-</Link>
-      
-                            {medico.visitador && (
-                                <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 uppercase">
-                                    Visitador: {medico.visitador.nombre} {medico.visitador.apellido}
-                                </span>
-                            )}
+                            {/* Acción */}
+                            <Link
+                                href={route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento)}
+                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 self-center"
+                            >
+                                <FaFlask className="text-[10px]" /> Analizar Alertas
+                            </Link>
                         </div>
                     </div>
 
-                    {/* Info de contacto */}
-                    {(medico.telefono_contacto || medico.horario_atencion || medico.direccion_detalles || geoCoords) && (
-                        <div className="flex flex-wrap gap-5 mt-3 pt-3 border-t border-slate-50">
-                            {medico.telefono_contacto && (
-                                <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
-                                    <FaPhone className="text-blue-400" /> {medico.telefono_contacto}
-                                </div>
-                            )}
-                            {medico.horario_atencion && (
-                                <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
-                                    <FaClock className="text-amber-400" /> {medico.horario_atencion}
-                                </div>
-                            )}
-                            {medico.direccion_detalles && (
-                                <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
-                                    <FaLocationDot className="text-rose-400" /> {medico.direccion_detalles}
-                                </div>
-                            )}
-                            {geoCoords && (
-                                <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
-                                   target="_blank" rel="noopener noreferrer"
-                                   className="flex items-center gap-1.5 text-[9px] text-blue-500 hover:text-blue-700 font-bold transition">
-                                    <FaLocationDot className="text-blue-400" />
-                                    {geoCoords.lat.toFixed(5)}, {geoCoords.lng.toFixed(5)}
-                                    <span className="text-[8px] text-slate-400">(ver mapa)</span>
-                                </a>
-                            )}
-                        </div>
-                    )}
+                    {/* ── HISTORIAL DE CATEGORÍA + PERÍODO — misma fila ── */}
+                    <div className="mt-3 pt-3 flex flex-wrap items-center justify-between gap-3">
 
-                    {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
-                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-50">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-1">Período:</p>
-                        <OdooStatusBadge loading={odooLoading} error={odooError} />
-                        {PERIODOS.map(p => (
+                        {/* ── HISTORIAL DE CATEGORÍA ─────────────────────────── */}
+                        {!esTemporal && (() => {
+                            const cronologico = [...categoriaHistorial].reverse();
+                            const tierColors = colorPorNivelCategoria(cronologico);
+                            return (
+                                <div className="flex-1 min-w-0 mx-2">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                                            Historial de categoría (mes a mes)
+                                        </p>
+                                        <button type="button" onClick={handleSincronizarCategoria} disabled={sincronizando}
+                                            title="Vuelve a consultar en Odoo todos los datos de este médico: KPIs, tendencia, productos, transacciones, cartera y categoría."
+                                            className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-500 hover:text-blue-700 disabled:opacity-50 transition-colors shrink-0">
+                                            {sincronizando ? <FaSpinner className="animate-spin text-[8px]" /> : <FaRotate className="text-[8px]" />}
+                                            Sincronizar con Odoo
+                                        </button>
+                                    </div>
+                                    {syncMsg && (
+                                        <p className={`flex items-center gap-1 text-[8px] font-bold mb-1 ${syncMsg.tipo === 'ok' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                            {syncMsg.tipo === 'ok' && <FaCheck className="text-[8px]" />}
+                                            {syncMsg.texto}
+                                        </p>
+                                    )}
+                                    {categoriaHistorial.length === 0 && (
+                                        <p className="text-[9px] text-slate-300 italic">Sin historial calculado — usa "Sincronizar con Odoo" para generarlo.</p>
+                                    )}
+                                    <div className="overflow-x-auto">
+                                    <div className="flex gap-1 items-center flex-nowrap w-max">
+                                        {cronologico.map((h, idx) => {
+                                            const color = tierColors.get(parseFloat(h.categoria?.valor_minimo)) ?? '#94a3b8';
+                                            const trend = idx > 0 ? tendenciaEntre(cronologico[idx - 1], h) : null;
+                                            return (
+                                                <React.Fragment key={h.id}>
+                                                    {idx > 0 && (
+                                                        <div className="flex items-center justify-center w-4 shrink-0">
+                                                            <TendenciaCategoria tendencia={trend} />
+                                                        </div>
+                                                    )}
+                                                    <div
+                                                        className="flex flex-col items-center gap-1 rounded-md px-3 py-2 min-w-[74px] border shrink-0 cursor-default"
+                                                        style={{ borderColor: `${color}55`, background: `${color}12` }}
+                                                        title={`Comprado: ${fmtM(h.valor_comprado)} · Formulado: ${fmtM(h.valor_formulado)} · Total: ${fmtM(h.valor_total)}`}
+                                                    >
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase">
+                                                            {h.mes?.slice(0, 7)}
+                                                        </span>
+                                                        <span className="text-[11px] font-black" style={{ color }}>
+                                                            {h.categoria?.nombre ?? '—'}
+                                                        </span>
+                                                    </div>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* ── SELECTOR DE PERÍODO ─────────────────────────── */}
+                        <div className="flex flex-wrap items-center gap-2 relative">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-1">Período:</p>
+                            <OdooStatusBadge loading={odooLoading} error={odooError} />
+                            {PERIODOS.map(p => (
+                                <button
+                                    key={p.key}
+                                    onClick={() => router.get(
+                                        route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
+                                        { periodo: p.key },
+                                        { preserveScroll: true }
+                                    )}
+                                    className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all ${
+                                        periodoActivo === p.key
+                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+
                             <button
-                                key={p.key}
-onClick={() => router.get(
-    route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
-    p.key !== 'all' ? { periodo: p.key } : {},
-    { preserveScroll: true }
-)} 
-                                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
-                                    periodoActivo === p.key
+                                onClick={() => setMostrarCalendario(v => !v)}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all ${
+                                    periodoActivo === 'custom'
                                         ? 'bg-blue-600 text-white shadow-sm'
                                         : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
                                 }`}
                             >
-                                {p.label}
+                                <FaCalendarDays className="h-3 w-3" />
+                                {periodoActivo === 'custom' && fechaDesdeActiva && fechaHastaActiva
+                                    ? `${fechaDesdeActiva} → ${fechaHastaActiva}`
+                                    : 'Personalizado'}
                             </button>
-                        ))}
+
+                            {mostrarCalendario && (
+                            <div className="absolute top-full left-0 mt-2 z-40 bg-white rounded-md p-4 flex flex-col gap-3 w-full max-w-xs">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Rango personalizado</p>
+                                    <button onClick={() => setMostrarCalendario(false)} className="text-slate-300 hover:text-slate-500">
+                                        <FaXmark size={12} />
+                                    </button>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">
+                                        Desde
+                                        <input
+                                            type="date"
+                                            value={fechaDesdeInput}
+                                            max={fechaHastaInput || undefined}
+                                            onChange={e => setFechaDesdeInput(e.target.value)}
+                                            className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                    <label className="text-[9px] font-black uppercase text-slate-400">
+                                        Hasta
+                                        <input
+                                            type="date"
+                                            value={fechaHastaInput}
+                                            min={fechaDesdeInput || undefined}
+                                            onChange={e => setFechaHastaInput(e.target.value)}
+                                            className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-300"
+                                        />
+                                    </label>
+                                </div>
+                                <button
+                                    onClick={handlePeriodoPersonalizado}
+                                    disabled={!fechaDesdeInput || !fechaHastaInput}
+                                    className="w-full py-2 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white disabled:opacity-40 transition-all active:scale-95"
+                                >
+                                    Aplicar
+                                </button>
+                            </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -356,13 +573,41 @@ onClick={() => router.get(
                         <KpiCard label="Total visitas"   value={fmt(visitasStats?.total)}              accent="#ef4444" sub={`${visitasStats?.efectivas ?? 0} efectivas`} />
                     </div>
 
+                    {/* ── Aviso: tarifas sin clasificar ───────────────────
+                        Líneas cuya tarifa (pricelist) todavía no tiene
+                        categoría en Configuración > Tarifas: se suman dentro
+                        de "Val. comprado" para que no queden invisibles, y
+                        aquí se detalla a qué tarifas corresponden. */}
+                    {tarifasSinClasificar?.total > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-md px-5 py-4 flex items-start gap-3">
+                            <FaTriangleExclamation className="text-amber-500 text-sm mt-0.5 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+                                    {fmtM(tarifasSinClasificar.total)} contabilizados en "Val. comprado" desde tarifas sin clasificar
+                                </p>
+                                <p className="text-[9px] text-amber-600 mt-0.5">
+                                    {tarifasSinClasificar.lineas} línea(s) usan una tarifa (pricelist) sin categoría asignada en Configuración → Tarifas. Clasifícalas para que cuenten donde corresponde.
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {tarifasSinClasificar.tarifas.map((t, i) => (
+                                        <span key={i} className="inline-flex items-center gap-1.5 text-[9px] font-bold text-amber-700 bg-white border border-amber-200 rounded-full px-2.5 py-1">
+                                            {t.nombre}
+                                            <span className="text-amber-500 font-mono">{fmtM(t.valor)}</span>
+                                            <span className="text-amber-400">· {t.lineas} lín.</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── CHARTS ───────────────────────────────────────── */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
                         {/* Tendencia valor */}
-                        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                        <div className="xl:col-span-2 bg-white rounded-md p-6">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Histórico</p>
-                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado </p>
+                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado y formulado</p>
                             {odooLoading ? (
                                 <ChartSkeleton height={320} />
                             ) : tendenciaData.length === 0 ? (
@@ -375,6 +620,10 @@ onClick={() => router.get(
                                                 <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.28} />
                                                 <stop offset="95%" stopColor="#4184F0" stopOpacity={0} />
                                             </linearGradient>
+                                            <linearGradient id="gfM" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.28} />
+                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                            </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                                         <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
@@ -382,6 +631,7 @@ onClick={() => router.get(
                                         <Tooltip content={<ChartTooltip />} />
                                         <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
                                         <Area type="monotone" dataKey="comprado" name="Comprado" stroke="#4184F0" fill="url(#gcM)" strokeWidth={2.5} dot={false} />
+                                        <Area type="monotone" dataKey="formulado" name="Formulado" stroke="#8b5cf6" fill="url(#gfM)" strokeWidth={2.5} dot={false} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             )}
@@ -391,7 +641,7 @@ onClick={() => router.get(
                         <div className="flex flex-col gap-5">
 
                             {/* Pie estado visitas */}
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex-1">
+                            <div className="bg-white rounded-md p-5 flex-1">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Visitas</p>
                                 <p className="text-[12px] font-black text-slate-800 mb-3">Estado general</p>
                                 {pieEstados.length === 0 ? (
@@ -420,13 +670,10 @@ onClick={() => router.get(
                             </div>
 
                             {/* Top productos */}
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex-1">
+                            <div className="bg-white rounded-md p-5 flex-1">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Productos</p>
                                 <p className="text-[12px] font-black text-slate-800 mb-1">Top por valor comprado y formulado</p>
-                                <div className="flex gap-3 mb-3">
-                                    <span className="flex items-center gap-1 text-[8px] font-black text-indigo-600"><span className="w-2 h-1.5 rounded-full bg-indigo-500 inline-block" /> Comprado</span>
-                                    <span className="flex items-center gap-1 text-[8px] font-black text-purple-500"><span className="w-2 h-1.5 rounded-full bg-purple-500 inline-block" /> Formulado</span>
-                                </div>
+                                <LeyendaCompradoFormulado className="mb-3" />
                                 <div className="space-y-3">
                                     {odooLoading ? (
                                         <>
@@ -434,44 +681,32 @@ onClick={() => router.get(
                                             <BarRowSkeleton />
                                             <BarRowSkeleton />
                                         </>
-                                    ) : prodData.map((p, i) => {
-                                        const maxC = prodData[0]?.valor ?? 1;
-                                        const maxF = Math.max(...prodData.map(x => x.formulado), 1);
-                                        return (
+                                    ) : prodData.map((p, i) => (
                                             <div key={i}>
                                                 <div className="flex justify-between mb-1">
                                                     <span className="text-[9px] font-bold text-slate-600 truncate flex-1 pr-2">{p.name}</span>
                                                     <div className="flex gap-2 shrink-0">
-                                                        <span className="text-[9px] font-black text-indigo-600">{fmtM(p.valor)}</span>
-                                                        <span className="text-[9px] font-black text-purple-500">{fmtM(p.formulado)}</span>
+                                                        <span className="text-[9px] font-black" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor)}</span>
+                                                        <span className="text-[9px] font-black" style={{ color: COLOR_FORMULADO }}>{fmtM(p.formulado)}</span>
                                                     </div>
                                                 </div>
-                                                {/* Barra comprado */}
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-0.5">
-                                                    <div className="h-full rounded-full"
-                                                         style={{ width: `${(p.valor / maxC) * 100}%`, background: PROD_COLORS[i] }} />
-                                                </div>
-                                                {/* Barra formulado */}
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div className="h-full rounded-full"
-                                                         style={{ width: `${(p.formulado / maxF) * 100}%`, background: '#8b5cf6' }} />
-                                                </div>
+                                                <BarraComparativa comprado={p.valor} formulado={p.formulado} />
                                             </div>
-                                        );
-                                    })}
+                                    ))}
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* ── TABS: Visitadores / Visitas ───────────────────── */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div ref={tabsRef} className="bg-white rounded-md overflow-hidden">
 
-                        <div className="flex border-b border-slate-100">
+                        <div className="flex">
                             {[
-                                { id: 'visitadores',  label: 'Visitadores asignados',   icon: <FaUserDoctor />,    count: visitadoresAsignados?.length },
-                                { id: 'laboratorios', label: 'Laboratorios y productos', icon: <FaFlask />,         count: odooLoading ? '…' : odoo.todosProductos?.length },
-                                { id: 'visitas',      label: 'Historial de visitas',     icon: <FaCalendarCheck />, count: visitas?.length },
+                                { id: 'visitadores',   label: 'Visitadores asignados',   icon: <FaUserDoctor />,        count: visitadoresAsignados?.length },
+                                { id: 'laboratorios',  label: 'Laboratorios y productos', icon: <FaFlask />,             count: odooLoading ? '…' : odoo.todosProductos?.length },
+                                { id: 'transacciones', label: 'Transacciones',           icon: <FaFileInvoiceDollar />, count: transacciones?.length },
+                                { id: 'visitas',       label: 'Historial de visitas',     icon: <FaCalendarCheck />,     count: visitas?.length },
                             ].map(tab => (
                                 <button key={tab.id} onClick={() => setTabActiva(tab.id)}
                                     className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors ${
@@ -520,22 +755,20 @@ onClick={() => router.get(
                         )}
 
                         {/* Tab: Laboratorios y productos */}
-                        {tabActiva === 'laboratorios' && (() => {
-                            const maxLabC = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_comprado)), 1);
-                            const maxLabF = Math.max(...(odoo.porLaboratorio ?? []).map(l => Number(l.valor_formulado)), 1);
-                            return (
+                        {tabActiva === 'laboratorios' && (
                                 <div className="p-6 space-y-6">
 
                                     {/* Laboratorios */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Por laboratorio</p>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <LeyendaCompradoFormulado />
                                                 <span className="text-[9px] text-slate-400">Mostrar</span>
                                                 <select
                                                     value={limLab}
                                                     onChange={e => setLimLab(e.target.value === 'all' ? Infinity : Number(e.target.value))}
-                                                    className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                                    className="text-[9px] font-black border border-slate-200 rounded-md px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                                                 >
                                                     {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
                                                     <option value="all">Todos</option>
@@ -551,32 +784,21 @@ onClick={() => router.get(
                                         ) : (odoo.porLaboratorio ?? []).length === 0 ? (
                                             <p className="text-[10px] text-slate-300 text-center py-6">Sin datos</p>
                                         ) : (
-                                            <div className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                                                 {(odoo.porLaboratorio ?? []).slice(0, limLab).map((lab, i) => (
                                                     <div key={i}>
-                                                        <div className="flex justify-between items-baseline mb-1">
+                                                        <div className="flex flex-wrap justify-between items-baseline gap-x-2 mb-1">
                                                             <span className="text-[10px] font-black text-slate-700 uppercase">{lab.laboratorio}</span>
-                                                            <div className="flex gap-4 text-right">
-                                                                <span className="text-[9px] font-black text-indigo-600">{fmtM(lab.valor_comprado)}</span>
-                                                                <span className="text-[9px] font-black text-purple-500">{fmtM(lab.valor_formulado)}</span>
+                                                            <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-right">
+                                                                <span className="text-[9px] font-black" style={{ color: COLOR_COMPRADO }}>{fmtM(lab.valor_comprado)}</span>
+                                                                <span className="text-[9px] font-black" style={{ color: COLOR_FORMULADO }}>{fmtM(lab.valor_formulado)}</span>
                                                                 <span className="text-[9px] text-slate-400">{fmtM(lab.unidades)} u.</span>
                                                                 <span className="text-[9px] text-slate-400">{lab.total_productos} prod.</span>
                                                             </div>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-0.5">
-                                                            <div className="h-full rounded-full bg-indigo-500"
-                                                                 style={{ width: `${(Number(lab.valor_comprado) / maxLabC) * 100}%` }} />
-                                                        </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full bg-purple-500"
-                                                                 style={{ width: `${(Number(lab.valor_formulado) / maxLabF) * 100}%` }} />
-                                                        </div>
+                                                        <BarraComparativa comprado={Number(lab.valor_comprado)} formulado={Number(lab.valor_formulado)} />
                                                     </div>
                                                 ))}
-                                                <div className="flex gap-4 pt-1">
-                                                    <span className="flex items-center gap-1 text-[8px] font-black text-indigo-600"><span className="w-2 h-1.5 rounded-full bg-indigo-500 inline-block" /> Comprado</span>
-                                                    <span className="flex items-center gap-1 text-[8px] font-black text-purple-500"><span className="w-2 h-1.5 rounded-full bg-purple-500 inline-block" /> Formulado</span>
-                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -598,7 +820,7 @@ onClick={() => router.get(
                                                         placeholder="Buscar producto..."
                                                         value={busquedaProd}
                                                         onChange={e => { setBusquedaProd(e.target.value); setLimProd(50); }}
-                                                        className="pl-6 pr-3 py-1 text-[9px] font-semibold border border-slate-200 rounded-lg text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-44 placeholder:text-slate-300"
+                                                        className="pl-6 pr-3 py-1 text-[9px] font-semibold border border-slate-200 rounded-md text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-44 placeholder:text-slate-300"
                                                     />
                                                     {busquedaProd && (
                                                         <button
@@ -617,7 +839,7 @@ onClick={() => router.get(
                                                     <button
                                                         onClick={() => setOrdenProd('valor_desc')}
                                                         title="Mayor a menor valor comprado"
-                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-md border transition-colors ${
                                                             ordenProd === 'valor_desc'
                                                                 ? 'bg-blue-600 text-white border-blue-600'
                                                                 : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -628,7 +850,7 @@ onClick={() => router.get(
                                                     <button
                                                         onClick={() => setOrdenProd('valor_asc')}
                                                         title="Menor a mayor valor comprado"
-                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-md border transition-colors ${
                                                             ordenProd === 'valor_asc'
                                                                 ? 'bg-blue-600 text-white border-blue-600'
                                                                 : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -639,7 +861,7 @@ onClick={() => router.get(
                                                     <button
                                                         onClick={() => setOrdenProd('alfa')}
                                                         title="Orden alfabético"
-                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-lg border transition-colors ${
+                                                        className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wide rounded-md border transition-colors ${
                                                             ordenProd === 'alfa'
                                                                 ? 'bg-blue-600 text-white border-blue-600'
                                                                 : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -655,7 +877,7 @@ onClick={() => router.get(
                                                     <select
                                                         value={limProd}
                                                         onChange={e => setLimProd(e.target.value === 'all' ? Infinity : Number(e.target.value))}
-                                                        className="text-[9px] font-black border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                                        className="text-[9px] font-black border border-slate-200 rounded-md px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                                                     >
                                                         {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
                                                         <option value="all">Todos</option>
@@ -766,8 +988,161 @@ onClick={() => router.get(
                                     </div>
 
                                 </div>
-                            );
-                        })()}
+                        )}
+
+                        {/* Tab: Transacciones (órdenes/facturas Odoo) */}
+                        {tabActiva === 'transacciones' && (
+                            <div>
+                                <div className="flex items-center justify-between px-6 py-3 bg-slate-50/50 flex-wrap gap-3">
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <button type="button" onClick={() => setExcluirCanceladosTx(v => !v)}
+                                            className={`flex items-center gap-1.5 text-[8px] font-black uppercase px-2.5 py-1.5 rounded-md border transition-colors ${
+                                                excluirCanceladosTx
+                                                    ? 'bg-red-50 border-red-200 text-red-600'
+                                                    : 'bg-slate-100 border-slate-200 text-slate-400'
+                                            }`}>
+                                            <span className={`w-3 h-3 rounded-full border flex items-center justify-center transition-colors ${
+                                                excluirCanceladosTx ? 'bg-red-500 border-red-500' : 'bg-white border-slate-300'
+                                            }`}>
+                                                {excluirCanceladosTx && <span className="text-white text-[7px] leading-none">✓</span>}
+                                            </span>
+                                            Excluir cancelados
+                                        </button>
+                                        <div className="flex items-center gap-1 bg-slate-200/60 p-0.5 rounded-md text-[9px] font-bold uppercase">
+                                            {[
+                                                { key: 'venta',   label: 'Ventas',   active: 'bg-indigo-600 text-white shadow-sm' },
+                                                { key: 'factura', label: 'Facturas', active: 'bg-amber-600 text-white shadow-sm' },
+                                            ].map(({ key, label, active }) => (
+                                                <button key={key} type="button" onClick={() => { setFiltroTx(key); setFiltroCobro('todos'); }}
+                                                    className={`px-3 py-1 rounded-md transition-all ${filtroTx === key ? active : 'text-slate-500 hover:text-slate-800'}`}>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {filtroCobro !== 'todos' && (
+                                            <button type="button" onClick={() => setFiltroCobro('todos')}
+                                                className="flex items-center gap-1.5 text-[8px] font-black uppercase px-2.5 py-1.5 rounded-md border bg-red-50 border-red-200 text-red-600">
+                                                Filtro: {filtroCobro === 'vencida' ? 'Vencidas' : 'Pendientes de cobro'}
+                                                <FaXmark className="text-[9px]" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-slate-500 font-bold uppercase text-[8px]">Desde:</span>
+                                            <input type="date" value={fechaDesdeTx} onChange={e => setFechaDesdeTx(e.target.value)}
+                                                className="bg-white border border-slate-200 rounded-md px-2.5 py-1 text-[9px] font-bold font-mono text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all" />
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-slate-500 font-bold uppercase text-[8px]">Hasta:</span>
+                                            <input type="date" value={fechaHastaTx} onChange={e => setFechaHastaTx(e.target.value)}
+                                                className="bg-white border border-slate-200 rounded-md px-2.5 py-1 text-[9px] font-bold font-mono text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all" />
+                                        </div>
+                                        {(fechaDesdeTx || fechaHastaTx) && (
+                                            <button type="button" onClick={() => { setFechaDesdeTx(''); setFechaHastaTx(''); }}
+                                                className="text-red-500 hover:text-red-700 font-black uppercase text-[8px] tracking-widest bg-red-50 hover:bg-red-100/60 border border-red-100 rounded-md px-2.5 py-1 transition-all">
+                                                Limpiar Fechas
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {transacciones.length > 0 && (
+                                    <div className="px-6 py-3 bg-slate-800 flex items-center justify-between flex-wrap gap-3">
+                                        <div>
+                                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-0.5">
+                                                {filtroTx === 'venta' ? 'Total ventas' : 'Total facturas'}
+                                            </p>
+                                            <p className="text-[20px] font-black text-white leading-none break-words">{fmtM(totalTxFiltrado)}</p>
+                                            <div className="flex items-center gap-3 mt-1.5">
+                                                <span className="text-[9px] font-bold text-slate-300">
+                                                    Base: <span className="text-emerald-300 font-mono">{fmtM(baseTxFiltrada)}</span>
+                                                </span>
+                                                <span className="text-[9px] font-bold text-slate-300">
+                                                    Imp: <span className="text-rose-300 font-mono">{fmtM(impuestosTxFiltrados)}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {transaccionesFiltradas.length > 0 ? (
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-blue-600">
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Tipo</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Referencia</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Fecha</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Base Imponible</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Total</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Estado</th>
+                                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Cobro</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {transaccionesFiltradas.map((tx, idx) => {
+                                                const badge = badgeEstadoPago(tx);
+                                                return (
+                                                <tr key={`${tx.id}-${idx}`} className="hover:bg-blue-50/20 transition-colors">
+                                                    <td className="px-5 py-2.5 border-r border-slate-50">
+                                                        <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
+                                                            tx.origen.includes('Venta')
+                                                                ? 'text-indigo-600 bg-indigo-50 border-indigo-100'
+                                                                : 'text-amber-600 bg-amber-50 border-amber-100'
+                                                        }`}>
+                                                            {tx.origen}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50">
+                                                        <span className="text-[10px] font-bold text-slate-700 uppercase">{tx.referencia}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-center text-[9px] text-slate-500 font-mono">
+                                                        {tx.fecha ? new Date(tx.fecha).toLocaleDateString('es-CO') : '—'}
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-right font-mono">
+                                                        <span className="text-[10px] font-semibold text-emerald-600">{fmtM(tx.base_imponible)}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-right font-mono">
+                                                        <span className="text-[10px] font-bold text-slate-700">{fmtM(tx.total)}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-center">
+                                                        <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
+                                                            ['sale', 'done', 'posted'].includes(tx.estado)
+                                                                ? 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                                                : ['draft', 'sent'].includes(tx.estado)
+                                                                ? 'text-blue-500 bg-blue-50 border-blue-100'
+                                                                : 'text-slate-400 bg-slate-50 border-slate-100'
+                                                        }`}>
+                                                            {tx.estado}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 text-center">
+                                                        {badge ? (
+                                                            <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border uppercase ${badge.className}`}>
+                                                                {badge.label}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] text-slate-300">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div className="text-center py-16 text-slate-300">
+                                        <FaReceipt className="text-4xl mb-2 mx-auto block" />
+                                        <p className="text-[11px] font-bold uppercase">
+                                            No se encontraron transacciones {filtroTx === 'venta' ? 'de ventas' : 'de facturas'}
+                                            {filtroCobro === 'pendiente' && ' pendientes de cobro'}
+                                            {filtroCobro === 'vencida' && ' vencidas'}
+                                            {' '}para este cliente.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Tab: Visitas */}
                         {tabActiva === 'visitas' && (

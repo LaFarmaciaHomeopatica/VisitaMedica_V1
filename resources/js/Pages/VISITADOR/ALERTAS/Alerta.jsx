@@ -145,7 +145,7 @@ const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
                     <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
@@ -214,7 +214,7 @@ const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
                                         className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden flex text-left w-full items-stretch"
                                     >
                                         <div className="flex flex-col md:flex-row items-stretch w-full relative">
-                                            <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#24C765]" />
+                                            <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-[#1C85E8] to-[#0A69C2]" />
                                             
                                             <div className="flex-1 p-4 pl-5 flex flex-col justify-center bg-white/30 border-r border-gray-150">
                                                 <h4 className="font-bold text-gray-800 text-xs md:text-sm leading-tight mb-1 flex items-center gap-2">

@@ -16,9 +16,24 @@ class Categoria extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
+        'valor_minimo',
     ];
 
-    // Si no tienes las columnas 'created_at' y 'updated_at' en tu SQL, 
+    protected $casts = [
+        'valor_minimo' => 'decimal:2',
+    ];
+
+    // Si no tienes las columnas 'created_at' y 'updated_at' en tu SQL,
     // debes desactivarlas aquí:
-    public $timestamps = true; 
+    public $timestamps = true;
+
+    public function historial()
+    {
+        return $this->hasMany(MedicoCategoriaHistorial::class, 'categoria_id');
+    }
+
+    public function medicos()
+    {
+        return $this->hasMany(Medico::class, 'categoria_id');
+    }
 }

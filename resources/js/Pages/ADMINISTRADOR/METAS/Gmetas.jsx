@@ -8,12 +8,10 @@ import {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -287,14 +285,25 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
             <Head title="Gestión de Metas" />
             {showMasivo && <ModalMasivo mes={mes} onClose={() => { setShowMasivo(false); setKey(k => k + 1); }} />}
 
-            <div className="w-full min-h-screen bg-[#F0F4FA] pb-12">
+            <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── HEADER ───────────────────────────────────────── */}
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Panel de metas</p>
-                            <h1 className="text-[22px] font-black text-slate-800 leading-none uppercase">Gestión de Metas</h1>
+                        {/* ── KPIs ─────────────────────────────────────── */}
+                        <div className="flex gap-3 flex-wrap">
+                            {[
+                                { label: 'Total visitadores', value: visitadores.length, accent: '#3D3FD8', icon: <FaUsers /> },
+                                { label: 'Con meta asignada', value: conMeta,            accent: '#10b981', icon: <FaCircleCheck /> },
+                                { label: 'Sin meta',          value: sinMeta,            accent: '#f43f5e', icon: <FaCircleXmark /> },
+                                { label: 'Meta visitas superada', value: metaSuperadaV,  accent: '#f59e0b', icon: <FaBullseye /> },
+                            ].map((k, i) => (
+                                <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-2 min-w-[120px]"
+                                     style={{ borderTopColor: k.accent, borderTopWidth: 4 }}>
+                                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{k.label}</p>
+                                    <p className="text-[18px] font-black text-slate-800 leading-none">{k.value}</p>
+                                </div>
+                            ))}
                         </div>
 
                         {/* Navegador de mes */}
@@ -342,22 +351,6 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
                 </div>
 
                 <div className="px-8 pt-7 space-y-6">
-
-                    {/* ── KPIs ─────────────────────────────────────── */}
-                    <div className="flex gap-4">
-                        {[
-                            { label: 'Total visitadores', value: visitadores.length, accent: '#3D3FD8', icon: <FaUsers /> },
-                            { label: 'Con meta asignada', value: conMeta,            accent: '#10b981', icon: <FaCircleCheck /> },
-                            { label: 'Sin meta',          value: sinMeta,            accent: '#f43f5e', icon: <FaCircleXmark /> },
-                            { label: 'Meta visitas superada', value: metaSuperadaV,  accent: '#f59e0b', icon: <FaBullseye /> },
-                        ].map((k, i) => (
-                            <div key={i} className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4"
-                                 style={{ borderTopColor: k.accent, borderTopWidth: 4 }}>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">{k.label}</p>
-                                <p className="text-[26px] font-black text-slate-800 leading-none">{k.value}</p>
-                            </div>
-                        ))}
-                    </div>
 
                     {/* ── TABLA ────────────────────────────────────── */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

@@ -72,4 +72,9 @@ public $timestamps = false;
     public function categoria() {
     return $this->belongsTo(Categoria::class, 'categoria_id');
 }
+
+    public function categoriaHistorial()
+    {
+        return $this->hasMany(MedicoCategoriaHistorial::class, 'medico_id')->orderByDesc('mes');
+    }
 }

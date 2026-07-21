@@ -23,13 +23,10 @@ import { useProductoForm } from "./HooksP/useProductoForm";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 const LAB_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#8b5cf6','#ef4444','#ec4899','#14b8a6','#f97316'];
 const MESES_ES   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -214,7 +211,7 @@ const Gproductos = ({
                 />
 
                 {/* ── TABS LISTA / ESTADÍSTICAS ─────────────────────────────── */}
-                <div className="flex gap-1 px-6 pt-16 pb-2 border-b border-slate-100 bg-white sticky top-20 z-40">
+                <div className="flex gap-1 px-6 pt-16 pb-2 border-b border-slate-100 bg-white sticky top-14 z-40">
                     {[['lista', 'Lista'], ['estadisticas', 'Estadísticas']].map(([key, label]) => (
                         <button
                             key={key}
@@ -242,7 +239,7 @@ const Gproductos = ({
 
                 {/* ── VISTA: ESTADÍSTICAS ───────────────────────────────────── */}
                 {vista === 'estadisticas' && (
-                    <div className="px-6 py-6 space-y-6 bg-[#F0F4FA] flex-1">
+                    <div className="px-6 py-6 space-y-6 bg-white flex-1">
 
                         {/* ── FILTROS ──────────────────────────────────────────── */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4 flex flex-wrap gap-6 items-start">
@@ -378,8 +375,7 @@ const Gproductos = ({
                                         return (
                                             <div key={i}>
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="w-4 h-4 rounded flex items-center justify-center text-[8px] font-black text-white shrink-0"
-                                                          style={{ background: LAB_COLORS[i % LAB_COLORS.length] }}>
+                                                    <span className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white shrink-0 bg-slate-400">
                                                         {i + 1}
                                                     </span>
                                                     <span className="text-[9px] font-bold text-slate-700 flex-1 truncate" title={p.nombre}>{p.nombre}</span>
@@ -476,8 +472,7 @@ const Gproductos = ({
                                             return (
                                                 <tr key={i} className="hover:bg-blue-50/20 transition-colors">
                                                     <td className="px-5 py-3">
-                                                        <span className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-black text-white"
-                                                              style={{ background: LAB_COLORS[i % LAB_COLORS.length] }}>
+                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white bg-slate-400">
                                                             {i + 1}
                                                         </span>
                                                     </td>

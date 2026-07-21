@@ -11,9 +11,16 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\OdooService;
 
 class VisitadorController extends Controller
 {
+    private OdooService $odoo;
+
+    public function __construct(OdooService $odoo)
+    {
+        $this->odoo = $odoo;
+    }
 
     public function index(Request $request)
     {
@@ -68,6 +75,13 @@ class VisitadorController extends Controller
             ->unique()
             ->map(fn($d) => (string) $d)
             ->values();
+
+        // Especialidad resuelta desde Odoo (igual que el admin), no la
+        // columna local 'especialidad' (legado).
+        $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
+        foreach ($medicos as $medico) {
+            $medico->especialidad = $especialidades[trim((string) $medico->documento)] ?? 'General';
+        }
 
         // 3️⃣ Ventas totales del mes
         $ventasActuales = $todosMedicosDoc->isNotEmpty()

@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { FaXmark, FaFileInvoiceDollar, FaChartLine, FaBoxesStacked } from 'react-icons/fa6';
+import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-const fmtM = n => {
-    n = n ?? 0;
-    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-    if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
-    return `$${fmt(n)}`;
-};
-
-const COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b'];
+// Valor completo en pesos, sin abreviar a K/M/B.
+const fmtM = n => new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+}).format(n ?? 0);
 
 export default function MedicoTempStatsPanel({ medico, onClose }) {
     const [data,    setData]    = useState(null);
@@ -34,7 +30,6 @@ export default function MedicoTempStatsPanel({ medico, onClose }) {
     const kpis = data?.kpis ?? {};
     const tendencia = data?.tendencia ?? [];
     const topProductos = data?.topProductos ?? [];
-    const maxC = Math.max(...topProductos.map(p => p.valor_comprado ?? 0), 1);
 
     return (
         <>
@@ -42,7 +37,7 @@ export default function MedicoTempStatsPanel({ medico, onClose }) {
             <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-50" onClick={onClose} />
 
             {/* Panel */}
-            <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-[#F0F4FA] z-50 shadow-2xl flex flex-col overflow-hidden
+            <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-white z-50 shadow-2xl flex flex-col overflow-hidden
                             animate-in slide-in-from-right duration-300">
 
                 {/* Header */}
@@ -141,38 +136,27 @@ export default function MedicoTempStatsPanel({ medico, onClose }) {
                             {/* Top productos */}
                             {topProductos.length > 0 && (
                                 <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
-                                        <FaBoxesStacked className="text-indigo-400" /> Top productos
-                                    </p>
+                                    <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                            <FaBoxesStacked className="text-indigo-400" /> Top productos
+                                        </p>
+                                        <LeyendaCompradoFormulado />
+                                    </div>
                                     <div className="space-y-4">
-                                        {topProductos.map((p, i) => {
-                                            const pct = Math.round(((p.valor_comprado ?? 0) / maxC) * 100);
-                                            return (
+                                        {topProductos.map((p, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-1.5">
-                                                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                                                              style={{ background: COLORS[i] }}>{i + 1}</span>
+                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 bg-slate-400">{i + 1}</span>
                                                         <span className="text-[10px] font-bold text-slate-700 flex-1">{p.nombre}</span>
                                                         <span className="text-[9px] font-black text-slate-500 shrink-0">{fmt(p.unidades)} un.</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Comprado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: COLORS[i] }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-slate-700 w-14 text-right shrink-0">{fmtM(p.valor_comprado)}</span>
-                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] font-black text-slate-400 w-16 shrink-0 uppercase">Formulado</span>
-                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-purple-400 rounded-full"
-                                                                 style={{ width: `${Math.round(((p.valor_formulado ?? 0) / maxC) * 100)}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] font-black text-purple-600 w-14 text-right shrink-0">{fmtM(p.valor_formulado ?? 0)}</span>
+                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
+                                                        <BarraComparativa comprado={p.valor_comprado ?? 0} formulado={p.valor_formulado ?? 0} />
+                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(p.valor_formulado ?? 0)}</span>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                        ))}
                                     </div>
                                 </div>
                             )}

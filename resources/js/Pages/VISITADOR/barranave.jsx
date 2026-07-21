@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import {
     FaHouse,
@@ -10,12 +10,28 @@ import {
     FaRankingStar, // Icono de ranking (puedes cambiarlo por otro si prefieres)
     FaBell, // Icono de alertas
     FaArrowsRotate, // Icono de actualizar
+    FaWifi, // Icono de aviso de conexión
 } from 'react-icons/fa6';
 
 const BottomNavigation = () => {
     const { url } = usePage();
     const [isOpen, setIsOpen] = useState(false);
     const [actualizando, setActualizando] = useState(false);
+    const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+
+    // Modo de mala señal: aviso visible en todas las pantallas del visitador
+    // (este componente ya se monta en todas ellas) cuando el dispositivo
+    // pierde conexión, para que no queden acciones fallando en silencio.
+    useEffect(() => {
+        const marcarOnline  = () => setOnline(true);
+        const marcarOffline = () => setOnline(false);
+        window.addEventListener('online', marcarOnline);
+        window.addEventListener('offline', marcarOffline);
+        return () => {
+            window.removeEventListener('online', marcarOnline);
+            window.removeEventListener('offline', marcarOffline);
+        };
+    }, []);
 
     const navIcons = [
     { icon: <FaHouse />, label: 'Inicio', route: '/panel' },
@@ -50,9 +66,17 @@ const BottomNavigation = () => {
     };
 
     return (
-        
- <> {/* --- MÓVIL: MENÚ FLOTANTE IZQUIERDA --- */}
-          
+
+ <>
+{!online && (
+    <div className="fixed top-0 inset-x-0 z-50 bg-amber-500 text-white text-[11px] font-black uppercase tracking-wider py-2 px-4 flex items-center justify-center gap-2 shadow-md">
+        <FaWifi className="text-xs" />
+        Sin conexión — algunas acciones no se guardarán hasta que vuelva la señal
+    </div>
+)}
+
+{/* --- MÓVIL: MENÚ FLOTANTE IZQUIERDA --- */}
+
 <div className="fixed bottom-6 left-6 z-50 sm:hidden pointer-events-none">
     {/* Lista de enlaces vertical */}
     <div className={`flex flex-col-reverse gap-3 mb-16 transition-all duration-300 origin-bottom-left ${isOpen
@@ -118,9 +142,9 @@ const BottomNavigation = () => {
     <button
         onClick={toggleMenu}
         className={`fixed bottom-5 left-5 z-50 w-14 h-14 flex items-center justify-center rounded-2xl shadow-2xl transition-all duration-300 text-white pointer-events-auto
-         ${isOpen 
+         ${isOpen
             ? 'bg-red-500' // Se vuelve rojo al abrir para indicar cierre claro
-            : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#02CFE3] hover:scale-105'
+            : 'bg-[#1C85E8] hover:scale-105'
          }`}
     >
         {isOpen ? (

@@ -55,7 +55,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
                             onClick={() => logic.setVistaSemanal(!logic.vistaSemanal)}
                             className={`px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 ${
                                 logic.vistaSemanal
-                                    ? 'bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] text-white border-transparent shadow-sm'
+                                    ? 'bg-[#1C85E8] text-white border-transparent shadow-sm'
                                     : 'bg-white text-gray-400 border-gray-100'
                             }`}
                         >
@@ -66,7 +66,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
                 </div>
 
                 {/* Fila 2: franja "Mis Visitas" — con gradiente del sistema, pegada a la fila superior */}
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px]">
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px]">
                     <div className="max-w-[1440px] mx-auto px-5 py-2.5 flex items-center gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/80">LFH · Agenda</p>
                         <span className="text-white/40">|</span>
@@ -82,7 +82,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
             {!overlayVisible && (
                 <button
                     onClick={() => logic.abrirModalNuevo()}
-                    className="fixed bottom-5 right-5 sm:bottom-28 sm:right-6 w-14 h-14 bg-gradient-to-br from-[#1C85E8] to-[#02CFE3] text-white rounded-2xl shadow-lg shadow-blue-200 z-40 flex items-center justify-center hover:scale-110 transition-all active:scale-95"
+                    className="fixed bottom-5 right-5 sm:bottom-28 sm:right-6 w-14 h-14 bg-[#1C85E8] text-white rounded-2xl shadow-lg shadow-blue-200 z-40 flex items-center justify-center hover:scale-110 transition-all active:scale-95"
                 >
                     <FaPlus className="text-xl" />
                 </button>

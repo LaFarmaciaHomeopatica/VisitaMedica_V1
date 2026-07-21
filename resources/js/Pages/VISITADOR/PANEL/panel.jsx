@@ -3,8 +3,9 @@ import { Head, router } from '@inertiajs/react';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
 
 import BarraNave from '../barranave';
-import HeroSection    from './ComponentsPe/HeroSection';
-import PendientesTab  from './ComponentsPe/PendientesTab';
+import HeroSection        from './ComponentsPe/HeroSection';
+import PendientesTab      from './ComponentsPe/PendientesTab';
+import MedicosCoincidentes from './ComponentsPe/MedicosCoincidentes';
 
 import { useDashboardMetrics } from './HooksPe/useDashboardMetrics';
 
@@ -35,7 +36,6 @@ const DashboardLFH = ({
     ventasActuales    = 0,
 }) => {
     const [search, setSearch] = useState('');
-    const [tabActiva, setTabActiva] = useState('pendientes');
 
     const metaActual      = visitador?.metas || null;
     const metaValorGlobal = metaActual?.meta_visitas || 0;
@@ -56,6 +56,14 @@ const DashboardLFH = ({
         const medicoData = medicos.find(m => String(m.id) === String(visita.medico_id)) || visita.medico;
         return cumpleFiltroBusqueda(medicoData, termino);
     });
+
+    // El placeholder dice "Buscar médicos asignados", así que la búsqueda no puede
+    // limitarse a las visitas pendientes: cuando hay término, también se buscan
+    // médicos asignados que no tengan una pendiente ya listada arriba.
+    const medicoIdsConPendiente = new Set(visitasPendientesFiltradas.map(v => String(v.medico_id)));
+    const medicosSinPendienteFiltrados = termino
+        ? medicos.filter(m => cumpleFiltroBusqueda(m, termino) && !medicoIdsConPendiente.has(String(m.id)))
+        : [];
 
     const irAEjecutarVisita = (medicoId, visitaId) =>
         router.get('/MisVisitas', { medico_id: medicoId, visita_id: visitaId });
@@ -101,21 +109,16 @@ const DashboardLFH = ({
                 meta={meta}
                 ventasActuales={ventasActuales}
                 metaDinero={metaDinero}
-                tabActiva={tabActiva}
-                setTabActiva={setTabActiva}
-                totalMedicos={medicos.length}
-                totalPendientes={visitasPendientes.length}
             />
 
             {/* ── Contenido dinámico ── */}
             <main className="max-w-5xl mx-auto px-4 mt-3 md:mt-6 space-y-3">
-                {tabActiva === 'pendientes' && (
-                    <PendientesTab
-                        visitasPendientesFiltradas={visitasPendientesFiltradas}
-                        medicos={medicos}
-                        irAEjecutarVisita={irAEjecutarVisita}
-                    />
-                )}
+                <PendientesTab
+                    visitasPendientesFiltradas={visitasPendientesFiltradas}
+                    medicos={medicos}
+                    irAEjecutarVisita={irAEjecutarVisita}
+                />
+                <MedicosCoincidentes medicos={medicosSinPendienteFiltrados} />
             </main>
 
             <BarraNave />

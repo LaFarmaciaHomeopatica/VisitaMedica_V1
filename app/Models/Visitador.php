@@ -16,8 +16,6 @@ class Visitador extends Model
         'usuario_id',
         'documento',
         'zona_id',
-        'meta_visitas_mensual',
-        'meta_ventas_mensual',
         'estado',
         'tipo_documento_id',
         'nombre',
@@ -34,6 +32,11 @@ class Visitador extends Model
     public function tipoDocumento()
     {
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
+    }
+
+    public function zona()
+    {
+        return $this->belongsTo(Zona::class, 'zona_id');
     }
 
     /**
