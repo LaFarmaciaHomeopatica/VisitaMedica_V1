@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import { FaTags, FaGear, FaUserGear, FaMapLocationDot, FaLayerGroup } from 'react-icons/fa6';
-
+import "leaflet/dist/leaflet.css";
+import "leaflet-draw/dist/leaflet.draw.css";
 import TarifasPanel from './ComponentsC/TarifasPanel';
 import OdooConfigPanel from './ComponentsC/OdooConfigPanel';
 import UsuariosPanel from './ComponentsC/UsuariosPanel';

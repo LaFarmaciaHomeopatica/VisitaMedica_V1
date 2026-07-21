@@ -36,7 +36,7 @@ class MedicosTempExport implements FromQuery, WithHeadings, WithMapping, ShouldA
         return [
             'Documento',
             'Nombre Referencia',
-            'Origen Datos',
+           
             
         ];
     }
@@ -48,7 +48,7 @@ class MedicosTempExport implements FromQuery, WithHeadings, WithMapping, ShouldA
         return [
             $medico->documento,
             $medico->nombre_referencia,
-            $medico->origen_datos,
+           
 
         ];
     }

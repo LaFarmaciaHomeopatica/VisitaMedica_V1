@@ -1,14 +1,13 @@
-import React, { useState, useEffect  } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
     FaChevronLeft, FaChevronRight, FaCheck, FaTrash,
-    FaBullseye, FaUsers, FaCircleCheck, FaCircleXmark, FaWandMagicSparkles,
+    FaCircleCheck, FaCircleXmark, FaWandMagicSparkles, FaArrowRotateRight,
 } from 'react-icons/fa6';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
-// Valor completo en pesos, sin abreviar a K/M/B.
 const fmtM = n => new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', maximumFractionDigits: 0,
 }).format(n ?? 0);
@@ -25,7 +24,7 @@ function labelMes(ym) {
 // ── permite superar el 100% ───────────────────────────────────────────────────
 function pct(actual, meta) {
     if (!meta || meta <= 0) return 0;
-    return Math.round((actual / meta) * 100); // ✅ sin Math.min
+    return Math.round((actual / meta) * 100);
 }
 
 // ── barra de progreso ─────────────────────────────────────────────────────────
@@ -51,17 +50,17 @@ function Bar({ actual, meta, color }) {
     );
 }
 
-function FilaMeta({ visitador, progreso, mes, onSaved }) {
-    const prog = progreso[visitador.id] ?? { visitas_efectivas: 0, valor_comprado: 0 };
+function FilaMeta({ visitador, progreso, mes, odooCargado }) {
+    const prog = progreso[visitador.id] ?? { visitas_efectivas: 0, valor_comprado: 0, valor_formulado: 0 };
 
-    // ── estado numérico puro (nunca strings con $ ni comas) ──────────────
+    // ── estado numérico puro ──────────────────────────────────────────────────
     const [metaV, setMetaV] = useState(visitador.meta?.meta_visitas ?? '');
     const [metaD, setMetaD] = useState(visitador.meta?.meta_dinero  ?? '');
     const [metaDFocus, setMetaDFocus] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved,  setSaved]  = useState(false);
 
-    // ── sincroniza cuando cambia el mes o se refresca la meta ────────────
+    // ── sincroniza cuando cambia el mes o se refresca la meta ────────────────
     useEffect(() => {
         setMetaV(visitador.meta?.meta_visitas ?? '');
         setMetaD(visitador.meta?.meta_dinero  ?? '');
@@ -78,11 +77,11 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
             meta_dinero:  metaD !== '' ? Number(metaD) : 0,
         }, {
             preserveScroll: true,
+            only: ['visitadores', 'progreso'], // Actualiza solo las props necesarias en segundo plano
             onSuccess: () => {
                 setSaving(false);
                 setSaved(true);
                 setTimeout(() => setSaved(false), 2000);
-                onSaved();
             },
             onError: () => setSaving(false),
         });
@@ -92,17 +91,16 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
         if (!visitador.meta?.id) return;
         router.delete(route('Gmetas.destroy', visitador.meta.id), {
             preserveScroll: true,
-            onSuccess: onSaved,
+            only: ['visitadores', 'progreso'],
         });
     };
 
-    // ── valor formateado para mostrar cuando no tiene foco ───────────────
+    // ── valor formateado para mostrar cuando no tiene foco ───────────────────
     const metaDDisplay = metaDFocus || metaD === ''
         ? metaD
         : `$${new Intl.NumberFormat('es-CO').format(Math.round(Number(metaD)))}`;
 
     const pctV = pct(prog.visitas_efectivas, metaV);
-    const pctD = pct(prog.valor_comprado,    metaD);
 
     return (
         <tr className="hover:bg-blue-50/20 transition-colors group">
@@ -143,7 +141,10 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
                 <input
                     type={metaDFocus ? 'number' : 'text'}
                     value={metaDDisplay}
-                    onChange={e => setMetaD(e.target.value)}
+                    onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setMetaD(val);
+                    }}
                     onFocus={() => setMetaDFocus(true)}
                     onBlur={() => setMetaDFocus(false)}
                     placeholder="$0"
@@ -162,15 +163,52 @@ function FilaMeta({ visitador, progreso, mes, onSaved }) {
                 </div>
             </td>
 
-            {/* Progreso valor */}
-            <td className="px-4 py-3 border-r border-slate-50">
-                <div className="space-y-1">
-                    <div className="flex justify-between text-[9px]">
-                        <span className="text-slate-500 font-bold">{fmtM(prog.valor_comprado)}</span>
-                        <span className={`font-black ${pctD >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>{pctD}%</span>
+            {/* Progreso valor (Suma total) */}
+            <td className="px-4 py-3 border-r border-slate-50 min-w-[210px]">
+                {!odooCargado ? (
+                    // ── Skeleton mientras se trae el dato de Odoo para ESTE visitador ──
+                    <div className="flex flex-col justify-center gap-1.5 animate-pulse">
+                        <div className="flex justify-end">
+                            <span className="text-[8px] font-black text-blue-400 uppercase flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
+                                Odoo...
+                            </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full w-1/3 bg-slate-200 rounded-full" />
+                        </div>
+                        <div className="h-2 w-full bg-slate-100 rounded" />
                     </div>
-                    <Bar actual={prog.valor_comprado} meta={metaD} color="#8b5cf6" />
-                </div>
+                ) : (() => {
+                    const totalValor = (prog.valor_comprado || 0) + (prog.valor_formulado || 0);
+                    const pctTotal = pct(totalValor, metaD);
+
+                    return (
+                        <div className="flex flex-col justify-center">
+                            {/* Porcentaje */}
+                            <div className="flex justify-end items-center text-[10px] mb-1">
+                                <span className={`font-black ${pctTotal >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                    {pctTotal}%
+                                </span>
+                            </div>
+
+                            {/* BARRA ÚNICA SUMADA */}
+                            <Bar actual={totalValor} meta={metaD} color="#24C765" />
+
+                            {/* DESGLOSE (Comprado y Formulado) */}
+                            <div className="flex items-center justify-between mt-1.5 text-[9.5px]">
+                                <span className="text-slate-500 font-bold flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#24C765] inline-block" />
+                                    Comp: ${new Intl.NumberFormat('es-CO').format(prog.valor_comprado || 0)}
+                                </span>
+                                <span className="text-slate-500 font-bold flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#8b5cf6] inline-block" />
+                                    Form: ${new Intl.NumberFormat('es-CO').format(prog.valor_formulado || 0)}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })()}
             </td>
 
             {/* Acciones */}
@@ -261,9 +299,79 @@ function ModalMasivo({ mes, onClose }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesConMetas }) {
-    const [mes, setMes]           = useState(mesActual);
+    const [mes, setMes]               = useState(mesActual);
     const [showMasivo, setShowMasivo] = useState(false);
-    const [key, setKey]           = useState(0);
+
+    // ── Progreso "vivo" (local + lo que va llegando de Odoo) ───────────────
+    const [progresoLive, setProgresoLive] = useState(progreso);
+    // ── Ids de visitadores cuyo dato de Odoo YA llegó para el mes actual ──
+    const [odooCargados, setOdooCargados] = useState({});
+    const [odooCargando, setOdooCargando] = useState(false);
+    // ── Metadata de la última carga (para mostrar "actualizado hace X") ──
+    const [odooUltimaActualizacion, setOdooUltimaActualizacion] = useState(null);
+    const [odooTodoDesdeCache, setOdooTodoDesdeCache] = useState(true);
+
+    // Referencia al "token" de la carga en curso: si cambia el mes a mitad de
+    // camino, las respuestas de la carga anterior (obsoletas) se descartan.
+    const cargaTokenRef = React.useRef(0);
+
+    // Cuando cambian los props base (nuevo mes / guardar meta), reseteamos
+    // el progreso "vivo" con lo que llega del servidor (datos locales, sin Odoo)
+    useEffect(() => {
+        setProgresoLive(progreso);
+    }, [progreso]);
+
+    // ── Trae de Odoo los datos de valor, UN visitador a la vez ─────────────
+    // forzar = true → ignora la caché de 4h del backend y vuelve a consultar Odoo
+    const cargarOdoo = async (forzar = false) => {
+        const miToken = ++cargaTokenRef.current;
+
+        setOdooCargados({});
+        setOdooCargando(true);
+        setOdooTodoDesdeCache(true);
+
+        for (const v of visitadores) {
+            if (cargaTokenRef.current !== miToken) return; // carga obsoleta, abortar
+            try {
+                const url = `/Gmetas/odoo-stats/${v.id}?mes=${mes}${forzar ? '&forzar=1' : ''}`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+
+                if (cargaTokenRef.current !== miToken) return; // carga obsoleta, abortar
+
+                setProgresoLive(prev => ({
+                    ...prev,
+                    [v.id]: {
+                        ...(prev[v.id] ?? { id: v.id, visitas_efectivas: 0 }),
+                        valor_comprado:  data.valor_comprado ?? 0,
+                        valor_formulado: data.valor_formulado ?? 0,
+                    },
+                }));
+
+                if (!data.desde_cache) setOdooTodoDesdeCache(false);
+                if (data.actualizado_en) setOdooUltimaActualizacion(data.actualizado_en);
+            } catch (e) {
+                // Si falla un visitador puntual, seguimos con el resto
+            } finally {
+                if (cargaTokenRef.current === miToken) {
+                    setOdooCargados(prev => ({ ...prev, [v.id]: true }));
+                }
+            }
+        }
+        if (cargaTokenRef.current === miToken) setOdooCargando(false);
+    };
+
+    // Carga automática al montar / cambiar de mes (usa la caché de 4h si existe)
+    useEffect(() => {
+        cargarOdoo(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mes, visitadores]);
+
+    const totalOdooCargados = Object.keys(odooCargados).length;
+
+    const horaActualizacion = odooUltimaActualizacion
+        ? new Date(odooUltimaActualizacion).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+        : null;
 
     const navMes = (delta) => {
         const [y, m] = mes.split('-').map(Number);
@@ -273,17 +381,25 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
         router.get(route('Gmetas.index'), { mes: nuevo }, { preserveState: true, replace: true });
     };
 
-    const conMeta    = visitadores.filter(v => v.meta).length;
-    const sinMeta    = visitadores.length - conMeta;
+    const conMeta = visitadores.filter(v => v.meta).length;
+    const sinMeta = visitadores.length - conMeta;
+
+    // Metas superadas
     const metaSuperadaV = visitadores.filter(v => {
-        const p = progreso[v.id];
+        const p = progresoLive[v.id];
         return v.meta && p && p.visitas_efectivas >= v.meta.meta_visitas;
+    }).length;
+
+    const metaSuperadaD = visitadores.filter(v => {
+        const p = progresoLive[v.id];
+        const totalVenta = (p?.valor_comprado || 0) + (p?.valor_formulado || 0);
+        return v.meta && v.meta.meta_dinero > 0 && totalVenta >= v.meta.meta_dinero;
     }).length;
 
     return (
         <PanelAdmin user={auth?.user}>
             <Head title="Gestión de Metas" />
-            {showMasivo && <ModalMasivo mes={mes} onClose={() => { setShowMasivo(false); setKey(k => k + 1); }} />}
+            {showMasivo && <ModalMasivo mes={mes} onClose={() => setShowMasivo(false)} />}
 
             <div className="w-full min-h-screen bg-white pb-12">
 
@@ -291,23 +407,70 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
                 <div className="w-full bg-white border-b border-slate-100 px-8 py-5 shadow-sm">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                         {/* ── KPIs ─────────────────────────────────────── */}
-                        <div className="flex gap-3 flex-wrap">
+                        <div className="flex items-center gap-8 flex-wrap">
                             {[
-                                { label: 'Total visitadores', value: visitadores.length, accent: '#3D3FD8', icon: <FaUsers /> },
-                                { label: 'Con meta asignada', value: conMeta,            accent: '#10b981', icon: <FaCircleCheck /> },
-                                { label: 'Sin meta',          value: sinMeta,            accent: '#f43f5e', icon: <FaCircleXmark /> },
-                                { label: 'Meta visitas superada', value: metaSuperadaV,  accent: '#f59e0b', icon: <FaBullseye /> },
+                                { label: 'Total visitadores',     value: visitadores.length, accent: '#3D3FD8' },
+                                { label: 'Con meta asignada',     value: conMeta,            accent: '#10b981' },
+                                { label: 'Sin meta',              value: sinMeta,            accent: '#f43f5e' },
+                                { label: 'Meta visitas superada', value: metaSuperadaV,      accent: '#f59e0b' },
+                                { label: 'Meta valor superada',   value: metaSuperadaD,      accent: '#24C765' },
                             ].map((k, i) => (
-                                <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-2 min-w-[120px]"
-                                     style={{ borderTopColor: k.accent, borderTopWidth: 4 }}>
-                                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{k.label}</p>
-                                    <p className="text-[18px] font-black text-slate-800 leading-none">{k.value}</p>
+                                <div key={i} className="flex flex-col justify-between min-w-[120px]">
+                                    <div 
+                                        className="w-full h-1 rounded-full mb-3" 
+                                        style={{ backgroundColor: k.accent }} 
+                                    />
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 leading-tight">
+                                        {k.label}
+                                    </p>
+                                    <p className="text-[24px] font-bold text-slate-900 leading-none tracking-tight">
+                                        {k.value}
+                                    </p>
                                 </div>
                             ))}
                         </div>
 
                         {/* Navegador de mes */}
                         <div className="flex items-center gap-3">
+                            {/* ── Indicador de carga de Odoo ──────────────────── */}
+                            {odooCargando ? (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-2xl">
+                                    <span className="h-3 w-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin inline-block" />
+                                    <div className="flex flex-col leading-none">
+                                        <span className="text-[9px] font-black text-blue-600 uppercase">
+                                            Trayendo metas de Odoo
+                                        </span>
+                                        <span className="text-[8px] font-bold text-blue-400">
+                                            {totalOdooCargados} / {visitadores.length} visitadores
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                horaActualizacion && (
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-2xl">
+                                        <span className={`h-2 w-2 rounded-full inline-block ${odooTodoDesdeCache ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                                        <div className="flex flex-col leading-none">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase">
+                                                {odooTodoDesdeCache ? 'Datos en caché' : 'Datos actualizados'}
+                                            </span>
+                                            <span className="text-[8px] font-bold text-slate-400">
+                                                Odoo · {horaActualizacion}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )
+                            )}
+
+                            {/* ── Botón Actualizar: fuerza saltarse la caché de 4h ── */}
+                            <button
+                                onClick={() => cargarOdoo(true)}
+                                disabled={odooCargando}
+                                title="Volver a consultar Odoo, ignorando la caché de 4 horas"
+                                className="flex items-center gap-2 px-3 py-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <FaArrowRotateRight className={`h-3 w-3 ${odooCargando ? 'animate-spin' : ''}`} />
+                            </button>
+
                             <div className="flex items-center bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                                 <button
                                     onClick={() => navMes(-1)}
@@ -367,7 +530,7 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
                                         <th className="px-4 py-3 text-white text-[9px] font-black uppercase text-center">Acción</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50" key={key}>
+                                <tbody className="divide-y divide-slate-50">
                                     {visitadores.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="px-5 py-12 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
@@ -378,9 +541,9 @@ export default function Gmetas({ auth, visitadores, progreso, mesActual, mesesCo
                                         <FilaMeta
                                             key={`${v.id}-${mes}`}
                                             visitador={v}
-                                            progreso={progreso}
+                                            progreso={progresoLive}
+                                            odooCargado={!!odooCargados[v.id]}
                                             mes={mes}
-                                            onSaved={() => setKey(k => k + 1)}
                                         />
                                     ))}
                                 </tbody>

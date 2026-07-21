@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { FaArrowLeft, FaUserDoctor, FaCalendarCheck, FaChartLine, FaCircleCheck, FaCircleXmark, FaChevronLeft, FaChevronRight } from 'react-icons/fa6';
+import { FaArrowLeft, FaUserDoctor, FaCalendarCheck, FaChartLine, FaCircleCheck, FaCircleXmark, FaChevronLeft, FaChevronRight, FaArrowRotateRight } from 'react-icons/fa6';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => new Intl.NumberFormat('es-CO').format(Math.round(n ?? 0));
@@ -29,15 +29,32 @@ const ESTADO_LABEL = {
 const PROD_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b'];
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, accent }) {
-    return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4"
-             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-            <p className="text-[22px] font-black text-slate-800 leading-none">{value}</p>
-            {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
+function KpiCard({ label, value, accent, href }) {
+    const inner = (
+        <div className="pt-2 pb-4 flex flex-col justify-between h-full relative group">
+            {/* Línea/Borde superior colorido */}
+            <div 
+                className="w-full h-1 rounded-full mb-4" 
+                style={{ backgroundColor: accent }} 
+            />
+
+            {/* Etiqueta / Título en mayúsculas */}
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 leading-tight">
+                {label}
+            </p>
+
+            {/* Valor principal */}
+            <p className="text-[20px] font-bold text-slate-900 leading-none tracking-tight">
+                {value}
+            </p>
         </div>
     );
+
+    return href ? (
+        <Link href={href} className="block h-full transition-opacity hover:opacity-85">
+            {inner}
+        </Link>
+    ) : inner;
 }
 
 
@@ -91,6 +108,11 @@ function EstadoBadge({ estado }) {
     );
 }
 
+// ── skeleton simple para valores que aún no llegan de Odoo ────────────────────
+function ValorSkeleton({ w = 'w-20' }) {
+    return <span className={`inline-block h-4 ${w} bg-slate-100 rounded animate-pulse align-middle`} />;
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -109,6 +131,52 @@ export default function VisitadorDetalle({
     const [tabActiva, setTabActiva] = useState('medicos');
     const [paginaActual, setPaginaActual] = useState(1); // <-- ¡FALTABA ESTA LÍNEA!
     const [registrosPorPagina, setRegistrosPorPagina] = useState(5);
+
+    // ── Datos de Odoo (se cargan aparte, no bloquean el render inicial) ────────
+    const [txStatsLive, setTxStatsLive]             = useState(txStats);
+    const [topProductosLive, setTopProductosLive]   = useState(Array.isArray(topProductos) ? topProductos : []);
+    const [tendenciaLive, setTendenciaLive]         = useState(Array.isArray(tendencia) ? tendencia : []);
+    const [progresoMetaLive, setProgresoMetaLive]   = useState(progresoMeta);
+    const [odooCargando, setOdooCargando]           = useState(true);
+    const [odooListo, setOdooListo]                 = useState(false);
+    const [odooDesdeCache, setOdooDesdeCache]       = useState(true);
+    const [odooActualizadoEn, setOdooActualizadoEn] = useState(null);
+
+    const cargarOdoo = async (forzar = false) => {
+        setOdooCargando(true);
+        try {
+            const url = `/Gvisitadores/${visitador.id}/odoo-stats?mes=${mesActual}${forzar ? '&forzar=1' : ''}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+
+            setTxStatsLive(data.txStats ?? { total_valor_comprado: 0, total_valor_formulado: 0, total_unidades: 0, total_transacciones: 0 });
+            setTopProductosLive(Array.isArray(data.topProductos) ? data.topProductos : []);
+            setTendenciaLive(Array.isArray(data.tendencia) ? data.tendencia : []);
+            setProgresoMetaLive(prev => ({
+                ...prev,
+                valor_comprado:  data.valor_comprado ?? 0,
+                valor_formulado: data.valor_formulado ?? 0,
+                valor_total:     data.valor_total ?? 0,
+            }));
+            setOdooDesdeCache(!!data.desde_cache);
+            setOdooActualizadoEn(data.actualizado_en ?? null);
+            setOdooListo(true);
+        } catch (e) {
+            // si falla, dejamos lo que ya había (ceros) y el usuario puede reintentar con "Actualizar"
+        } finally {
+            setOdooCargando(false);
+        }
+    };
+
+    // Carga automática al entrar / cambiar de mes (usa caché de 4h del backend)
+    useEffect(() => {
+        cargarOdoo(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mesActual, visitador.id]);
+
+    const horaOdoo = odooActualizadoEn
+        ? new Date(odooActualizadoEn).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+        : null;
 
     // 2. LUEGO LAS FUNCIONES DEL COMPONENTE
     const navMes = (delta) => {
@@ -135,13 +203,13 @@ export default function VisitadorDetalle({
         { name: 'No contactados', value: Number(visitasStats?.no_contactados ?? 0), color: ESTADO_COLOR['No contactado'] },
     ].filter(e => e.value > 0);
 
-    const tendenciaData = (tendencia ?? []).map(d => ({
+    const tendenciaData = (tendenciaLive ?? []).map(d => ({
         label:    d.mes,
         comprado: Number(d.valor_comprado),
         formulado:Number(d.valor_formulado),
     })).slice(-12);
 
-    const prodData = (topProductos ?? []).map(p => ({
+    const prodData = (topProductosLive ?? []).map(p => ({
         name:  p.nombre,
         valor: Number(p.valor_comprado),
     }));
@@ -169,6 +237,37 @@ export default function VisitadorDetalle({
                             </p>
                         </div>
                         <div className="flex items-center gap-3 mt-1">
+                            {/* ── Indicador de carga / caché de Odoo ──────────── */}
+                            {odooCargando ? (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-2xl">
+                                    <span className="h-3 w-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin inline-block" />
+                                    <span className="text-[9px] font-black text-blue-600 uppercase">Trayendo datos de Odoo</span>
+                                </div>
+                            ) : (
+                                odooListo && (
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-2xl">
+                                        <span className={`h-2 w-2 rounded-full inline-block ${odooDesdeCache ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                                        <div className="flex flex-col leading-none">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase">
+                                                {odooDesdeCache ? 'Datos en caché' : 'Datos actualizados'}
+                                            </span>
+                                            {horaOdoo && (
+                                                <span className="text-[8px] font-bold text-slate-400">Odoo · {horaOdoo}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            )}
+
+                            <button
+                                onClick={() => cargarOdoo(true)}
+                                disabled={odooCargando}
+                                title="Volver a consultar Odoo, ignorando la caché de 4 horas"
+                                className="flex items-center justify-center p-2.5 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <FaArrowRotateRight className={`h-3 w-3 ${odooCargando ? 'animate-spin' : ''}`} />
+                            </button>
+
                             {/* Navegador de mes */}
                             <div className="flex items-center bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                                 <button onClick={() => navMes(-1)}
@@ -213,11 +312,10 @@ export default function VisitadorDetalle({
                         <KpiCard label="Visitas efectivas"  value={fmt(visitasStats?.efectivas ?? 0)}        accent="#10b981" sub={labelMes(mesActual)} />
                         <KpiCard label="Programadas"        value={fmt(visitasStats?.programadas ?? 0)}      accent="#4184F0" sub={labelMes(mesActual)} />
                         <KpiCard label="Canceladas"         value={fmt(visitasStats?.canceladas ?? 0)}       accent="#ef4444" sub={labelMes(mesActual)} />
-                        <KpiCard label="Valor comprado"     value={fmtM(txStats?.total_valor_comprado ?? 0)} accent="#10b981" sub="de sus médicos" />
-                        <KpiCard label="Valor formulado"    value={fmtM(txStats?.total_valor_formulado ?? 0)} accent="#8b5cf6" sub="de sus médicos" />
+                        <KpiCard label="Valor comprado"     value={odooListo ? fmtM(txStatsLive?.total_valor_comprado ?? 0) : <ValorSkeleton />} accent="#10b981" sub="de sus médicos" />
+                        <KpiCard label="Valor formulado"    value={odooListo ? fmtM(txStatsLive?.total_valor_formulado ?? 0) : <ValorSkeleton />} accent="#8b5cf6" sub="de sus médicos" />
                     </div>
-
-                    {/* ── META ACTIVA ─────────────────────────────────── */}
+{/* ── META ACTIVA ─────────────────────────────────── */}
                     {metaActiva ? (
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                             <div className="flex items-start justify-between mb-5">
@@ -225,7 +323,7 @@ export default function VisitadorDetalle({
                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta del mes</p>
                                     <p className="text-[13px] font-black text-slate-800 capitalize">{labelMes(mesActual)}</p>
                                 </div>
-                                {progresoMeta.valor_comprado >= metaActiva.meta_dinero ? (
+                                {(progresoMetaLive?.valor_total ?? (progresoMetaLive?.valor_comprado + (progresoMetaLive?.valor_formulado ?? 0))) >= Number(metaActiva.meta_dinero) ? (
                                     <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
                                         <FaCircleCheck /> Meta superada
                                     </span>
@@ -235,17 +333,84 @@ export default function VisitadorDetalle({
                                     </span>
                                 )}
                             </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <MetaBar
-                                    label="Valor comprado en el mes"
-                                    actual={progresoMeta.valor_comprado}
-                                    meta={Number(metaActiva.meta_dinero)}
-                                    color="#4184F0"
-                                    fmt={fmtM}
-                                />
+                                {/* BARRA SEGMENTADA: VALOR TOTAL (COMPRADO + FORMULADO) */}
+                                {!odooListo ? (
+                                    <div className="animate-pulse">
+                                        <div className="flex justify-between items-baseline mb-1">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1.5">
+                                                <span className="h-2 w-2 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
+                                                Trayendo valor de Odoo...
+                                            </span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden" />
+                                        <div className="h-3 w-2/3 bg-slate-100 rounded mt-2" />
+                                    </div>
+                                ) : (() => {
+                                    const metaMonto = Number(metaActiva.meta_dinero) || 1;
+                                    const comprado = Number(progresoMetaLive?.valor_comprado ?? 0);
+                                    const formulado = Number(progresoMetaLive?.valor_formulado ?? 0);
+                                    const totalAlcanzado = progresoMetaLive?.valor_total ?? (comprado + formulado);
+
+                                    // Cálculo de porcentajes proporcionales
+                                    const pctComprado = Math.min((comprado / metaMonto) * 100, 100);
+                                    const pctFormulado = Math.min((formulado / metaMonto) * 100, Math.max(0, 100 - pctComprado));
+                                    const pctTotal = metaMonto > 0 ? Math.round((totalAlcanzado / metaMonto) * 100) : 0;
+                                    const over = totalAlcanzado >= metaMonto;
+
+                                    return (
+                                        <div>
+                                            <div className="flex justify-between items-baseline mb-1">
+                                                <span className="text-[9px] font-black uppercase text-slate-400">
+                                                    Valor total (Comprado + Formulado)
+                                                </span>
+                                                <span className="text-[10px] font-black text-slate-700">
+                                                    {fmtM(totalAlcanzado)}
+                                                    <span className="text-slate-400 font-bold"> / {fmtM(metaMonto)}</span>
+                                                </span>
+                                            </div>
+
+                                            {/* Barra de 2 colores */}
+                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                                                {/* Tramo Comprado (Verde) */}
+                                                <div 
+                                                    className="h-full transition-all duration-500 bg-emerald-500" 
+                                                    style={{ width: `${pctComprado}%` }}
+                                                    title={`Comprado: ${fmtM(comprado)}`}
+                                                />
+                                                {/* Tramo Formulado (Morado) */}
+                                                <div 
+                                                    className="h-full transition-all duration-500 bg-purple-600" 
+                                                    style={{ width: `${pctFormulado}%` }}
+                                                    title={`Formulado: ${fmtM(formulado)}`}
+                                                />
+                                            </div>
+
+                                            {/* Detalle y porcentaje final */}
+                                            <div className="flex justify-between items-center text-[9px] font-bold mt-1">
+                                                <div className="flex gap-3 text-slate-500">
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                                        Comp: <strong className="text-slate-700">{fmtM(comprado)}</strong>
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block" />
+                                                        Form: <strong className="text-slate-700">{fmtM(formulado)}</strong>
+                                                    </span>
+                                                </div>
+                                                <span style={{ color: over ? '#10b981' : '#4184F0' }}>
+                                                    {pctTotal}% {over ? '· ¡Meta superada!' : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* BARRA MANTENIDA: VISITAS EFECTIVAS */}
                                 <MetaBar
                                     label="Visitas efectivas en el mes"
-                                    actual={progresoMeta.visitas_efectivas}
+                                    actual={progresoMetaLive.visitas_efectivas}
                                     meta={Number(metaActiva.meta_visitas)}
                                     color="#8b5cf6"
                                 />
@@ -266,36 +431,94 @@ export default function VisitadorDetalle({
                     {/* ── CHARTS ─────────────────────────────────────── */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-                        {/* Tendencia valor */}
-                        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Histórico</p>
-                            <p className="text-[13px] font-black text-slate-800 mb-4">Valor comprado vs formulado de sus médicos</p>
-                            {tendenciaData.length === 0 ? (
-                                <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin transacciones</div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height={320}>
-                                    <AreaChart data={tendenciaData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="gc2" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%"  stopColor="#4184F0" stopOpacity={0.25} />
-                                                <stop offset="95%" stopColor="#4184F0" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="gf2" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.25} />
-                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                        <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
-                                        <YAxis tickFormatter={v => fmtM(v)} tick={{ fontSize: 8, fill: '#94a3b8' }} width={52} />
-                                        <Tooltip content={<ChartTooltip />} />
-                                        <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-                                        <Area type="monotone" dataKey="comprado"  name="Comprado"  stroke="#4184F0" fill="url(#gc2)" strokeWidth={2} dot={false} />
-                                        <Area type="monotone" dataKey="formulado" name="Formulado" stroke="#8b5cf6" fill="url(#gf2)" strokeWidth={2} dot={false} />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            )}
-                        </div>
+                        {/* ── HISTÓRICO: VALOR COMPRADO VS FORMULADO ───────────────── */}
+<div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+    <div className="flex justify-between items-center mb-4">
+        <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Histórico de Odoo</p>
+            <p className="text-[13px] font-black text-slate-800">Valor comprado vs formulado de sus médicos</p>
+        </div>
+        {/* Indicadores de color */}
+        <div className="flex items-center gap-4 text-[10px] font-bold">
+            <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4184F0] inline-block" />
+                Comprado
+            </span>
+            <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] inline-block" />
+                Formulado
+            </span>
+        </div>
+    </div>
+
+    {!odooListo ? (
+        <div className="flex flex-col items-center justify-center h-56 gap-2 text-slate-300">
+            <span className="h-5 w-5 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
+            <span className="text-[11px] font-bold text-slate-400">Trayendo histórico de Odoo...</span>
+        </div>
+    ) : tendenciaData.length === 0 ? (
+        <div className="flex items-center justify-center h-56 text-slate-300 text-[11px] font-bold">
+            Sin transacciones registradas en Odoo para este periodo
+        </div>
+    ) : (
+        <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={tendenciaData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                    {/* Gradiente para Valor Comprado (Azul) */}
+                    <linearGradient id="gc2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4184F0" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#4184F0" stopOpacity={0.0} />
+                    </linearGradient>
+
+                    {/* Gradiente para Valor Formulado (Morado) */}
+                    <linearGradient id="gf2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                    </linearGradient>
+                </defs>
+
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                
+                <XAxis 
+                    dataKey="label" 
+                    tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} 
+                />
+                
+                <YAxis 
+                    tickFormatter={v => fmtM(v)} 
+                    tick={{ fontSize: 8, fill: '#94a3b8' }} 
+                    width={75} 
+                />
+                
+                <Tooltip content={<ChartTooltip />} />
+                
+                <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
+
+                {/* Área Comprado (Azul) */}
+                <Area 
+                    type="monotone" 
+                    dataKey="comprado"  
+                    name="Valor Comprado"  
+                    stroke="#4184F0" 
+                    fill="url(#gc2)" 
+                    strokeWidth={2.5} 
+                    dot={{ r: 3, fill: '#4184F0' }} 
+                />
+
+                {/* Área Formulado (Morado) */}
+                <Area 
+                    type="monotone" 
+                    dataKey="formulado" 
+                    name="Valor Formulado" 
+                    stroke="#8b5cf6" 
+                    fill="url(#gf2)" 
+                    strokeWidth={2.5} 
+                    dot={{ r: 3, fill: '#8b5cf6' }} 
+                />
+            </AreaChart>
+        </ResponsiveContainer>
+    )}
+</div>
 
                         {/* Pie visitas + top productos */}
                         <div className="flex flex-col gap-5">

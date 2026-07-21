@@ -8,13 +8,22 @@ use App\Models\User;
 use App\Models\TipoDocumento;
 use App\Models\Zona;
 use Illuminate\Http\Request;
+use App\Services\OdooService;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 class DvisitadoresController extends Controller
 {
+    private OdooService $odooService;
+
+    public function __construct(OdooService $odooService)
+    {
+        $this->odooService = $odooService;
+    }
+
     public function index()
     {
         $visitadores = Visitador::with(['tipoDocumento', 'user', 'metas' => function ($query) {
@@ -97,149 +106,200 @@ class DvisitadoresController extends Controller
         return Redirect::back()->with('success', 'Estado actualizado.');
     }
 
-    public function show($id, \Illuminate\Http\Request $request)
+    public function show($id, Request $request)
+{
+    $visitador = Visitador::with(['tipoDocumento', 'user'])->findOrFail($id);
+    $mesParam   = $request->input('mes', Carbon::now()->format('Y-m'));
+    $mesInicio  = Carbon::parse($mesParam . '-01')->startOfMonth();
+    $mesFin     = $mesInicio->copy()->endOfMonth();
+
+    // 1. KPIs de visitas locales del mes seleccionado
+    $visitasStats = DB::table('visitas')
+        ->where('visitador_id', $id)
+        ->whereBetween('fecha_programada', [$mesInicio, $mesFin])
+        ->select(
+            DB::raw('COUNT(*) as total'),
+            DB::raw("SUM(CASE WHEN estado = 'efectiva'      THEN 1 ELSE 0 END) as efectivas"),
+            DB::raw("SUM(CASE WHEN estado = 'programada'    THEN 1 ELSE 0 END) as programadas"),
+            DB::raw("SUM(CASE WHEN estado = 'cancelada'     THEN 1 ELSE 0 END) as canceladas"),
+            DB::raw("SUM(CASE WHEN estado = 'reprogramada'  THEN 1 ELSE 0 END) as reprogramadas"),
+            DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
+        )->first();
+
+    // 2. Documentos de todos los médicos asignados a este visitador
+    $todosMedicosDoc = DB::table('medicos')
+        ->where('visitador_id', $id)
+        ->pluck('documento')
+        ->filter()
+        ->unique()
+        ->values()
+        ->all();
+
+    $totalMedicosAsignados = count($todosMedicosDoc);
+
+    // 3. Médicos asignados y sus visitas en el mes
+    $medicos = DB::table('medicos')
+        ->where('medicos.visitador_id', $id)
+        ->leftJoin('visitas', function($join) use ($mesInicio, $mesFin) {
+            $join->on('medicos.id', '=', 'visitas.medico_id')
+                 ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin]);
+        })
+        ->select(
+            'medicos.id',
+            'medicos.documento',
+            'medicos.nombre as nombre',
+            'medicos.especialidad',
+            DB::raw('COUNT(visitas.id) as total_visitas'),
+            DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
+            DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
+        )
+        ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.especialidad')
+        ->orderByDesc('total_visitas')
+        ->get();
+
+    // 4. Placeholders de Odoo: se cargan aparte, de forma asíncrona, desde
+    //    /Gvisitadores/{id}/odoo-stats (ver método odooStats abajo). Así el
+    //    show() responde de inmediato solo con datos locales de la BD.
+    $txStats = [
+        'total_valor_comprado'  => 0,
+        'total_valor_formulado' => 0,
+        'total_unidades'        => 0,
+        'total_transacciones'   => 0,
+    ];
+    $topProductos = [];
+    $tendencia = [
+        [
+            'mes'             => $mesInicio->translatedFormat('M Y'),
+            'valor_comprado'  => 0,
+            'valor_formulado' => 0,
+        ]
+    ];
+
+    // 5. Historial de visitas del mes seleccionado
+    $visitas = DB::table('visitas')
+        ->where('visitas.visitador_id', $id)
+        ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin])
+        ->leftJoin('medicos', 'visitas.medico_id', '=', 'medicos.id')
+        ->select(
+            'visitas.id',
+            'visitas.estado',
+            'visitas.fecha_programada',
+            'visitas.fecha_realizada',
+            'visitas.comentarios',
+            'medicos.nombre as nombre_medico',
+            'medicos.especialidad'
+        )
+        ->orderByDesc('visitas.fecha_programada')
+        ->take(20)->get();
+
+    // 6. Meta y Progreso del mes seleccionado (la parte de $ se completa luego con Odoo)
+    $metaActiva = DB::table('metas')
+        ->where('visitador_id', $id)
+        ->whereYear('fecha_meta',  $mesInicio->year)
+        ->whereMonth('fecha_meta', $mesInicio->month)
+        ->first();
+
+    $visitasEfectivasMes = DB::table('visitas')
+        ->where('visitador_id', $id)
+        ->where('estado', 'efectiva')
+        ->whereBetween('fecha_realizada', [$mesInicio, $mesFin])
+        ->count();
+
+    $progresoMeta = [
+        'visitas_efectivas' => $visitasEfectivasMes,
+        'valor_comprado'    => 0,
+        'valor_formulado'   => 0,
+        'valor_total'       => 0,
+    ];
+
+    return Inertia::render('ADMINISTRADOR/VISITADORES/VisitadorDetalle', [
+        'visitador'             => $visitador,
+        'visitasStats'          => $visitasStats,
+        'medicos'               => $medicos,
+        'totalMedicosAsignados' => $totalMedicosAsignados,
+        'txStats'               => $txStats,
+        'topProductos'          => $topProductos,
+        'tendencia'             => $tendencia,
+        'visitas'               => $visitas,
+        'metaActiva'            => $metaActiva,
+        'progresoMeta'          => $progresoMeta,
+        'mesActual'             => $mesParam,
+    ]);
+}
+
+    /**
+     * Trae ÚNICAMENTE los datos de Odoo (comprado/formulado, top productos,
+     * tendencia) de este visitador para el mes indicado. Se llama aparte
+     * desde el frontend (no bloquea el show()) y se cachea 4 horas por
+     * visitador+mes. Pasando ?forzar=1 se ignora la caché.
+     */
+    public function odooStats(Request $request, $id)
     {
-        $visitador = Visitador::with(['tipoDocumento', 'user'])->findOrFail($id);
-        $mesParam        = $request->input('mes', Carbon::now()->format('Y-m'));
-        $mesInicio       = Carbon::parse($mesParam . '-01')->startOfMonth();
-        $mesFin          = $mesInicio->copy()->endOfMonth();
+        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
+        $forzar = $request->boolean('forzar');
 
-        // --- KPIs de visitas del mes seleccionado ---
-        $visitasStats = DB::table('visitas')
-            ->where('visitador_id', $id)
-            ->whereBetween('fecha_programada', [$mesInicio, $mesFin])
-            ->select(
-                DB::raw('COUNT(*) as total'),
-                DB::raw("SUM(CASE WHEN estado = 'efectiva'      THEN 1 ELSE 0 END) as efectivas"),
-                DB::raw("SUM(CASE WHEN estado = 'programada'    THEN 1 ELSE 0 END) as programadas"),
-                DB::raw("SUM(CASE WHEN estado = 'cancelada'     THEN 1 ELSE 0 END) as canceladas"),
-                DB::raw("SUM(CASE WHEN estado = 'reprogramada'  THEN 1 ELSE 0 END) as reprogramadas"),
-                DB::raw("SUM(CASE WHEN estado = 'No contactado' THEN 1 ELSE 0 END) as no_contactados")
-            )->first();
+        $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();
+        $mesFin    = $mesInicio->copy()->endOfMonth();
 
-        // --- Todos los médicos asignados al visitador (sin filtro de mes) ---
-        // Se usa para transacciones y tendencia: un médico asignado puede tener
-        // compras/formulación en Odoo aunque el visitador nunca le haya
-        // registrado una visita, así que no se puede derivar esta lista desde
-        // la tabla 'visitas' (eso excluía del KPI a los médicos sin visitas).
-        $todosMedicosDoc = DB::table('medicos')
-            ->where('visitador_id', $id)
-            ->pluck('documento')
-            ->filter()
-            ->unique()
-            ->values();
+        $cacheKey = "odoo_stats_visitador_{$id}_{$mes}";
 
-        $totalMedicosAsignados = $todosMedicosDoc->count();
+        if ($forzar) {
+            Cache::forget($cacheKey);
+        }
 
-        // --- Médicos visitados en el mes seleccionado (para KPI y tabla) ---
-       // --- Todos los médicos asignados al visitador (Muestra todos siempre, calculando visitas del mes seleccionado) ---
-$medicos = DB::table('medicos')
-    ->where('medicos.visitador_id', $id) // Filtra de raíz por los médicos que pertenecen a este visitador
-    ->leftJoin('visitas', function($join) use ($mesInicio, $mesFin) {
-        $join->on('medicos.id', '=', 'visitas.medico_id')
-             ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin]); // El filtro del mes se evalúa aquí adentro
-    })
-    ->select(
-        'medicos.id',
-        'medicos.documento',
-        'medicos.nombre as nombre',
-        'medicos.especialidad',
-        DB::raw('COUNT(visitas.id) as total_visitas'), // Dará 0 si no hay visitas este mes
-        DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"), // Dará 0 si no hay efectivas este mes
-        DB::raw('MAX(visitas.fecha_programada) as ultima_visita') // Traerá la última fecha del mes (o null)
-    )
-    ->groupBy('medicos.id', 'medicos.documento', 'medicos.nombre', 'medicos.especialidad')
-    ->orderByDesc('total_visitas') // Los que tengan más visitas en el mes saldrán primero
-    ->get();
+        $yaEnCache = Cache::has($cacheKey);
 
-        // --- Transacciones del mes seleccionado usando TODOS los médicos históricos ---
-        $txStats = DB::table('transacciones')
-            ->whereIn('medico_documento', $todosMedicosDoc)
-            ->whereBetween('fecha', [$mesInicio, $mesFin])
-            ->select(
-                DB::raw('COALESCE(SUM(valor_comprado), 0)      as total_valor_comprado'),
-                DB::raw('COALESCE(SUM(valor_formulado), 0)     as total_valor_formulado'),
-                DB::raw('COALESCE(SUM(unidades_compradas), 0)  as total_unidades'),
-                DB::raw('COUNT(*) as total_transacciones')
-            )->first();
+        $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($id, $mesInicio, $mesFin) {
+            $todosMedicosDoc = DB::table('medicos')
+                ->where('visitador_id', $id)
+                ->pluck('documento')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
 
-        // --- Top productos del mes (de todos sus médicos históricos) ---
-        $topProductos = DB::table('transacciones')
-            ->join('productos', 'transacciones.producto_codigo', '=', 'productos.codigo')
-            ->whereIn('transacciones.medico_documento', $todosMedicosDoc)
-            ->whereBetween('transacciones.fecha', [$mesInicio, $mesFin])
-            ->select(
-                'productos.nombre',
-                DB::raw('SUM(transacciones.valor_comprado) as valor_comprado'),
-                DB::raw('SUM(transacciones.unidades_compradas) as unidades')
-            )
-            ->groupBy('productos.nombre')
-            ->orderByDesc('valor_comprado')
-            ->take(5)->get();
+            $fechaDesde = $mesInicio->format('Y-m-d');
+            $fechaHasta = $mesFin->format('Y-m-d');
 
-        // --- Tendencia mensual histórica (usa todos los médicos, sin filtro de mes) ---
-        $tendencia = DB::table('transacciones')
-            ->whereIn('medico_documento', $todosMedicosDoc)
-            ->select(
-                DB::raw("DATE_FORMAT(fecha, '%Y-%m') as mes"),
-                DB::raw('SUM(valor_comprado)  as valor_comprado'),
-                DB::raw('SUM(valor_formulado) as valor_formulado')
-            )
-            ->groupBy('mes')->orderBy('mes')->get();
+            $resumenOdoo = $this->odooService->obtenerResumenAdmin($todosMedicosDoc, $fechaDesde, $fechaHasta);
 
-        // --- Historial de visitas del mes seleccionado ---
-        $visitas = DB::table('visitas')
-            ->where('visitas.visitador_id', $id)
-            ->whereBetween('visitas.fecha_programada', [$mesInicio, $mesFin])
-            ->leftJoin('medicos', 'visitas.medico_id', '=', 'medicos.id')
-            ->select(
-                'visitas.id',
-                'visitas.estado',
-                'visitas.fecha_programada',
-                'visitas.fecha_realizada',
-                'visitas.comentarios',
-                'medicos.nombre as nombre_medico',
-                'medicos.especialidad'
-            )
-            ->orderByDesc('visitas.fecha_programada')
-            ->take(20)->get();
+            $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
+            $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
 
-        // --- Meta del mes seleccionado (registrada desde /Gmetas) ---
-        $metaActiva = DB::table('metas')
-            ->where('visitador_id', $id)
-            ->whereYear('fecha_meta',  $mesInicio->year)
-            ->whereMonth('fecha_meta', $mesInicio->month)
-            ->first();
+            $txStats = [
+                'total_valor_comprado'  => $valorComprado,
+                'total_valor_formulado' => $valorFormulado,
+                'total_unidades'        => $resumenOdoo['total_unidades_compradas'] ?? 0,
+                'total_transacciones'   => $resumenOdoo['total_transacciones'] ?? 0,
+            ];
 
-        // --- Progreso real del mes (visitas efectivas + valor de todos sus médicos) ---
-        $visitasEfectivasMes = DB::table('visitas')
-            ->where('visitador_id', $id)
-            ->where('estado', 'efectiva')
-            ->whereBetween('fecha_realizada', [$mesInicio, $mesFin])
-            ->count();
+            $topProductos = collect($resumenOdoo['productos'] ?? [])
+                ->take(5)
+                ->map(fn($p) => [
+                    'nombre'         => $p['nombre'] ?? '',
+                    'valor_comprado' => $p['valor_comprado'] ?? 0,
+                    'unidades'       => $p['unidades'] ?? 0,
+                ])->values()->toArray();
 
-        $valorCompradoMes = DB::table('transacciones')
-            ->whereIn('medico_documento', $todosMedicosDoc)
-            ->whereBetween('fecha', [$mesInicio, $mesFin])
-            ->sum('valor_comprado');
+            $tendencia = array_values($resumenOdoo['tendencia'] ?? [
+                [
+                    'mes'             => $mesInicio->translatedFormat('M Y'),
+                    'valor_comprado'  => $valorComprado,
+                    'valor_formulado' => $valorFormulado,
+                ]
+            ]);
 
-        $progresoMeta = [
-            'visitas_efectivas' => $visitasEfectivasMes,
-            'valor_comprado'    => (float) $valorCompradoMes,
-        ];
+            return [
+                'txStats'         => $txStats,
+                'topProductos'    => $topProductos,
+                'tendencia'       => $tendencia,
+                'valor_comprado'  => $valorComprado,
+                'valor_formulado' => $valorFormulado,
+                'valor_total'     => $valorComprado + $valorFormulado,
+                'actualizado_en'  => now()->toIso8601String(),
+            ];
+        });
 
-        return Inertia::render('ADMINISTRADOR/VISITADORES/VisitadorDetalle', [
-            'visitador'    => $visitador,
-            'visitasStats' => $visitasStats,
-            'medicos'      => $medicos,
-            'totalMedicosAsignados' => $totalMedicosAsignados,
-            'txStats'      => $txStats,
-            'topProductos' => $topProductos,
-            'tendencia'    => $tendencia,
-            'visitas'      => $visitas,
-            'metaActiva'   => $metaActiva,
-            'progresoMeta' => $progresoMeta,
-            'mesActual'    => $mesParam,
-        ]);
+        return response()->json($payload + ['desde_cache' => $yaEnCache]);
     }
 }

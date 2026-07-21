@@ -21,26 +21,32 @@ const COLORS_ESTADO = {
 };
 
 // ── components ────────────────────────────────────────────────────────────────
-function KpiCard({ icon, label, value, sub, accent, href }) {
+function KpiCard({ label, value, accent, href }) {
     const inner = (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4
-                        hover:shadow-md transition-shadow flex items-start gap-3 h-full"
-             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-            {icon && (
-                <div className="mt-0.5 shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
-                     style={{ background: `${accent}18` }}>
-                    <span style={{ color: accent }} className="text-[14px]">{icon}</span>
-                </div>
-            )}
-            <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-                <p className="text-[20px] font-black text-slate-800 leading-none break-words">{value}</p>
-                {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
-            </div>
-            {href && <FaArrowRight className="ml-auto mt-1 text-slate-200 text-[10px] shrink-0" />}
+        <div className="pt-2 pb-4 flex flex-col justify-between h-full relative group">
+            {/* Línea/Borde superior colorido */}
+            <div 
+                className="w-full h-1 rounded-full mb-4" 
+                style={{ backgroundColor: accent }} 
+            />
+
+            {/* Etiqueta / Título en mayúsculas */}
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 leading-tight">
+                {label}
+            </p>
+
+            {/* Valor principal */}
+            <p className="text-[20px] font-bold text-slate-900 leading-none tracking-tight">
+                {value}
+            </p>
         </div>
     );
-    return href ? <Link href={href} className="block h-full">{inner}</Link> : inner;
+
+    return href ? (
+        <Link href={href} className="block h-full transition-opacity hover:opacity-85">
+            {inner}
+        </Link>
+    ) : inner;
 }
 
 function ChartTooltip({ active, payload, label }) {
@@ -203,7 +209,7 @@ export default function Ginicio({
     // piden aparte para no bloquear el render inicial (conteos locales y
     // filtros ya llegaron con la carga normal). Si el controller ya los
     // mandó (stats truthy), no se vuelven a pedir.
-    const odooLoading = !stats;
+   
 
     useEffect(() => {
         if (stats) return; // ya llegaron

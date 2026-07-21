@@ -27,7 +27,8 @@ class MedicosTempImport implements ToModel, WithHeadingRow, WithUpserts
         return new MedicoTemporal([
             'documento'         => $row['documento'],
             'nombre_referencia' => $row['nombre_referencia'],
-            'origen_datos'      => $row['origen_datos'],
+           
+            
         ]);
     }
 

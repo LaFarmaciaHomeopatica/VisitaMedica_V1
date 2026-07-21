@@ -32,15 +32,32 @@ const LAB_COLORS = ['#3D3FD8','#4184F0','#06b6d4','#10b981','#f59e0b','#8b5cf6',
 const MESES_ES   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fmtMes = m => { const [y, mo] = m.split('-'); return `${MESES_ES[parseInt(mo) - 1]} ${y}`; };
 
-function KpiCard({ label, value, sub, accent }) {
-    return (
-        <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4"
-             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-            <p className="text-[22px] font-black text-slate-800 leading-none">{value}</p>
-            {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
+function KpiCard({ label, value, accent, href }) {
+    const inner = (
+        <div className="pt-2 pb-4 flex flex-col justify-between h-full relative group">
+            {/* Línea/Borde superior colorido */}
+            <div 
+                className="w-full h-1 rounded-full mb-4" 
+                style={{ backgroundColor: accent }} 
+            />
+
+            {/* Etiqueta / Título en mayúsculas */}
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 leading-tight">
+                {label}
+            </p>
+
+            {/* Valor principal */}
+            <p className="text-[26px] font-bold text-slate-900 leading-none tracking-tight">
+                {value}
+            </p>
         </div>
     );
+
+    return href ? (
+        <Link href={href} className="block h-full transition-opacity hover:opacity-85">
+            {inner}
+        </Link>
+    ) : inner;
 }
 
 function ChartTooltip({ active, payload, label, isUnit = false }) {

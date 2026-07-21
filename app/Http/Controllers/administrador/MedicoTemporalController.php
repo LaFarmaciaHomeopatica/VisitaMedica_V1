@@ -104,7 +104,7 @@ class MedicoTemporalController extends Controller
                 'id'           => $medico->id,
                 'documento'    => $medico->documento,
                 'nombre'       => $medico->nombre_referencia,
-                'origen_datos' => $medico->origen_datos,
+               
             ],
             'kpis'        => $kpis,
             'tendencia'   => $tendencia,

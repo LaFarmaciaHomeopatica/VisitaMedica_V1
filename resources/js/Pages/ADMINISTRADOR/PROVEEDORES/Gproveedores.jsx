@@ -257,7 +257,7 @@ export default function Gproveedores({ auth, proveedores, vencimientos }) {
                                         </span>
                                         <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
                                             placeholder="Nombre o documento..."
-                                            className="text-[11px] font-bold border border-slate-200 rounded-md pl-8 pr-3 py-2 bg-white focus:outline-none focus:border-blue-400 w-48" />
+                                            className="text-[11px] font-bold border border-slate-200 rounded-md pl-8 pr-3 py-1 bg-white focus:outline-none focus:border-blue-400 w-48" />
                                     </div>
                                 </div>
                                 <button type="button" onClick={() => setSoloVencidas(v => !v)}

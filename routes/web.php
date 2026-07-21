@@ -165,11 +165,18 @@ Route::get('/medicos-temporales/exportar', [MedicoTemporalController::class, 'ex
 
     Route::post('/medicos/documento/{documento}/sincronizar-categoria', [Medico2Controller::class, 'sincronizarCategoriaPorDocumento'])
     ->name('Gmedicos.sincronizarCategoria');
+  
+Route::get('/Gmetas/odoo-stats/{visitador}', [MetasController::class, 'odooStats'])
+    ->name('Gmetas.odooStats');
 
+
+    Route::get('/Gvisitadores/{visitador}/odoo-stats', [DvisitadoresController::class, 'odooStats'])
+    ->name('Gvisitadores.odooStats');
+  
  });
 
 Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(function () {
-
+ 
     /*
     |------------------------------------------------------------------
     | Vista principal: Consulta de Clientes en Odoo
@@ -191,6 +198,10 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
     Route::get('/odoo/sync',          [OdooSyncController::class, 'index']);
     Route::post('/odoo/sync/preview', [OdooSyncController::class, 'previsualizar']);
     Route::post('/odoo/sync/import',  [OdooSyncController::class, 'importar']);
+
+
+
+    
 
 });
 

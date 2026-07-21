@@ -4,7 +4,7 @@ import PanelAdmin from '../PanelAdmin';
 import { 
     FaArrowLeft, FaMagnifyingGlass, FaFileMedical, 
     FaArrowUp, FaArrowDown, FaMinus, FaCrown, 
-    FaPhone, FaClock, FaLocationDot, FaCalendarDays
+    FaPhone, FaClock, FaLocationDot, FaCalendarDays, FaSpinner
 } from 'react-icons/fa6';
 
 
@@ -47,6 +47,7 @@ export default function ProductosAlertaAdmin({
     documentoBase, // <-- NUEVO
 })  {
     const [search, setSearch] = useState('');
+    const [cargandoMes, setCargandoMes] = useState(false);
 
     const productosFiltrados = productosAlertas.filter(prod => 
         (prod.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -58,10 +59,11 @@ export default function ProductosAlertaAdmin({
     const nuevoMes = e.target.value;
     if (!nuevoMes) return;
 
+    setCargandoMes(true);
     router.get(
         route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento),
         { mes: nuevoMes },
-        { preserveState: true, replace: true }
+        { preserveState: true, replace: true, onFinish: () => setCargandoMes(false) }
     );
 };
 
@@ -75,6 +77,18 @@ export default function ProductosAlertaAdmin({
     return (
         <PanelAdmin user={auth?.user}>
             <Head title={`Alertas Críticas · ${medico?.nombre || 'Médico'}`} />
+
+            {/* ── OVERLAY: carga al cambiar el mes de comparación ── */}
+            {cargandoMes && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-xl px-10 py-8 flex flex-col items-center gap-3">
+                        <FaSpinner className="text-3xl text-blue-500 animate-spin" />
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                            Actualizando comparativa…
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="w-full min-h-screen bg-white pb-12">
 

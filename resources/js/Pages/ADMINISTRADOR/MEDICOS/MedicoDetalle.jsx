@@ -65,15 +65,32 @@ const ESTADO_LABEL = {
 const PROD_COLORS = ['#3D3FD8', '#4184F0', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'];
 
 // ── subcomponents ─────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, accent }) {
-    return (
-        <div className="flex-1 min-w-0 bg-white px-4 py-4"
-             style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
-            <p className="text-[22px] font-black text-slate-800 leading-none">{value}</p>
-            {sub && <p className="text-[9px] text-slate-400 mt-1">{sub}</p>}
+function KpiCard({ label, value, accent, href }) {
+    const inner = (
+        <div className="pt-2 pb-4 flex flex-col justify-between h-full relative group">
+            {/* Línea/Borde superior colorido */}
+            <div 
+                className="w-full h-1 rounded-full mb-4" 
+                style={{ backgroundColor: accent }} 
+            />
+
+            {/* Etiqueta / Título en mayúsculas */}
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 leading-tight">
+                {label}
+            </p>
+
+            {/* Valor principal */}
+            <p className="text-[20px] font-bold text-slate-900 leading-none tracking-tight">
+                {value}
+            </p>
         </div>
     );
+
+    return href ? (
+        <Link href={href} className="block h-full transition-opacity hover:opacity-85">
+            {inner}
+        </Link>
+    ) : inner;
 }
 
 function EstadoBadge({ estado }) {
@@ -190,6 +207,14 @@ export default function MedicoDetalle({
 
     const [sincronizando, setSincronizando] = useState(false);
     const [syncMsg, setSyncMsg] = useState(null); // { tipo: 'ok' | 'error', texto: string }
+    const [cargandoAlertas, setCargandoAlertas] = useState(false);
+
+    const handleAnalizarAlertas = () => {
+        setCargandoAlertas(true);
+        router.visit(route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento), {
+            onFinish: () => setCargandoAlertas(false),
+        });
+    };
 
     const handleSincronizarCategoria = () => {
         setSincronizando(true);
@@ -309,6 +334,18 @@ export default function MedicoDetalle({
         <PanelAdmin user={auth?.user}>
             <Head title={`${medico.nombre} ${medico.apellido} · Detalle`} />
 
+            {/* ── OVERLAY: carga al analizar alertas ── */}
+            {cargandoAlertas && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-xl px-10 py-8 flex flex-col items-center gap-3">
+                        <FaSpinner className="text-3xl text-blue-500 animate-spin" />
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                            Analizando alertas del médico…
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className="w-full min-h-screen bg-white pb-12">
 
                 {/* ── HEADER ───────────────────────────────────────── */}
@@ -394,12 +431,18 @@ export default function MedicoDetalle({
                             )}
 
                             {/* Acción */}
-                            <Link
-                                href={route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento)}
-                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 self-center"
+                            <button
+                                type="button"
+                                onClick={handleAnalizarAlertas}
+                                disabled={cargandoAlertas}
+                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 self-center disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <FaFlask className="text-[10px]" /> Analizar Alertas
-                            </Link>
+                                {cargandoAlertas
+                                    ? <FaSpinner className="text-[10px] animate-spin" />
+                                    : <FaFlask className="text-[10px]" />
+                                }
+                                Analizar Alertas
+                            </button>
                         </div>
                     </div>
 

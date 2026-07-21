@@ -26,9 +26,7 @@ export default function MedicosTempTable({
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
                                 Médico (Referencia Excel)
                             </th>
-                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">
-                                Origen de Datos
-                            </th>
+                           
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase text-center">
                                 Acción
                             </th>
@@ -62,11 +60,7 @@ export default function MedicosTempTable({
                                     </span>
                                 </td>
 
-                                <td className="px-6 py-2 border-r border-slate-50">
-                                    <span className="inline-block px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-black uppercase tracking-tighter">
-                                        {m.origen_datos}
-                                    </span>
-                                </td>
+                               
 
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
   <button
