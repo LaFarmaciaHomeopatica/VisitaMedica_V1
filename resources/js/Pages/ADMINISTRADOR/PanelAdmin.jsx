@@ -52,51 +52,53 @@ const PanelAdmin = ({ children }) => {
                     {/* MENÚ DESKTOP - ESTILO TABS */}
                     <nav className="hidden lg:flex h-full items-center">
                         {menuItems.map((item) => {
-                            const isActive = url.startsWith(item.route);
-                            return (
-                                <Link
-                                    key={item.name}
-                                    href={item.route}
-                                    className={`group flex flex-col items-center justify-center px-5 h-full transition-all duration-200 border-b-4 relative overflow-hidden ${isActive
-                                        ? 'bg-white/10 border-white text-white font-bold'
-                                        : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
-                                        }`}
-                                >
-                                    {/* CAPA DE LUCESITAS / ESCARCHA (Solo si está activo) */}
-                                    {isActive && (
-                                        <div className="absolute inset-0 pointer-events-none">
-                                            {/* Destellos rápidos */}
-                                            <div
-                                                className="absolute inset-0 animate-pulse opacity-40"
-                                                style={{
-                                                    backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1.5px)`,
-                                                    backgroundSize: '12px 12px',
-                                                }}
-                                            />
-                                            {/* Destellos lentos y desplazados para dar realismo */}
-                                            <div
-                                                className="absolute inset-0 animate-bounce opacity-30"
-                                                style={{
-                                                    backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1.5px)`,
-                                                    backgroundSize: '18px 18px',
-                                                    backgroundPosition: '5px 5px',
-                                                    animationDuration: '3s'
-                                                }}
-                                            />
-                                        </div>
-                                    )}
+    // Evaluación exacta o por subruta exacta (evita que /Gmedicos coincida con /GmedicosTemporales)
+    const isActive = url === item.route || url.startsWith(`${item.route}/`);
 
-                                    {/* Contenido: Icono y Texto (z-10 para estar por encima de las luces) */}
-                                    <span className="text-base mb-0.5 transition-transform duration-300 group-hover:-translate-y-1.5 group-hover:scale-125 relative z-10">
-                                        {item.icon}
-                                    </span>
+    return (
+        <Link
+            key={item.name}
+            href={item.route}
+            className={`group flex flex-col items-center justify-center px-5 h-full transition-all duration-200 border-b-4 relative overflow-hidden ${
+                isActive
+                    ? 'bg-white/10 border-white text-white font-bold'
+                    : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+            }`}
+        >
+            {/* CAPA DE LUCESITAS / ESCARCHA (Solo si está activo) */}
+            {isActive && (
+                <div className="absolute inset-0 pointer-events-none">
+                    <div
+                        className="absolute inset-0 animate-pulse opacity-40"
+                        style={{
+                            backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1.5px)`,
+                            backgroundSize: '12px 12px',
+                        }}
+                    />
+                    <div
+                        className="absolute inset-0 animate-bounce opacity-30"
+                        style={{
+                            backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1.5px)`,
+                            backgroundSize: '18px 18px',
+                            backgroundPosition: '5px 5px',
+                            animationDuration: '3s'
+                        }}
+                    />
+                </div>
+            )}
 
-                                    <span className="text-[9px] uppercase font-semibold tracking-wider relative z-10 text-center">
-                                        {item.name}
-                                    </span>
-                                </Link>
-                            );
-                        })}
+            {/* Contenido: Icono y Texto */}
+            <span className="text-base mb-0.5 transition-transform duration-300 group-hover:-translate-y-1.5 group-hover:scale-125 relative z-10">
+                {item.icon}
+            </span>
+
+            <span className="text-[9px] uppercase font-semibold tracking-wider relative z-10 text-center">
+                {item.name}
+            </span>
+        </Link>
+    );
+})}
+
                     </nav>
 
                     {/* ACCIONES */}
