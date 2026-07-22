@@ -33,33 +33,29 @@ const DashboardLFH = ({
     medicos           = [],
     visitasData       = [],
     visitasPendientes = [],
-    ventasActuales    = 0,
+    mesActual, // 👈 Recibido desde el VisitadorController
 }) => {
     const [search, setSearch] = useState('');
 
-    const metaActual      = visitador?.metas || null;
+    // ✅ La relación metas viene como array desde Eloquent/Inertia
+    const metaActual      = Array.isArray(visitador?.metas) ? visitador.metas[0] : visitador?.metas;
     const metaValorGlobal = metaActual?.meta_visitas || 0;
     const metaDinero      = Number(metaActual?.meta_dinero) || 0;
 
-    const { porcentaje, porcentajeVentas, meta, fueVisitado } = useDashboardMetrics(
+    // ✅ Hook simplificado (solo métricas locales de visitas)
+    const { porcentaje, meta, fueVisitado } = useDashboardMetrics(
         visitasData,
-        metaValorGlobal,
-        metaDinero,
-        ventasActuales,
+        metaValorGlobal
     );
 
     const visitasEfectivasCount = visitasData.filter(v => v.estado === 'efectiva').length;
     const termino = search.toLowerCase().trim();
 
     const visitasPendientesFiltradas = visitasPendientes.filter(visita => {
-        // ✅ CORRECCIÓN: Forzar conversión a String para evitar fallas si un ID viene como número y el otro como texto
         const medicoData = medicos.find(m => String(m.id) === String(visita.medico_id)) || visita.medico;
         return cumpleFiltroBusqueda(medicoData, termino);
     });
 
-    // El placeholder dice "Buscar médicos asignados", así que la búsqueda no puede
-    // limitarse a las visitas pendientes: cuando hay término, también se buscan
-    // médicos asignados que no tengan una pendiente ya listada arriba.
     const medicoIdsConPendiente = new Set(visitasPendientesFiltradas.map(v => String(v.medico_id)));
     const medicosSinPendienteFiltrados = termino
         ? medicos.filter(m => cumpleFiltroBusqueda(m, termino) && !medicoIdsConPendiente.has(String(m.id)))
@@ -104,11 +100,10 @@ const DashboardLFH = ({
             {/* ── Hero ── */}
             <HeroSection
                 porcentaje={porcentaje}
-                porcentajeVentas={porcentajeVentas}
                 visitasEfectivasCount={visitasEfectivasCount}
                 meta={meta}
-                ventasActuales={ventasActuales}
                 metaDinero={metaDinero}
+                mes={mesActual} // 👈 Se pasa el mes a HeroSection -> MetricasCard
             />
 
             {/* ── Contenido dinámico ── */}

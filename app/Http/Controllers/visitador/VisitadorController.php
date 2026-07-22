@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache; // 👈 necesario para el cacheo 4h
 use Carbon\Carbon;
 use App\Services\OdooService;
 
@@ -83,22 +84,96 @@ class VisitadorController extends Controller
             $medico->especialidad = $especialidades[trim((string) $medico->documento)] ?? 'General';
         }
 
-        // 3️⃣ Ventas totales del mes
-        $ventasActuales = $todosMedicosDoc->isNotEmpty()
-            ? DB::table('transacciones')
-                ->whereIn('medico_documento', $todosMedicosDoc)
-                ->whereYear('fecha', $inicio->year)
-                ->whereMonth('fecha', $inicio->month)
-                ->sum('valor_comprado')
+        // 3️⃣ Visitas efectivas del mes (para la barra de "Cumplimiento de visitas")
+        $visitasEfectivas = $visitador
+            ? Visita::where('visitador_id', $visitador->id)
+                ->where('estado', 'efectiva')
+                ->whereYear('fecha_realizada', $inicio->year)
+                ->whereMonth('fecha_realizada', $inicio->month)
+                ->count()
             : 0;
+
+        // 👇 4️⃣ NO se consulta Odoo aquí. Igual que en Gmetas/MetasController,
+        //    valor_comprado y valor_formulado se cargan aparte, de forma
+        //    asíncrona, desde /panel/odoo-stats (ver método odooStats abajo).
+        //    Esto evita que la carga del panel se demore esperando a Odoo.
+        $progreso = [
+            'visitas_efectivas' => $visitasEfectivas,
+            'valor_comprado'    => 0,
+            'valor_formulado'   => 0,
+        ];
 
         return Inertia::render('VISITADOR/PANEL/panel', [
             'visitador'         => $visitador,
             'medicos'           => $medicos,
             'visitasData'       => $visitas,
             'visitasPendientes' => $visitasPendientes,
-            'ventasActuales'    => (float) $ventasActuales,
+            'progreso'          => $progreso,
             'mesActual'         => $mes,
         ]);
+    }
+
+    /**
+     * Devuelve las ventas de Odoo (comprado / formulado) del visitador
+     * autenticado, para el mes indicado. Espejo de
+     * MetasController::odooStats pero acotado al propio visitador logueado
+     * (no recibe id por URL, usa Auth::id()).
+     *
+     * Cacheado 4h por visitador+mes. ?forzar=1 limpia la caché y vuelve a
+     * consultar Odoo (botón "Actualizar" en el front).
+     */
+    public function odooStats(Request $request)
+    {
+        $visitador = Visitador::where('usuario_id', Auth::id())->first();
+
+        if (!$visitador) {
+            return response()->json(['error' => 'Visitador no encontrado'], 404);
+        }
+
+        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
+        $forzar = $request->boolean('forzar');
+
+        $cacheKey = "odoo_stats_panel_{$visitador->id}_{$mes}";
+
+        if ($forzar) {
+            Cache::forget($cacheKey);
+        }
+
+        $yaEnCache = Cache::has($cacheKey);
+
+        $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($visitador, $mes) {
+            $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+            $fin    = $inicio->copy()->endOfMonth();
+
+            $documentos = $visitador->medicos()
+                ->whereNotNull('documento')
+                ->where('documento', '!=', '')
+                ->pluck('documento')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $valorComprado  = 0;
+            $valorFormulado = 0;
+
+            if (!empty($documentos)) {
+                $resumenOdoo = $this->odoo->obtenerResumenAdmin(
+                    $documentos,
+                    $inicio->format('Y-m-d'),
+                    $fin->format('Y-m-d')
+                );
+                $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
+                $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
+            }
+
+            return [
+                'valor_comprado'  => $valorComprado,
+                'valor_formulado' => $valorFormulado,
+                'actualizado_en'  => now()->toIso8601String(),
+            ];
+        });
+
+        return response()->json($payload + ['desde_cache' => $yaEnCache]);
     }
 }

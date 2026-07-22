@@ -172,6 +172,7 @@ Route::get('/Gmetas/odoo-stats/{visitador}', [MetasController::class, 'odooStats
 
     Route::get('/Gvisitadores/{visitador}/odoo-stats', [DvisitadoresController::class, 'odooStats'])
     ->name('Gvisitadores.odooStats');
+
   
  });
 
@@ -239,6 +240,9 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
             Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
 
             Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
+
+                Route::get('/panel/odoo-stats', [VisitadorController::class, 'odooStats'])->name('panel.odoo-stats');
+
         });
 
     /*
