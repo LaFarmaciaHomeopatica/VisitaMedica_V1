@@ -34,19 +34,21 @@ class Medico2Controller extends Controller
     //  CRUD BÁSICO — Sin cambios
     // =========================================================================
 
-    public function index()
-    {
-        $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get();
-        $this->inyectarEspecialidadOdoo($medicos);
-        $this->inyectarTendenciaCategoria($medicos);
-
-        return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
-            'medicos'        => $medicos,
-            'visitadores'    => Visitador::all(['id', 'nombre', 'apellido']),
-            'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
-            'categorias'     => Categoria::all(['id', 'nombre']),
-        ]);
-    }
+ public function index()
+{
+    return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
+        // Envolvemos los médicos en Inertia::defer
+        'medicos' => Inertia::defer(function () {
+            $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get();
+            $this->inyectarEspecialidadOdoo($medicos);
+            $this->inyectarTendenciaCategoria($medicos);
+            return $medicos;
+        }),
+        'visitadores'    => Visitador::all(['id', 'nombre', 'apellido']),
+        'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
+        'categorias'     => Categoria::all(['id', 'nombre']),
+    ]);
+}
 
     /**
      * Agrega medico->categoria_tendencia ('subio'|'bajo'|'igual'|null) comparando

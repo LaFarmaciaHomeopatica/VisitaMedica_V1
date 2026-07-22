@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Deferred } from '@inertiajs/react'; // ← Importamos Deferred
 import PanelAdmin from '../PanelAdmin';
 
 // Hooks
@@ -10,7 +10,6 @@ import { useMedicoForm } from './Hooks/useMedicoForm';
 
 // Componentes UI
 import MedicosToolbar from './Components/MedicosToolbar';
-
 import MedicosTable from './Components/MedicosTable';
 
 // Modales
@@ -27,7 +26,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
     // --- Hooks ---
     const filter = useMedicosFilter(medicos);
     const selection = useMedicosSelection();
-    const importHook = useMedicosImport(medicos,visitadores);
+    const importHook = useMedicosImport(medicos, visitadores);
     const form = useMedicoForm(visitadores);
 
     // --- Estado de modales simples ---
@@ -42,14 +41,13 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
     const medicosSeleccionados = medicos.filter(m => selection.selectedIds.includes(m.id));
     const hasPreviousAssignment = medicosSeleccionados.some(m => m.visitador_id !== null);
 
-    // --- Handlers de exportación ---
+    // --- Handlers ---
     const executeExport = () => {
         const idsParam = selection.selectedIds.length > 0 ? `?ids=${selection.selectedIds.join(',')}` : '';
         window.location.href = route('Gmedicos.exportar') + idsParam;
         setIsExportModalOpen(false);
     };
 
-    // --- Handlers de eliminación ---
     const handleOpenDelete = () => {
         if (selection.selectedIds.length === 0) return;
         setIsDeleteModalOpen(true);
@@ -61,7 +59,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
         });
     };
 
-    // --- Handlers de asignación de visitador ---
     const handleOpenAssign = () => {
         if (selection.selectedIds.length === 0) return;
         if (hasPreviousAssignment) {
@@ -87,7 +84,6 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
         });
     };
 
-    // --- Handler ver detalle ---
     const openViewModal = (medico) => {
         setSelectedMedico(medico);
         setIsViewModalOpen(true);
@@ -98,9 +94,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
             <Head title="Directorio de Médicos" />
 
             <div className="w-full min-h-screen flex flex-col bg-white">
-
                 <MedicosToolbar
-                    // Props de búsqueda y acciones
                     searchTerm={filter.searchTerm}
                     onSearchChange={filter.setSearchTerm}
                     selectedIds={selection.selectedIds}
@@ -113,25 +107,25 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                     fileInputRef={importHook.fileInputRef}
                     onFileChange={importHook.handleFileChange}
 
-                    // PROPS DE PAGINACIÓN (Conectadas correctamente al hook filter y selection)
-                    currentItems={filter.currentItems}           // Los médicos de la página actual
-                    onSelectAll={selection.handleSelectAll}      // Función del hook de selección
-                    itemsPerPage={filter.itemsPerPage}           // Valor del hook de filtro
-                    onItemsPerPageChange={filter.setItemsPerPage} // Función del hook de filtro
-                    currentPage={filter.currentPage}             // Página actual
-                    onPageChange={filter.setCurrentPage}         // Función para cambiar página
-                    totalPages={filter.totalPages}               // Total calculado
-                />
-
-
-
-                <MedicosTable
                     currentItems={filter.currentItems}
-                    selectedIds={selection.selectedIds}
-                    onSelectOne={selection.handleSelectOne}
-                    onEdit={form.openEditModal}
-                    onView={openViewModal}
+                    onSelectAll={selection.handleSelectAll}
+                    itemsPerPage={filter.itemsPerPage}
+                    onItemsPerPageChange={filter.setItemsPerPage}
+                    currentPage={filter.currentPage}
+                    onPageChange={filter.setCurrentPage}
+                    totalPages={filter.totalPages}
                 />
+
+                {/* Envolvemos la tabla con Deferred para mostrar un indicador mientras cargan los médicos */}
+                <Deferred data="medicos" fallback={<CargandoMedicosState />}>
+                    <MedicosTable
+                        currentItems={filter.currentItems}
+                        selectedIds={selection.selectedIds}
+                        onSelectOne={selection.handleSelectOne}
+                        onEdit={form.openEditModal}
+                        onView={openViewModal}
+                    />
+                </Deferred>
             </div>
 
             {/* Modales */}
@@ -203,5 +197,17 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
         </PanelAdmin>
     );
 };
+
+// Componente visual para mostrar el estado de carga
+const CargandoMedicosState = () => (
+    <div className="flex flex-col items-center justify-center p-16 bg-white border border-gray-100 rounded-lg shadow-sm my-4">
+        <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="text-gray-700 font-medium text-lg">Consultando médicos, espera...</p>
+        <p className="text-gray-400 text-sm mt-1">Sincronizando información y especialidades con Odoo</p>
+    </div>
+);
 
 export default Gmedicos;

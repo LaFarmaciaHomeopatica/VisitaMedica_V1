@@ -67,7 +67,7 @@ const PROD_COLORS = ['#3D3FD8', '#4184F0', '#06b6d4', '#10b981', '#f59e0b', '#8b
 // ── subcomponents ─────────────────────────────────────────────────────────────
 function KpiCard({ label, value, accent, href }) {
     const inner = (
-        <div className="pt-2 pb-4 flex flex-col justify-between h-full relative group">
+        <div className="flex-1 min-w-0 pt-2 pb-4 flex flex-col justify-between h-full relative group">
             {/* Línea/Borde superior colorido */}
             <div 
                 className="w-full h-1 rounded-full mb-4" 
@@ -87,7 +87,7 @@ function KpiCard({ label, value, accent, href }) {
     );
 
     return href ? (
-        <Link href={href} className="block h-full transition-opacity hover:opacity-85">
+        <Link href={href} className="flex-1 min-w-0 block h-full transition-opacity hover:opacity-85">
             {inner}
         </Link>
     ) : inner;
@@ -209,6 +209,24 @@ export default function MedicoDetalle({
     const [syncMsg, setSyncMsg] = useState(null); // { tipo: 'ok' | 'error', texto: string }
     const [cargandoAlertas, setCargandoAlertas] = useState(false);
 
+    // ── Estado de carga al cambiar período/fecha (recarga props vía Inertia) ──
+    const [cargandoDatos, setCargandoDatos] = useState(false);
+    const [errorCargaDatos, setErrorCargaDatos] = useState(false);
+
+    const irAPeriodo = (params) => {
+        router.get(
+            route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
+            params,
+            {
+                preserveScroll: true,
+                onStart:   () => { setCargandoDatos(true); setErrorCargaDatos(false); },
+                onFinish:  () => setCargandoDatos(false),
+                onError:   () => setErrorCargaDatos(true),
+                onSuccess: () => setMostrarCalendario(false),
+            }
+        );
+    };
+
     const handleAnalizarAlertas = () => {
         setCargandoAlertas(true);
         router.visit(route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento), {
@@ -232,11 +250,7 @@ export default function MedicoDetalle({
 
     const handlePeriodoPersonalizado = () => {
         if (!fechaDesdeInput || !fechaHastaInput) return;
-        router.get(
-            route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
-            { periodo: 'custom', fecha_desde: fechaDesdeInput, fecha_hasta: fechaHastaInput },
-            { preserveScroll: true, onSuccess: () => setMostrarCalendario(false) }
-        );
+        irAPeriodo({ periodo: 'custom', fecha_desde: fechaDesdeInput, fecha_hasta: fechaHastaInput });
     };
 
     // Los datos de Odoo (txStats, tendencia, productos...) siempre vienen
@@ -249,8 +263,8 @@ export default function MedicoDetalle({
         porLaboratorio: porLaboratorio ?? [],
         todosProductos: todosProductos ?? [],
     };
-    const odooLoading = false;
-    const odooError   = false;
+    const odooLoading = cargandoDatos;
+    const odooError   = errorCargaDatos;
 
     const pieEstados = [
         { name: 'Efectivas',      value: Number(visitasStats?.efectivas      ?? 0), color: ESTADO_COLOR.efectiva },
@@ -515,12 +529,9 @@ export default function MedicoDetalle({
                             {PERIODOS.map(p => (
                                 <button
                                     key={p.key}
-                                    onClick={() => router.get(
-                                        route('Gmedicos.showPorDocumento', documentoBase ?? medico.documento),
-                                        { periodo: p.key },
-                                        { preserveScroll: true }
-                                    )}
-                                    className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all ${
+                                    onClick={() => irAPeriodo({ periodo: p.key })}
+                                    disabled={cargandoDatos}
+                                    className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-wait ${
                                         periodoActivo === p.key
                                             ? 'bg-blue-600 text-white shadow-sm'
                                             : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
@@ -532,7 +543,8 @@ export default function MedicoDetalle({
 
                             <button
                                 onClick={() => setMostrarCalendario(v => !v)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all ${
+                                disabled={cargandoDatos}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-wait ${
                                     periodoActivo === 'custom'
                                         ? 'bg-blue-600 text-white shadow-sm'
                                         : 'text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-300'
@@ -576,10 +588,11 @@ export default function MedicoDetalle({
                                 </div>
                                 <button
                                     onClick={handlePeriodoPersonalizado}
-                                    disabled={!fechaDesdeInput || !fechaHastaInput}
-                                    className="w-full py-2 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white disabled:opacity-40 transition-all active:scale-95"
+                                    disabled={!fechaDesdeInput || !fechaHastaInput || cargandoDatos}
+                                    className="w-full py-2 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white disabled:opacity-40 transition-all active:scale-95 flex items-center justify-center gap-1.5"
                                 >
-                                    Aplicar
+                                    {cargandoDatos && <FaSpinner className="animate-spin text-[10px]" />}
+                                    {cargandoDatos ? 'Consultando…' : 'Aplicar'}
                                 </button>
                             </div>
                             )}

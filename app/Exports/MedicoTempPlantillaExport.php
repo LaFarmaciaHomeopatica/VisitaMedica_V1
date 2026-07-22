@@ -17,14 +17,15 @@ class MedicoTempPlantillaExport implements FromCollection, WithHeadings, WithCol
             [
                 'documento'         => '',
                 'nombre_referencia' => '',
-                'origen_datos'      => '',
+               
+                
             ],
         ]);
     }
 
     public function headings(): array
     {
-        return ['Documento', 'Nombre Referencia', 'Origen Datos'];
+        return ['Documento', 'Nombre Referencia', ];
     }
 
     public function columnFormats(): array

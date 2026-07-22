@@ -83,22 +83,7 @@ export default function MedicoTempPromoteModal({
                         )}
                     </div>
 
-                    {/* Apellido */}
-                    <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                            Apellido
-                        </label>
-                        <input
-                            type="text"
-                            value={data.apellido}
-                            onChange={e => setData('apellido', e.target.value)}
-                            className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            required
-                        />
-                        {errors.apellido && (
-                            <p className="text-rose-500 text-[9px] mt-1 font-bold">{errors.apellido}</p>
-                        )}
-                    </div>
+                   
 
                     {/* Especialidad */}
                     <div>
