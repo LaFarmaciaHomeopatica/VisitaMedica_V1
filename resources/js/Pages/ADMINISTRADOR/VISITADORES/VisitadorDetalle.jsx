@@ -316,107 +316,125 @@ export default function VisitadorDetalle({
                         <KpiCard label="Valor formulado"    value={odooListo ? fmtM(txStatsLive?.total_valor_formulado ?? 0) : <ValorSkeleton />} accent="#8b5cf6" sub="de sus médicos" />
                     </div>
 {/* ── META ACTIVA ─────────────────────────────────── */}
-                    {metaActiva ? (
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <div className="flex items-start justify-between mb-5">
-                                <div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta del mes</p>
-                                    <p className="text-[13px] font-black text-slate-800 capitalize">{labelMes(mesActual)}</p>
-                                </div>
-                                {(progresoMetaLive?.valor_total ?? (progresoMetaLive?.valor_comprado + (progresoMetaLive?.valor_formulado ?? 0))) >= Number(metaActiva.meta_dinero) ? (
-                                    <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
-                                        <FaCircleCheck /> Meta superada
+{metaActiva ? (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div className="flex items-start justify-between mb-5">
+            <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta del mes</p>
+                <p className="text-[13px] font-black text-slate-800 capitalize">{labelMes(mesActual)}</p>
+            </div>
+            {(progresoMetaLive?.valor_total ?? (progresoMetaLive?.valor_comprado + (progresoMetaLive?.valor_formulado ?? 0))) >= Number(metaActiva.meta_dinero) ? (
+                <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
+                    <FaCircleCheck /> Meta superada
+                </span>
+            ) : (
+                <span className="flex items-center gap-1.5 text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+                    <FaCircleXmark /> En progreso
+                </span>
+            )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* BARRA SEGMENTADA: VALOR TOTAL (COMPRADO + FORMULADO) */}
+            {!odooListo ? (
+                <div className="animate-pulse">
+                    <div className="flex justify-between items-baseline mb-1">
+                        <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
+                            Trayendo valor de Odoo...
+                        </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden" />
+                    <div className="h-3 w-2/3 bg-slate-100 rounded mt-2" />
+                </div>
+            ) : (() => {
+                const metaMonto = Number(metaActiva.meta_dinero) || 1;
+                const comprado = Number(progresoMetaLive?.valor_comprado ?? 0);
+                const formulado = Number(progresoMetaLive?.valor_formulado ?? 0);
+                const totalAlcanzado = progresoMetaLive?.valor_total ?? (comprado + formulado);
+
+                // Cálculo de cuánto falta o cuánto sobrepasó
+                const falta = metaMonto - totalAlcanzado;
+
+                // Cálculo de porcentajes proporcionales
+                const pctComprado = Math.min((comprado / metaMonto) * 100, 100);
+                const pctFormulado = Math.min((formulado / metaMonto) * 100, Math.max(0, 100 - pctComprado));
+                const pctTotal = metaMonto > 0 ? Math.round((totalAlcanzado / metaMonto) * 100) : 0;
+                const over = totalAlcanzado >= metaMonto;
+
+                return (
+                    <div>
+                        <div className="flex justify-between items-baseline mb-1">
+                            <span className="text-[9px] font-black uppercase text-slate-400">
+                                Valor total (Comprado + Formulado)
+                            </span>
+                            <span className="text-[10px] font-black text-slate-700">
+                                {fmtM(totalAlcanzado)}
+                                <span className="text-slate-400 font-bold"> / {fmtM(metaMonto)}</span>
+                            </span>
+                        </div>
+
+                        {/* Barra de 2 colores */}
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                            {/* Tramo Comprado (Verde) */}
+                            <div 
+                                className="h-full transition-all duration-500 bg-emerald-500" 
+                                style={{ width: `${pctComprado}%` }}
+                                title={`Comprado: ${fmtM(comprado)}`}
+                            />
+                            {/* Tramo Formulado (Morado) */}
+                            <div 
+                                className="h-full transition-all duration-500 bg-purple-600" 
+                                style={{ width: `${pctFormulado}%` }}
+                                title={`Formulado: ${fmtM(formulado)}`}
+                            />
+                        </div>
+
+                        {/* Detalle, faltante y porcentaje final */}
+                        <div className="flex justify-between items-center text-[9px] font-bold mt-1">
+                            <div className="flex gap-3 text-slate-500">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                    Comp: <strong className="text-slate-700">{fmtM(comprado)}</strong>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block" />
+                                    Form: <strong className="text-slate-700">{fmtM(formulado)}</strong>
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                                {over ? (
+                                    <span className="text-emerald-600 font-black">
+                                        +{fmtM(Math.abs(falta))} superado
                                     </span>
                                 ) : (
-                                    <span className="flex items-center gap-1.5 text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
-                                        <FaCircleXmark /> En progreso
+                                    <span className="text-slate-500 font-medium">
+                                        Falta: <strong className="text-amber-600 font-bold">{fmtM(falta)}</strong>
                                     </span>
                                 )}
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* BARRA SEGMENTADA: VALOR TOTAL (COMPRADO + FORMULADO) */}
-                                {!odooListo ? (
-                                    <div className="animate-pulse">
-                                        <div className="flex justify-between items-baseline mb-1">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1.5">
-                                                <span className="h-2 w-2 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
-                                                Trayendo valor de Odoo...
-                                            </span>
-                                        </div>
-                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden" />
-                                        <div className="h-3 w-2/3 bg-slate-100 rounded mt-2" />
-                                    </div>
-                                ) : (() => {
-                                    const metaMonto = Number(metaActiva.meta_dinero) || 1;
-                                    const comprado = Number(progresoMetaLive?.valor_comprado ?? 0);
-                                    const formulado = Number(progresoMetaLive?.valor_formulado ?? 0);
-                                    const totalAlcanzado = progresoMetaLive?.valor_total ?? (comprado + formulado);
+                                <span className="text-slate-300">·</span>
 
-                                    // Cálculo de porcentajes proporcionales
-                                    const pctComprado = Math.min((comprado / metaMonto) * 100, 100);
-                                    const pctFormulado = Math.min((formulado / metaMonto) * 100, Math.max(0, 100 - pctComprado));
-                                    const pctTotal = metaMonto > 0 ? Math.round((totalAlcanzado / metaMonto) * 100) : 0;
-                                    const over = totalAlcanzado >= metaMonto;
-
-                                    return (
-                                        <div>
-                                            <div className="flex justify-between items-baseline mb-1">
-                                                <span className="text-[9px] font-black uppercase text-slate-400">
-                                                    Valor total (Comprado + Formulado)
-                                                </span>
-                                                <span className="text-[10px] font-black text-slate-700">
-                                                    {fmtM(totalAlcanzado)}
-                                                    <span className="text-slate-400 font-bold"> / {fmtM(metaMonto)}</span>
-                                                </span>
-                                            </div>
-
-                                            {/* Barra de 2 colores */}
-                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
-                                                {/* Tramo Comprado (Verde) */}
-                                                <div 
-                                                    className="h-full transition-all duration-500 bg-emerald-500" 
-                                                    style={{ width: `${pctComprado}%` }}
-                                                    title={`Comprado: ${fmtM(comprado)}`}
-                                                />
-                                                {/* Tramo Formulado (Morado) */}
-                                                <div 
-                                                    className="h-full transition-all duration-500 bg-purple-600" 
-                                                    style={{ width: `${pctFormulado}%` }}
-                                                    title={`Formulado: ${fmtM(formulado)}`}
-                                                />
-                                            </div>
-
-                                            {/* Detalle y porcentaje final */}
-                                            <div className="flex justify-between items-center text-[9px] font-bold mt-1">
-                                                <div className="flex gap-3 text-slate-500">
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                                                        Comp: <strong className="text-slate-700">{fmtM(comprado)}</strong>
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block" />
-                                                        Form: <strong className="text-slate-700">{fmtM(formulado)}</strong>
-                                                    </span>
-                                                </div>
-                                                <span style={{ color: over ? '#10b981' : '#4184F0' }}>
-                                                    {pctTotal}% {over ? '· ¡Meta superada!' : ''}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {/* BARRA MANTENIDA: VISITAS EFECTIVAS */}
-                                <MetaBar
-                                    label="Visitas efectivas en el mes"
-                                    actual={progresoMetaLive.visitas_efectivas}
-                                    meta={Number(metaActiva.meta_visitas)}
-                                    color="#8b5cf6"
-                                />
+                                <span style={{ color: over ? '#10b981' : '#4184F0' }}>
+                                    {pctTotal}%
+                                </span>
                             </div>
                         </div>
-                    ) : (
+                    </div>
+                );
+            })()}
+
+            {/* BARRA MANTENIDA: VISITAS EFECTIVAS */}
+            <MetaBar
+                label="Visitas efectivas en el mes"
+                actual={progresoMetaLive.visitas_efectivas}
+                meta={Number(metaActiva.meta_visitas)}
+                color="#8b5cf6"
+            />
+        </div>
+    </div>
+) :  (
                         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-5 text-center">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                 Sin meta asignada para {labelMes(mesActual)}

@@ -109,6 +109,7 @@ class TopMedicosController extends Controller
                 'telefono_contacto'  => $medico->telefono_contacto,
                 'horario_atencion'   => $medico->horario_atencion,
                 'geolocalizacion'    => $medico->geolocalizacion,
+                'observaciones'      => $medico->observaciones,
                 'tipo_documento'     => $medico->tipoDocumento ? [
                     'nombre' => $medico->tipoDocumento->nombre
                 ] : null,

@@ -9,7 +9,7 @@ import {
     FaArrowLeft, FaUserDoctor, FaCalendarCheck,
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
     FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus, FaReceipt,
-    FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,
+    FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,FaCommentDots,
 } from 'react-icons/fa6';
 import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
@@ -197,6 +197,17 @@ export default function MedicoDetalle({
     const [mostrarCalendario, setMostrarCalendario] = useState(false);
     const [fechaDesdeInput, setFechaDesdeInput] = useState(fechaDesdeActiva || '');
     const [fechaHastaInput, setFechaHastaInput] = useState(fechaHastaActiva || '');
+    const [observacionActiva, setObservacionActiva] = useState(null);
+    // Estado para abrir/cerrar el modal de EDICIÓN de observación
+const [visitaAEditar, setVisitaAEditar] = useState(null); // Guarda el objeto de la visita
+const [textoObservacion, setTextoObservacion] = useState(''); // Guarda el texto mientras escribe
+const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al guardar
+
+    // Estado para el modal de OBSERVACIONES DEL MÉDICO (a nivel de perfil, no por visita)
+    const [observacionMedicoAbierta, setObservacionMedicoAbierta] = useState(false);
+    const [textoObservacionMedico, setTextoObservacionMedico] = useState(medico.observaciones ?? '');
+    const [guardandoObsMedico, setGuardandoObsMedico] = useState(false);
+    const [editandoObservacion, setEditandoObservacion] = useState(false);
 
     // ── Tab Transacciones (órdenes/facturas Odoo) ───────────────────
     const [filtroTx, setFiltroTx]                   = useState('venta');
@@ -234,6 +245,29 @@ export default function MedicoDetalle({
         });
     };
 
+    const handleAbrirObservaciones = () => {
+        setTextoObservacionMedico(medico.observaciones ?? '');
+        setEditandoObservacion(!medico.observaciones); // Habilitar edición si está vacío de inicio
+        setObservacionMedicoAbierta(true);
+    };
+
+    const handleGuardarObservacionMedico = () => {
+        if (!medico.id) return; // médicos temporales (aún sin registrar) no tienen id real
+
+        setGuardandoObsMedico(true);
+        router.patch(route('Gmedicos.observaciones', medico.id), {
+            observaciones: textoObservacionMedico,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setObservacionMedicoAbierta(false);
+                setEditandoObservacion(false);
+            },
+            onError:   () => alert('Ocurrió un error al guardar la observación'),
+            onFinish:  () => setGuardandoObsMedico(false),
+        });
+    };
+
     const handleSincronizarCategoria = () => {
         setSincronizando(true);
         setSyncMsg(null);
@@ -248,6 +282,28 @@ export default function MedicoDetalle({
         });
     };
 
+    const handleGuardarObservacion = async () => {
+    if (!visitaAEditar) return;
+    
+    setGuardandoObs(true);
+    try {
+        // ⚠️ REEMPLAZA ESTA LÍNEA por tu llamada real a la API/Supabase/Firebase/Odoo
+        // Ejemplo: await api.put(`/visitas/${visitaAEditar.id}`, { observaciones: textoObservacion });
+
+        // Actualizamos dinámicamente en el estado local de React para que se refleje al instante
+        visitaAEditar.observaciones = textoObservacion;
+        visitaAEditar.comentarios = textoObservacion; 
+
+        // Cerrar modal
+        setVisitaAEditar(null);
+        setTextoObservacion('');
+    } catch (error) {
+        console.error("Error al guardar observación:", error);
+        alert("Ocurrió un error al guardar la observación");
+    } finally {
+        setGuardandoObs(false);
+    }
+};
     const handlePeriodoPersonalizado = () => {
         if (!fechaDesdeInput || !fechaHastaInput) return;
         irAPeriodo({ periodo: 'custom', fecha_desde: fechaDesdeInput, fecha_hasta: fechaHastaInput });
@@ -445,6 +501,19 @@ export default function MedicoDetalle({
                             )}
 
                             {/* Acción */}
+                            <button
+                                type="button"
+                                onClick={handleAbrirObservaciones}
+                                className={`px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 self-center border ${
+                                    medico.observaciones
+                                        ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                <FaCommentDots className="text-[10px]" />
+                                Observaciones
+                            </button>
+
                             <button
                                 type="button"
                                 onClick={handleAnalizarAlertas}
@@ -776,39 +845,101 @@ export default function MedicoDetalle({
                             ))}
                         </div>
 
-                        {/* Tab: Visitadores */}
-                        {tabActiva === 'visitadores' && (
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-blue-600">
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Visitador</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Total visitas</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Efectivas</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Última visita</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {(visitadoresAsignados ?? []).length === 0 ? (
-                                        <tr><td colSpan={4} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin visitadores registrados</td></tr>
-                                    ) : (visitadoresAsignados ?? []).map((v, i) => (
-                                        <tr key={i} className="hover:bg-blue-50/20 transition-colors">
-                                            <td className="px-5 py-2.5 border-r border-slate-50">
-                                                <p className="text-[10px] font-black text-slate-700 uppercase">{v.nombre}</p>
-                                            </td>
-                                            <td className="px-5 py-2.5 border-r border-slate-50 text-center text-[10px] font-black text-slate-700">{v.total_visitas}</td>
-                                            <td className="px-5 py-2.5 border-r border-slate-50 text-center">
-                                                <span className="text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full">
-                                                    {v.efectivas}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-2.5 text-center text-[9px] text-slate-500">
-                                                {v.ultima_visita ? new Date(v.ultima_visita).toLocaleDateString('es-CO') : '—'}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                        {/* Tab: Visitas */}
+{tabActiva === 'visitas' && (
+    <>
+        <table className="w-full text-left border-collapse">
+            <thead>
+                <tr className="bg-blue-600">
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Visitador</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Estado</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Programada</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Realizada</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Observaciones</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+                {(visitas ?? []).length === 0 ? (
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin visitas registradas</td></tr>
+                ) : (visitas ?? []).map((v, i) => (
+                    <tr key={i} className="hover:bg-blue-50/20 transition-colors">
+                        <td className="px-5 py-2.5 text-center border-r border-slate-50">
+    <div className="flex items-center justify-center gap-2">
+        {/* Si ya existe observación, muestra el botón para VER */}
+        {v.comentarios || v.observaciones ? (
+            <button
+                type="button"
+                onClick={() => setObservacionActiva(v.comentarios || v.observaciones)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-md text-[9px] font-black uppercase tracking-wider transition-all"
+            >
+                <FaCommentDots className="text-[10px]" />
+                Ver
+            </button>
+        ) : (
+            <span className="text-[9px] text-slate-300 font-bold uppercase">— Sin Notas —</span>
+        )}
+
+        {/* BOTÓN PARA EDITAR / AGREGAR (Ideal para Admins) */}
+        <button
+            type="button"
+            title={v.comentarios || v.observaciones ? "Editar observación" : "Agregar observación"}
+            onClick={() => {
+                setVisitaAEditar(v);
+                setTextoObservacion(v.comentarios || v.observaciones || '');
+            }}
+            className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 rounded-md transition-all active:scale-95"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+        </button>
+    </div>
+</td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+
+        {/* ── MODAL DE OBSERVACIONES ── */}
+        {observacionActiva && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
+                <div className="bg-white rounded-xl shadow-2xl border border-slate-100 w-full max-w-md p-6 relative">
+                    <button
+                        onClick={() => setObservacionActiva(null)}
+                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 transition-colors"
+                    >
+                        <FaXmark className="text-base" />
+                    </button>
+                    
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                            <FaCommentDots className="text-lg" />
+                        </div>
+                        <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
+                            Observaciones de la visita
+                        </h3>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 max-h-60 overflow-y-auto">
+                        <p className="text-[11px] text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">
+                            {observacionActiva}
+                        </p>
+                    </div>
+
+                    <div className="mt-5 flex justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setObservacionActiva(null)}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+    </>
+)}
 
                         {/* Tab: Laboratorios y productos */}
                         {tabActiva === 'laboratorios' && (
@@ -1200,41 +1331,158 @@ export default function MedicoDetalle({
                             </div>
                         )}
 
-                        {/* Tab: Visitas */}
-                        {tabActiva === 'visitas' && (
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-blue-600">
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Visitador</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Estado</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Programada</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Realizada</th>
-                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase">Comentarios</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {(visitas ?? []).length === 0 ? (
-                                        <tr><td colSpan={5} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin visitas registradas</td></tr>
-                                    ) : (visitas ?? []).map((v, i) => (
-                                        <tr key={i} className="hover:bg-blue-50/20 transition-colors">
-                                            <td className="px-5 py-2.5 border-r border-slate-50">
-                                                <p className="text-[10px] font-black text-slate-700 uppercase">{v.nombre_visitador ?? '—'}</p>
-                                            </td>
-                                            <td className="px-5 py-2.5 border-r border-slate-50 text-center">
-                                                <EstadoBadge estado={v.estado} />
-                                            </td>
-                                            <td className="px-5 py-2.5 border-r border-slate-50 text-center text-[9px] text-slate-500">
-                                                {v.fecha_programada ? new Date(v.fecha_programada).toLocaleDateString('es-CO') : '—'}
-                                            </td>
-                                            <td className="px-5 py-2.5 border-r border-slate-50 text-center text-[9px] text-slate-500">
-                                                {v.fecha_realizada ? new Date(v.fecha_realizada).toLocaleDateString('es-CO') : '—'}
-                                            </td>
-                                            <td className="px-5 py-2.5 text-[9px] text-slate-500 max-w-xs truncate">{v.comentarios ?? '—'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+{/* ── MODAL DE CREACIÓN / EDICIÓN DE OBSERVACIÓN ── */}
+{visitaAEditar && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
+        <div className="bg-white rounded-xl shadow-2xl border border-slate-100 w-full max-w-md p-6 relative">
+            <button
+                onClick={() => setVisitaAEditar(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 transition-colors"
+            >
+                <FaXmark className="text-base" />
+            </button>
+            
+            <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <FaCommentDots className="text-lg" />
+                </div>
+                <div>
+                    <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
+                        {visitaAEditar.comentarios || visitaAEditar.observaciones ? 'Editar Observación' : 'Nueva Observación'}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                        Visitador: <span className="font-bold text-slate-600">{visitaAEditar.nombre_visitador ?? '—'}</span>
+                    </p>
+                </div>
+            </div>
+
+            {/* Campo Textarea para escribir */}
+            <div className="mb-4">
+                <textarea
+                    rows={4}
+                    value={textoObservacion}
+                    onChange={(e) => setTextoObservacion(e.target.value)}
+                    placeholder="Escribe aquí las observaciones o notas de la visita..."
+                    className="w-full text-[11px] p-3 text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-white transition-all resize-none"
+                />
+            </div>
+
+            <div className="flex justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => setVisitaAEditar(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    disabled={guardandoObs}
+                    onClick={handleGuardarObservacion}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+                >
+                    {guardandoObs ? <FaSpinner className="animate-spin text-xs" /> : <FaCheck className="text-xs" />}
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
+{/* ── MODAL DE OBSERVACIONES DEL MÉDICO (perfil, no por visita) ── */}
+{observacionMedicoAbierta && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
+        <div className="bg-white rounded-xl shadow-2xl border border-slate-100 w-full max-w-md p-6 relative">
+            <button
+                onClick={() => setObservacionMedicoAbierta(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 transition-colors"
+            >
+                <FaXmark className="text-base" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <FaCommentDots className="text-lg" />
+                </div>
+                <div>
+                    <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
+                        {editandoObservacion 
+                            ? (medico.observaciones ? 'Editar Observación' : 'Nueva Observación') 
+                            : 'Ver Observación'
+                        }
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                        Médico: <span className="font-bold text-slate-600">{medico.nombre} {medico.apellido}</span>
+                    </p>
+                </div>
+            </div>
+
+            <div className="mb-4">
+                <textarea
+                    rows={4}
+                    value={textoObservacionMedico}
+                    readOnly={!editandoObservacion}
+                    onChange={(e) => setTextoObservacionMedico(e.target.value)}
+                    placeholder="Escribe aquí observaciones o notas generales sobre este médico..."
+                    className={`w-full text-[11px] p-3 text-slate-700 rounded-lg focus:outline-none transition-all resize-none border ${
+                        !editandoObservacion 
+                            ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-default' 
+                            : 'bg-slate-50 border-slate-200 focus:border-blue-500 focus:bg-white'
+                    }`}
+                />
+            </div>
+
+            <div className="flex justify-end gap-2">
+                {!editandoObservacion ? (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => setObservacionMedicoAbierta(false)}
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                            Cerrar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setEditandoObservacion(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                        >
+                            Editar
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!medico.observaciones) {
+                                    setObservacionMedicoAbierta(false);
+                                } else {
+                                    setEditandoObservacion(false);
+                                    setTextoObservacionMedico(medico.observaciones ?? '');
+                                }
+                            }}
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            disabled={guardandoObsMedico}
+                            onClick={handleGuardarObservacionMedico}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {guardandoObsMedico ? <FaSpinner className="animate-spin text-xs" /> : <FaCheck className="text-xs" />}
+                            Guardar
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    </div>
+)}
+
+
                     </div>
 
                 </div>

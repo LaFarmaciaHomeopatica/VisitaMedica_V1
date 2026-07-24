@@ -104,6 +104,8 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/Gmedicos/{medico}', [Medico2Controller::class, 'destroy'])->name('Gmedicos.destroy');
 
 
+
+
         Route::get('/Gvisitas', [VisitasController::class, 'index'])->name('Gvisitas.index');
         Route::post('/Gvisitas', [VisitasController::class, 'store'])->name('Gvisitas.store');
         // Cambiamos {visita} por {id}
@@ -244,6 +246,9 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
                 Route::get('/panel/odoo-stats', [VisitadorController::class, 'odooStats'])->name('panel.odoo-stats');
 
         });
+
+    Route::patch('/medicos/{medico}/observaciones', [Medico2Controller::class, 'actualizarObservaciones'])
+        ->name('Gmedicos.observaciones');
 
     /*
     |---------------------------------------------------------------------------------

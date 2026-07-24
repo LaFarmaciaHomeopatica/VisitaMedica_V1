@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
-import { FaCrown, FaBell, FaPhoneFlip, FaLocationDot, FaSpinner, FaArrowsRotate } from 'react-icons/fa6';
+import {
+    FaCrown, FaBell, FaPhoneFlip, FaLocationDot, FaSpinner,
+    FaArrowsRotate, FaCommentDots, FaXmark, FaCheck
+} from 'react-icons/fa6';
 
 // ─── Hero del médico (carga siempre al instante, independiente de Odoo) ──────
 const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl }) => {
     const [mostrarDetalles, setMostrarDetalles] = useState(false);
     const [actualizando, setActualizando] = useState(false);
+
+    // Estados para las observaciones del médico
+    const [observacionMedicoAbierta, setObservacionMedicoAbierta] = useState(false);
+    const [textoObservacionMedico, setTextoObservacionMedico] = useState(medico.observaciones ?? '');
+    const [guardandoObsMedico, setGuardandoObsMedico] = useState(false);
+    const [editandoObservacion, setEditandoObservacion] = useState(false);
 
     const handleRefrescar = () => {
         if (actualizando) return;
@@ -17,7 +26,31 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
         });
     };
 
+    const handleAbrirObservaciones = () => {
+        setTextoObservacionMedico(medico.observaciones ?? '');
+        setEditandoObservacion(!medico.observaciones); // Editable de inicio solo si está vacío
+        setObservacionMedicoAbierta(true);
+    };
+
+    const handleGuardarObservacionMedico = () => {
+        if (!medico.id) return;
+
+        setGuardandoObsMedico(true);
+        router.patch(route('Gmedicos.observaciones', medico.id), {
+            observaciones: textoObservacionMedico,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setObservacionMedicoAbierta(false);
+                setEditandoObservacion(false);
+            },
+            onError: () => alert('Ocurrió un error al guardar la observación'),
+            onFinish: () => setGuardandoObsMedico(false),
+        });
+    };
+
     return (
+        <>
         <section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-6 rounded-[30px] shadow-lg text-white relative">
             <div className="flex items-start gap-4">
 
@@ -66,6 +99,17 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
                             <FaArrowsRotate size={9} className={actualizando ? 'animate-spin' : ''} />
                             {actualizando ? 'Actualizando' : 'Refrescar'}
                         </button>
+                            <button
+                                onClick={handleAbrirObservaciones}
+                                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 inline-flex items-center gap-1 border ${
+                                    medico.observaciones
+                                        ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400'
+                                        : 'bg-white/20 hover:bg-white/35 text-white border-white/20'
+                                }`}
+                            >
+                                <FaCommentDots size={9} />
+                                Observaciones
+                            </button>
                     </div>
                 </div>
             </div>
@@ -118,10 +162,117 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
                             </div>
                         </div>
                     </div>
+
+                        {medico.observaciones && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-[#0A69C2] flex items-center gap-1.5">
+                                    <FaCommentDots className="text-[#1C85E8]" /> Observaciones del Médico
+                                </p>
+                                <p className="text-xs font-semibold text-gray-700 mt-1 whitespace-pre-line leading-relaxed">
+                                    {medico.observaciones}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </section>
+
+            {/* MODAL DE OBSERVACIONES DEL MÉDICO (perfil, no por visita) */}
+            {observacionMedicoAbierta && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
+                    <div className="bg-white rounded-xl shadow-2xl border border-slate-100 w-full max-w-md p-6 relative text-slate-800">
+                        <button
+                            onClick={() => setObservacionMedicoAbierta(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 transition-colors"
+                        >
+                            <FaXmark className="text-base" />
+                        </button>
+
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                                <FaCommentDots className="text-lg" />
+                            </div>
+                            <div>
+                                <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
+                                    {editandoObservacion
+                                        ? (medico.observaciones ? 'Editar Observación' : 'Nueva Observación')
+                                        : 'Ver Observación'
+                                    }
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                    Médico: <span className="font-bold text-slate-600">{medico.nombre}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
+                            <textarea
+                                rows={4}
+                                value={textoObservacionMedico}
+                                readOnly={!editandoObservacion}
+                                onChange={(e) => setTextoObservacionMedico(e.target.value)}
+                                placeholder="Escribe aquí observaciones o notas generales sobre este médico..."
+                                className={`w-full text-[11px] p-3 text-slate-700 rounded-lg focus:outline-none transition-all resize-none border ${
+                                    !editandoObservacion
+                                        ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-default'
+                                        : 'bg-slate-50 border-slate-200 focus:border-blue-500 focus:bg-white'
+                                }`}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            {!editandoObservacion ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setObservacionMedicoAbierta(false)}
+                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                                    >
+                                        Cerrar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditandoObservacion(true)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                    >
+                                        Editar
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!medico.observaciones) {
+                                                setObservacionMedicoAbierta(false);
+                                            } else {
+                                                setEditandoObservacion(false);
+                                                setTextoObservacionMedico(medico.observaciones ?? '');
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={guardandoObsMedico}
+                                        onClick={handleGuardarObservacionMedico}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                        {guardandoObsMedico ? <FaSpinner className="animate-spin text-xs" /> : <FaCheck className="text-xs" />}
+                                        Guardar
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
-        </section>
+        </>
     );
 };
 
 export default HeroMedico;
+
+

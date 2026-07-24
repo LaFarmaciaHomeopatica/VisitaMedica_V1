@@ -168,6 +168,29 @@ class Medico2Controller extends Controller
         return Redirect::route('Gmedicos.index')->with('message', 'Médico creado con éxito.');
     }
 
+    /**
+     * Actualiza la observación general del médico (perfil), independiente
+     * de las observaciones/comentarios que se guardan por cada visita.
+     */
+    public function actualizarObservaciones(Request $request, Medico $medico)
+    {
+        $user = $request->user();
+        if ($user && $user->id_rol == 2) {
+            $visitador = \App\Models\Visitador::where('usuario_id', $user->id)->first();
+            if (!$visitador || $medico->visitador_id !== $visitador->id) {
+                abort(403, 'No tienes permiso para actualizar las observaciones de este médico.');
+            }
+        }
+
+        $validated = $request->validate([
+            'observaciones' => 'nullable|string',
+        ]);
+
+        $medico->update($validated);
+
+        return back()->with('message', 'Observación del médico actualizada.');
+    }
+
     public function update(Request $request, Medico $medico)
     {
         $validated = $request->validate([
