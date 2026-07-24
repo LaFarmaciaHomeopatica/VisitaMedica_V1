@@ -505,18 +505,42 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             ->orderByDesc('visitas.fecha_programada')
             ->take(50)->get();
 
-        $visitadoresAsignados = DB::table('visitas')
-            ->where('visitas.medico_id', $id)
-            ->join('visitadores', 'visitas.visitador_id', '=', 'visitadores.id')
-            ->select(
-                'visitadores.id',
-                DB::raw("CONCAT(visitadores.nombre, ' ', visitadores.apellido) as nombre"),
-                DB::raw('COUNT(visitas.id) as total_visitas'),
-                DB::raw("SUM(CASE WHEN visitas.estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
-                DB::raw('MAX(visitas.fecha_programada) as ultima_visita')
-            )
-            ->groupBy('visitadores.id', 'visitadores.nombre', 'visitadores.apellido')
-            ->orderByDesc('total_visitas')->get();
+        // ✅ CÓDIGO CORREGIDO (Incluye al visitador asignado al médico + historial de visitas)
+
+// 1. Obtener todas las métricas de visitas agrupadas por visitador
+$visitasPorVisitador = DB::table('visitas')
+    ->where('medico_id', $medico->id)
+    ->select(
+        'visitador_id',
+        DB::raw('COUNT(id) as total_visitas'),
+        DB::raw("SUM(CASE WHEN estado = 'efectiva' THEN 1 ELSE 0 END) as efectivas"),
+        DB::raw('MAX(fecha_programada) as ultima_visita')
+    )
+    ->groupBy('visitador_id')
+    ->get()
+    ->keyBy('visitador_id');
+
+// 2. Obtener los IDs de todos los visitadores relevantes (el asignado actual + los que han realizado visitas)
+$visitadorIds = collect([$medico->visitador_id])
+    ->concat($visitasPorVisitador->keys())
+    ->filter()
+    ->unique();
+
+// 3. Mapear la información completa de cada visitador
+$visitadoresAsignados = \App\Models\Visitador::whereIn('id', $visitadorIds)
+    ->get()
+    ->map(function ($v) use ($visitasPorVisitador, $medico) {
+        $stats = $visitasPorVisitador->get($v->id);
+        return [
+            'id'             => $v->id,
+            'nombre'         => trim("{$v->nombre} {$v->apellido}"),
+            'es_asignado'    => $v->id === $medico->visitador_id, // Identifica si es el visitador actual
+            'total_visitas'  => $stats->total_visitas ?? 0,
+            'efectivas'      => $stats->efectivas ?? 0,
+            'ultima_visita'  => $stats->ultima_visita ?? null,
+        ];
+    })
+    ->values();
 
         $transacciones = $this->odoo->getTransaccionesPorDocumento($doc, $fechaDesde, $fechaHasta);
         $tarifasSinClasificar = $this->odoo->getTarifasSinClasificarPorDocumento($doc, $fechaDesde, $fechaHasta);
@@ -531,7 +555,7 @@ if ($partnerOdoo) {
     $medico->celular  = $partnerOdoo['celular'] ?? null;
 
     // Cumpleaños / Fecha de nacimiento
-    $medico->fecha_nacimiento = $partnerOdoo['fecha_nacimiento'] ?? null;
+   // Cumpleaños / Fecha de nacimiento (Solo Lectura desde Odoo)
     $medico->mes_nacimiento   = $partnerOdoo['mes_nacimiento'] ?? null;
     $medico->dia_nacimiento   = $partnerOdoo['dia_nacimiento'] ?? null;
 

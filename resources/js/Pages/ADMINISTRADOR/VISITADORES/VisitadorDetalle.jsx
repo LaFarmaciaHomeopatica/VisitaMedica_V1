@@ -312,9 +312,45 @@ export default function VisitadorDetalle({
                         <KpiCard label="Visitas efectivas"  value={fmt(visitasStats?.efectivas ?? 0)}        accent="#10b981" sub={labelMes(mesActual)} />
                         <KpiCard label="Programadas"        value={fmt(visitasStats?.programadas ?? 0)}      accent="#4184F0" sub={labelMes(mesActual)} />
                         <KpiCard label="Canceladas"         value={fmt(visitasStats?.canceladas ?? 0)}       accent="#ef4444" sub={labelMes(mesActual)} />
-                        <KpiCard label="Valor comprado"     value={odooListo ? fmtM(txStatsLive?.total_valor_comprado ?? 0) : <ValorSkeleton />} accent="#10b981" sub="de sus médicos" />
-                        <KpiCard label="Valor formulado"    value={odooListo ? fmtM(txStatsLive?.total_valor_formulado ?? 0) : <ValorSkeleton />} accent="#8b5cf6" sub="de sus médicos" />
-                    </div>
+                        {/* ── CONTENEDOR AGRUPADO DE COMPRADO + FORMULADO CON BARRITA SUPERIOR ── */}
+{(() => {
+    const vComprado = Number(txStatsLive?.total_valor_comprado ?? 0);
+    const vFormulado = Number(txStatsLive?.total_valor_formulado ?? 0);
+    const vTotal = vComprado + vFormulado;
+
+    return (
+        <div className="col-span-2 flex flex-col bg-slate-50/70 border border-slate-200/80 rounded-2xl p-2.5 relative shadow-sm">
+            
+            {/* Barrita superior con la suma de ambos valores */}
+           {/* Barrita superior en Amarillo Sólido */}
+<div className="w-full bg-amber-400 rounded-xl px-3 py-1 flex items-center justify-between mb-1 shadow-xs">
+    <span className="text-[9px] font-black uppercase text-slate-900 tracking-wider flex items-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-900 animate-pulse inline-block" />
+        Total Generado (Comprado + Formulado)
+    </span>
+    <span className="text-[11px] font-black text-slate-900">
+        {odooListo ? fmtM(vTotal) : <ValorSkeleton w="w-16" />}
+    </span>
+</div>
+
+            {/* Dos tarjetas individuales */}
+            <div className="grid grid-cols-2 gap-2 flex-1">
+                <KpiCard 
+                    label="Valor comprado" 
+                    value={odooListo ? fmtM(vComprado) : <ValorSkeleton />} 
+                    accent="#10b981" 
+                    sub="de sus médicos" 
+                />
+                <KpiCard 
+                    label="Valor formulado" 
+                    value={odooListo ? fmtM(vFormulado) : <ValorSkeleton />} 
+                    accent="#8b5cf6" 
+                    sub="de sus médicos" 
+                />
+            </div>
+        </div>
+    );
+})()}</div>
 {/* ── META ACTIVA ─────────────────────────────────── */}
 {metaActiva ? (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">

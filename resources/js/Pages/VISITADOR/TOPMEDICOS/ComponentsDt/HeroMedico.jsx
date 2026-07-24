@@ -50,69 +50,96 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
     };
 
     return (
-        <>
-        <section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-6 rounded-[30px] shadow-lg text-white relative">
-            <div className="flex items-start gap-4">
+        <><section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-5 sm:p-6 rounded-[30px] shadow-lg text-white relative">
+    
+    {/* ── CONTENEDOR PRINCIPAL (En móvil pasa a columna) ── */}
+    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
 
-                {/* Avatar puesto ranking */}
-                {(() => {
-                    let colorFondo = "bg-white/20";
-                    if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
-                    if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
-                    if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
-                    return (
-                        <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
-                            {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
-                            <span className="text-base font-black text-white leading-none">
-                                {cargandoOdoo ? <FaSpinner className="animate-spin text-sm text-white/70" /> : puestoReal ? `#${puestoReal}` : '—'}
-                            </span>
-                        </div>
-                    );
-                })()}
-
-                <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-extrabold text-white leading-tight">
-                        {medico?.nombre}
-                    </h2>
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className="text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full border border-white/20">
-                            {medico?.especialidad || 'General'}
+        {/* 1. Cabecera superior en móvil: Puesto + Nombre */}
+        <div className="flex items-center sm:items-start gap-3 sm:gap-4">
+            {/* Avatar puesto ranking */}
+            {(() => {
+                let colorFondo = "bg-white/20";
+                if (puestoReal === 1) colorFondo = "bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200 border-2";
+                if (puestoReal === 2) colorFondo = "bg-gradient-to-br from-slate-300 to-slate-500 border-slate-200 border-2";
+                if (puestoReal === 3) colorFondo = "bg-gradient-to-br from-orange-400 to-amber-700 border-orange-300 border-2";
+                return (
+                    <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 backdrop-blur-md transition-all duration-300 ${colorFondo}`}>
+                        {puestoReal === 1 && <FaCrown size={12} className="text-white mb-0.5 animate-bounce" />}
+                        <span className="text-sm sm:text-base font-black text-white leading-none">
+                            {cargandoOdoo ? <FaSpinner className="animate-spin text-sm text-white/70" /> : puestoReal ? `#${puestoReal}` : '—'}
                         </span>
-                        <Link
-                            href={`/visitador/alertas/${medico.documento}?mes=${mesActual}`}
-                            className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center gap-1"
-                        >
-                            <FaBell size={9} /> Alerta
-                        </Link>
-                        <button
-                            onClick={() => setMostrarDetalles(!mostrarDetalles)}
-                            className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95"
-                        >
-                            {mostrarDetalles ? 'Cerrar' : 'Info'}
-                        </button>
-                        <button
-                            onClick={handleRefrescar}
-                            disabled={actualizando}
-                            title="Actualizar datos de Odoo solo de este médico"
-                            className="bg-white/20 hover:bg-white/35 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1"
-                        >
-                            <FaArrowsRotate size={9} className={actualizando ? 'animate-spin' : ''} />
-                            {actualizando ? 'Actualizando' : 'Refrescar'}
-                        </button>
-                            <button
-                                onClick={handleAbrirObservaciones}
-                                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 inline-flex items-center gap-1 border ${
-                                    medico.observaciones
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400'
-                                        : 'bg-white/20 hover:bg-white/35 text-white border-white/20'
-                                }`}
-                            >
-                                <FaCommentDots size={9} />
-                                Observaciones
-                            </button>
                     </div>
-                </div>
+                );
+            })()}
+
+            {/* Nombre (En escritorio comparte fila, en móvil queda al lado de #152) */}
+            <div className="flex-1 min-w-0 sm:hidden">
+                <h2 className="text-base font-extrabold text-white leading-tight">
+                    {medico?.nombre}
+                </h2>
             </div>
+        </div>
+
+        {/* 2. Bloque de Nombre (Escritorio) y Cuadrícula a ancho completo (Móvil) */}
+        <div className="flex-1 min-w-0 w-full">
+            
+            {/* Nombre solo para pantallas medianas/grandes */}
+            <h2 className="hidden sm:block text-lg font-extrabold text-white leading-tight">
+                {medico?.nombre}
+            </h2>
+
+            {/* ── CUADRÍCULA A ANCHO COMPLETO (100% W) ── */}
+            <div className="mt-2 sm:mt-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full">
+                
+                {/* Especialidad ocupa todo el ancho de la cuadrícula */}
+                <span className="col-span-2 sm:col-span-1 text-center sm:text-left text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-xl border border-white/20">
+                    {medico?.especialidad || 'General'}
+                </span>
+
+                {/* Alerta */}
+                <Link
+                    href={`/visitador/alertas/${medico.documento}?mes=${mesActual}`}
+                    className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                    <FaBell size={10} /> Alerta
+                </Link>
+
+                {/* Info */}
+                <button
+                    onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                    className="bg-white/20 hover:bg-white/35 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95 text-center"
+                >
+                    {mostrarDetalles ? 'Cerrar' : 'Info'}
+                </button>
+
+                {/* Refrescar */}
+                <button
+                    onClick={handleRefrescar}
+                    disabled={actualizando}
+                    title="Actualizar datos de Odoo solo de este médico"
+                    className="bg-white/20 hover:bg-white/35 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-white/20 transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                    <FaArrowsRotate size={10} className={actualizando ? 'animate-spin' : ''} />
+                    {actualizando ? 'Cargando' : 'Refrescar'}
+                </button>
+
+                {/* Observaciones */}
+                <button
+                    onClick={handleAbrirObservaciones}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 inline-flex items-center justify-center gap-1.5 border ${
+                        medico.observaciones
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400 shadow-sm'
+                            : 'bg-white/20 hover:bg-white/35 text-white border-white/20'
+                    }`}
+                >
+                    <FaCommentDots size={10} />
+                    Observaciones
+                </button>
+
+            </div>
+        </div>
+    </div>
 
             {/* Datos detallados — desplegable */}
             {mostrarDetalles && (

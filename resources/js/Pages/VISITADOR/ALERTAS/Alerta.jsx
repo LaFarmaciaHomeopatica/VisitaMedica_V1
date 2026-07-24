@@ -12,7 +12,7 @@ import {
     FaSpinner // Añadimos un icono de carga
 } from 'react-icons/fa6';
 
-const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
+const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', periodoBLabel = '' }) => {
     // Nota: cambiamos el valor por defecto de medicosAlertas a null para identificar la carga inicial
     
     // ── Estados Locales ──
@@ -147,15 +147,22 @@ const Alerta = ({ medicosAlertas = null, mesActual = '' }) => {
 
                 <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
                     <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
-                                <span className="text-[10px] font-black text-white uppercase tracking-wider">Período de Comparación:</span>
-                                <input
-                                    type="month"
-                                    value={mesFiltro}
-                                    onChange={handleMesChange}
-                                    className="bg-white/20 border-none rounded-md py-0.5 px-2 text-xs font-black text-white outline-none w-36 text-center focus:ring-2 focus:ring-white/50 [color-scheme:dark]"
-                                />
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+                                    <span className="text-[10px] font-black text-white uppercase tracking-wider">Comparar con:</span>
+                                    <input
+                                        type="month"
+                                        value={mesFiltro}
+                                        onChange={handleMesChange}
+                                        className="bg-white/20 border-none rounded-md py-0.5 px-2 text-xs font-black text-white outline-none w-36 text-center focus:ring-2 focus:ring-white/50 [color-scheme:dark]"
+                                    />
+                                </div>
+                                {periodoALabel && periodoBLabel && (
+                                    <span className="text-[9px] font-bold text-white/80 uppercase tracking-wider pl-1">
+                                        Comparando {periodoALabel} vs {periodoBLabel}
+                                    </span>
+                                )}
                             </div>
                             <div className="hidden sm:flex items-center gap-1.5 text-white/95 text-[10px] font-black uppercase tracking-wider bg-white/15 px-3 py-1.5 rounded-full border border-white/10">
                                 {datosListos ? (

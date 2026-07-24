@@ -129,7 +129,7 @@ class OdooService
         'res.partner',
         'read',
         [$ids],
-        ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'l10n_latam_identification_type_id']]
+        ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'l10n_latam_identification_type_id', 'month_birtday', 'day_birtday']]
     );
 
     $partner = $partners[0] ?? null;
@@ -141,6 +141,8 @@ class OdooService
 
     $telefono = $cleanString($partner['phone'] ?? null);
     $celular  = $cleanString($partner['mobile'] ?? null);
+    $mesNacimiento = $cleanString($partner['month_birtday'] ?? null);
+    $diaNacimiento = $cleanString($partner['day_birtday'] ?? null);
 
     // Retornamos el partner con datos limpios y mapeados
     return array_merge($partner, [
@@ -149,7 +151,10 @@ class OdooService
         'telefono'          => $telefono, // Por si tu modelo/frontend usa 'telefono'
         'celular'           => $celular,  // Por si tu modelo/frontend usa 'celular'
         'telefono_contacto' => $telefono ?: $celular, // Mapeo de respaldo
+        'mes_nacimiento'    => $mesNacimiento,
+        'dia_nacimiento'    => $diaNacimiento,
     ]);
+
 }
     /**
      * Autocompletado por nombre o documento contra TODOS los clientes de

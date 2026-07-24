@@ -64,6 +64,30 @@ const ESTADO_LABEL = {
 };
 const PROD_COLORS = ['#3D3FD8', '#4184F0', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'];
 
+
+
+const MESES_NOMBRES = {
+    // Si desde Odoo/DB te llega como abreviatura
+    ene: 'Enero', feb: 'Febrero', mar: 'Marzo', abr: 'Abril',
+    may: 'Mayo', jun: 'Junio', jul: 'Julio', ago: 'Agosto',
+    sep: 'Septiembre', oct: 'Octubre', nov: 'Noviembre', dic: 'Diciembre',
+    
+    // Si también te llega como número (por si acaso)
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
+    '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+    '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+    '09': 'Septiembre',
+};
+
+// Helper para obtener el mes completo limpiando espacios y minúsculas
+function formatoMesCompleto(mes) {
+    if (!mes) return '—';
+    const mesLimpio = String(mes).trim().toLowerCase();
+    return MESES_NOMBRES[mesLimpio] ?? mes; // Si no lo encuentra, muestra el valor original
+}
+
 // ── subcomponents ─────────────────────────────────────────────────────────────
 function KpiCard({ label, value, accent, href }) {
     const inner = (
@@ -493,6 +517,13 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
         </span>
     )}
 
+ {(medico.mes_nacimiento || medico.dia_nacimiento) && (
+    <span className="flex items-center gap-1 font-medium text-slate-600">
+        <FaCalendarDays className="text-blue-500 text-[10px]" /> 
+        Cumpleaños: {medico.dia_nacimiento ?? '—'} / {formatoMesCompleto(medico.mes_nacimiento)}
+    </span>
+)}
+
     {/* Enlace al mapa */}
     {geoCoords && (
         <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
@@ -894,101 +925,61 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
                         </div>
 
                         {/* Tab: Visitas */}
-{tabActiva === 'visitas' && (
+{tabActiva === 'visitadores' && (
     <>
         <table className="w-full text-left border-collapse">
             <thead>
                 <tr className="bg-blue-600">
                     <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Visitador</th>
                     <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Estado</th>
-                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Programada</th>
-                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Realizada</th>
-                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Observaciones</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Total Visitas</th>
+                    <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Efectivas</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-                {(visitas ?? []).length === 0 ? (
-                    <tr><td colSpan={5} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin visitas registradas</td></tr>
-                ) : (visitas ?? []).map((v, i) => (
-                    <tr key={i} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="px-5 py-2.5 text-center border-r border-slate-50">
-    <div className="flex items-center justify-center gap-2">
-        {/* Si ya existe observación, muestra el botón para VER */}
-        {v.comentarios || v.observaciones ? (
-            <button
-                type="button"
-                onClick={() => setObservacionActiva(v.comentarios || v.observaciones)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-md text-[9px] font-black uppercase tracking-wider transition-all"
-            >
-                <FaCommentDots className="text-[10px]" />
-                Ver
-            </button>
-        ) : (
-            <span className="text-[9px] text-slate-300 font-bold uppercase">— Sin Notas —</span>
-        )}
-
-        {/* BOTÓN PARA EDITAR / AGREGAR (Ideal para Admins) */}
-        <button
-            type="button"
-            title={v.comentarios || v.observaciones ? "Editar observación" : "Agregar observación"}
-            onClick={() => {
-                setVisitaAEditar(v);
-                setTextoObservacion(v.comentarios || v.observaciones || '');
-            }}
-            className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 rounded-md transition-all active:scale-95"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-        </button>
-    </div>
-</td>
+                {(visitadoresAsignados ?? []).length === 0 ? (
+                    <tr>
+                        <td colSpan={4} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">
+                            Sin visitadores asignados
+                        </td>
                     </tr>
-                ))}
+                ) : (
+                    (visitadoresAsignados ?? []).map((v, i) => (
+                        <tr key={v.id || i} className="hover:bg-blue-50/20 transition-colors">
+                            {/* 1. NOMBRE DEL VISITADOR */}
+                            <td className="px-5 py-2.5 text-[11px] font-bold text-slate-700 border-r border-slate-50">
+                                {v.nombre || v.visitador?.nombre || 'Sin Nombre'}
+                            </td>
+
+                            {/* 2. ESTADO (Si es el asignado actual) */}
+                            <td className="px-5 py-2.5 text-center border-r border-slate-50">
+                                {v.es_asignado ? (
+                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded text-[9px] font-black uppercase">
+                                        Asignado
+                                    </span>
+                                ) : (
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded text-[9px] font-bold uppercase">
+                                        Histórico
+                                    </span>
+                                )}
+                            </td>
+
+                            {/* 3. TOTAL VISITAS */}
+                            <td className="px-5 py-2.5 text-center text-[11px] font-bold text-slate-600 border-r border-slate-50">
+                                {v.total_visitas ?? 0}
+                            </td>
+
+                            {/* 4. VISITAS EFECTIVAS */}
+                            <td className="px-5 py-2.5 text-center text-[11px] font-bold text-slate-600">
+                                {v.efectivas ?? 0}
+                            </td>
+                        </tr>
+                    ))
+                )}
             </tbody>
         </table>
-
-        {/* ── MODAL DE OBSERVACIONES ── */}
-        {observacionActiva && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
-                <div className="bg-white rounded-xl shadow-2xl border border-slate-100 w-full max-w-md p-6 relative">
-                    <button
-                        onClick={() => setObservacionActiva(null)}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 transition-colors"
-                    >
-                        <FaXmark className="text-base" />
-                    </button>
-                    
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                            <FaCommentDots className="text-lg" />
-                        </div>
-                        <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
-                            Observaciones de la visita
-                        </h3>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 max-h-60 overflow-y-auto">
-                        <p className="text-[11px] text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">
-                            {observacionActiva}
-                        </p>
-                    </div>
-
-                    <div className="mt-5 flex justify-end">
-                        <button
-                            type="button"
-                            onClick={() => setObservacionActiva(null)}
-                            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
-                        >
-                            Cerrar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
     </>
 )}
-
                         {/* Tab: Laboratorios y productos */}
                         {tabActiva === 'laboratorios' && (
                                 <div className="p-6 space-y-6">

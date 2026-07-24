@@ -23,95 +23,121 @@ class AlertaController extends Controller
     }
 
     public function index(Request $request)
-    {
-        $visitador = Visitador::where('usuario_id', Auth::id())->first();
-        if (!$visitador) {
-            return redirect()->route('panel')->with('error', 'Visitador no encontrado.');
-        }
+{
+    $visitador = Visitador::where('usuario_id', Auth::id())->first();
+    if (!$visitador) {
+        return redirect()->route('panel')->with('error', 'Visitador no encontrado.');
+    }
 
-        $mesFiltroStr = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
-        $mesCompararInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
-        $mesCompararFin = $mesCompararInicio->copy()->endOfMonth();
+    // 1. Mes seleccionado por el usuario en el filtro (por defecto, el mes actual)
+    $mesFiltroStr = $request->input('mes', Carbon::now()->format('Y-m'));
+    $mesSeleccionadoInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
+    $mesSeleccionadoFin    = $mesSeleccionadoInicio->copy()->endOfMonth();
 
-        $mesActualInicio = Carbon::now()->startOfMonth();
-        $mesActualFin = Carbon::now()->endOfMonth();
+    // 2. Mes actual real (hoy)
+    $mesActualInicio = Carbon::now()->startOfMonth();
+    $mesActualFin    = Carbon::now()->endOfMonth();
 
-        return Inertia::render('VISITADOR/ALERTAS/Alerta', [
-            'mesActual'      => $mesFiltroStr,
-            'medicosAlertas' => Inertia::lazy(function () use ($visitador, $mesCompararInicio, $mesCompararFin, $mesActualInicio, $mesActualFin) {
-                $medicos = $visitador->medicos()->get();
-                $todosMedicosDoc = $medicos->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
+    // 3. Regla de negocio: comparamos "mes actual real" vs "mes seleccionado".
+    //    periodoA siempre es el mes cronológicamente más antiguo (para que
+    //    'comprado_mes_anterior'/'comprado_mes_actual' del OdooService y las
+    //    columnas "Ant"/"Act" del front sigan siendo coherentes).
+    $esMesActual = $mesSeleccionadoInicio->isSameMonth($mesActualInicio);
 
-                $medicosAlertas = [];
+    if ($esMesActual) {
+        // No se puede comparar el mes actual contra sí mismo: caemos al mes anterior
+        $periodoAInicio = $mesActualInicio->copy()->subMonth()->startOfMonth();
+        $periodoAFin    = $mesActualInicio->copy()->subMonth()->endOfMonth();
+        $periodoBInicio = $mesActualInicio;
+        $periodoBFin    = $mesActualFin;
+    } elseif ($mesSeleccionadoInicio->lt($mesActualInicio)) {
+        // Caso normal: el mes seleccionado es anterior al actual
+        $periodoAInicio = $mesSeleccionadoInicio;
+        $periodoAFin    = $mesSeleccionadoFin;
+        $periodoBInicio = $mesActualInicio;
+        $periodoBFin    = $mesActualFin;
+    } else {
+        // Caso borde: seleccionaron un mes futuro
+        $periodoAInicio = $mesActualInicio;
+        $periodoAFin    = $mesActualFin;
+        $periodoBInicio = $mesSeleccionadoInicio;
+        $periodoBFin    = $mesSeleccionadoFin;
+    }
 
-                if ($todosMedicosDoc->isNotEmpty()) {
-                    $periodoA = ['desde' => $mesCompararInicio->format('Y-m-d'), 'hasta' => $mesCompararFin->format('Y-m-d')];
-                    $periodoB = ['desde' => $mesActualInicio->format('Y-m-d'),   'hasta' => $mesActualFin->format('Y-m-d')];
+    return Inertia::render('VISITADOR/ALERTAS/Alerta', [
+        'mesActual'             => $mesFiltroStr,
+        'mesHoy'                => $mesActualInicio->format('Y-m'),
+        'comparaConMesAnterior' => $esMesActual,
+        'periodoALabel'         => $this->formatMesEs($periodoAInicio),
+        'periodoBLabel'         => $this->formatMesEs($periodoBInicio),
 
-                    // ── ANTES: 2 llamadas a Odoo POR CADA médico dentro de un foreach
-                    // (getFormulacionPorDocumento x2), lo que con 40 médicos eran ~80
-                    // peticiones XML-RPC secuenciales. AHORA: 1 sola llamada grupal para
-                    // el "comprado" + 1 sola llamada grupal para el "formulado", sin
-                    // importar cuántos médicos tenga el visitador.
-                    $odooAlerts = $this->odoo->getProductosComparativoGrupal(
-                        $todosMedicosDoc->toArray(),
-                        $periodoA,
-                        $periodoB
-                    );
+        'medicosAlertas' => Inertia::lazy(function () use ($visitador, $periodoAInicio, $periodoAFin, $periodoBInicio, $periodoBFin) {
+            $medicos = $visitador->medicos()->get();
+            $todosMedicosDoc = $medicos->pluck('documento')->filter()->unique()->map(fn($d) => (string) $d)->values();
 
-                    $formulacionGrupal = $this->odoo->getFormulacionGrupalPorDocumentos(
-                        $todosMedicosDoc->toArray(),
-                        $periodoA,
-                        $periodoB
-                    );
+            $medicosAlertas = [];
 
-                    // Especialidad resuelta desde Odoo (igual que el admin),
-                    // no la columna local 'especialidad' (legado).
-                    $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
+            if ($todosMedicosDoc->isNotEmpty()) {
+                // Periodo A = mes más antiguo | Periodo B = mes más reciente
+                $periodoA = ['desde' => $periodoAInicio->format('Y-m-d'), 'hasta' => $periodoAFin->format('Y-m-d')];
+                $periodoB = ['desde' => $periodoBInicio->format('Y-m-d'), 'hasta' => $periodoBFin->format('Y-m-d')];
 
-                    foreach ($medicos as $medico) {
-                        $doc = (string) $medico->documento;
+                $odooAlerts = $this->odoo->getProductosComparativoGrupal(
+                    $todosMedicosDoc->toArray(),
+                    $periodoA,
+                    $periodoB
+                );
 
-                        $medAlert = $odooAlerts[$doc] ?? [
-                            'totales' => [
-                                'comprado_mes_anterior'  => 0.0,
-                                'comprado_mes_actual'    => 0.0,
-                                'comprado_diferencia'    => 0.0,
-                                'comprado_tendencia'     => 'igual',
-                            ],
-                            'productos' => []
-                        ];
+                $formulacionGrupal = $this->odoo->getFormulacionGrupalPorDocumentos(
+                    $todosMedicosDoc->toArray(),
+                    $periodoA,
+                    $periodoB
+                );
 
-                        $formulacion = $formulacionGrupal[$doc] ?? [
-                            'formulado_mes_anterior' => 0.0,
-                            'formulado_mes_actual'   => 0.0,
-                            'formulado_diferencia'   => 0.0,
-                            'formulado_tendencia'    => 'igual',
-                        ];
+                $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
 
-                        // Unificamos con los totales calculados de formulación
-                        $totalesUnificados = array_merge($medAlert['totales'], $formulacion);
+                foreach ($medicos as $medico) {
+                    $doc = (string) $medico->documento;
 
-                        $medicosAlertas[] = [
-                            'documento'    => $doc,
-                            'nombre'       => trim($medico->nombre),
-                            'especialidad' => $especialidades[$doc] ?? 'General',
-                            'totales'      => $totalesUnificados,
-                            'productos'    => $medAlert['productos'],
-                        ];
-                    }
+                    $medAlert = $odooAlerts[$doc] ?? [
+                        'totales' => [
+                            'comprado_mes_anterior'  => 0.0,
+                            'comprado_mes_actual'    => 0.0,
+                            'comprado_diferencia'    => 0.0,
+                            'comprado_tendencia'     => 'igual',
+                        ],
+                        'productos' => []
+                    ];
 
-                    usort($medicosAlertas, function ($a, $b) {
-                        $diffRealA = $a['totales']['comprado_mes_actual'] - $a['totales']['comprado_mes_anterior'];
-                        $diffRealB = $b['totales']['comprado_mes_actual'] - $b['totales']['comprado_mes_anterior'];
-                        return $diffRealA <=> $diffRealB;
-                    });
+                    $formulacion = $formulacionGrupal[$doc] ?? [
+                        'formulado_mes_anterior' => 0.0,
+                        'formulado_mes_actual'   => 0.0,
+                        'formulado_diferencia'   => 0.0,
+                        'formulado_tendencia'    => 'igual',
+                    ];
+
+                    $totalesUnificados = array_merge($medAlert['totales'], $formulacion);
+
+                    $medicosAlertas[] = [
+                        'documento'    => $doc,
+                        'nombre'       => trim($medico->nombre),
+                        'especialidad' => $especialidades[$doc] ?? 'General',
+                        'totales'      => $totalesUnificados,
+                        'productos'    => $medAlert['productos'],
+                    ];
                 }
 
-                return $medicosAlertas;
-            })
-        ]);
-    }
+                usort($medicosAlertas, function ($a, $b) {
+                    $diffRealA = $a['totales']['comprado_mes_actual'] - $a['totales']['comprado_mes_anterior'];
+                    $diffRealB = $b['totales']['comprado_mes_actual'] - $b['totales']['comprado_mes_anterior'];
+                    return $diffRealA <=> $diffRealB;
+                });
+            }
+
+            return $medicosAlertas;
+        })
+    ]);
+}
 
     public function detalle(Request $request, string $documento)
     {
@@ -230,5 +256,14 @@ class AlertaController extends Controller
                 return $puestoReal !== false ? $puestoReal + 1 : null;
             }),
         ]);
+    }
+
+    /**
+     * Formatea una fecha en "mes de año" en español (ej. "julio de 2026").
+     */
+    private function formatMesEs(Carbon $fecha): string
+    {
+        $meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+        return $meses[$fecha->month - 1] . ' de ' . $fecha->year;
     }
 }
