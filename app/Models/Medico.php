@@ -33,7 +33,7 @@ public $timestamps = false;
         'fecha_inicio_relacion',
         'tipo_documento_id',
         'nombre',
-        'observaciones', // <-- Nuevo campo añadido
+        'observaciones', // <-- Nuevo campo añadidogra
     ];
 
     /**
