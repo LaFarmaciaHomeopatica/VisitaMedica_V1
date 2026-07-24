@@ -110,31 +110,47 @@ class OdooService
      * Retorna null si no se encuentra o hay error de conexión.
      */
     public function buscarMedicoPorDocumento(string $documento): ?array
-    {
-        $uid = $this->obtenerUid();
-        if (!$uid) return null;
+{
+    $uid = $this->obtenerUid();
+    if (!$uid) return null;
 
-        $ids = $this->ejecutarKw(
-            $uid,
-            'res.partner',
-            'search',
-            [[['vat', '=', $documento]]],
-            ['limit' => 5]
-        );
+    $ids = $this->ejecutarKw(
+        $uid,
+        'res.partner',
+        'search',
+        [[['vat', '=', $documento]]],
+        ['limit' => 5]
+    );
 
-        if (empty($ids)) return null;
+    if (empty($ids)) return null;
 
-        $partners = $this->ejecutarKw(
-            $uid,
-            'res.partner',
-            'read',
-            [$ids],
-            ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'l10n_latam_identification_type_id']]
-        );
+    $partners = $this->ejecutarKw(
+        $uid,
+        'res.partner',
+        'read',
+        [$ids],
+        ['fields' => ['name', 'vat', 'email', 'phone', 'mobile', 'l10n_latam_identification_type_id']]
+    );
 
-        return $partners[0] ?? null;
-    }
+    $partner = $partners[0] ?? null;
 
+    if (!$partner) return null;
+
+    // Helper rápido para limpiar los 'false' que devuelve Odoo en campos String
+    $cleanString = fn($value) => (!empty($value) && $value !== false) ? trim((string)$value) : null;
+
+    $telefono = $cleanString($partner['phone'] ?? null);
+    $celular  = $cleanString($partner['mobile'] ?? null);
+
+    // Retornamos el partner con datos limpios y mapeados
+    return array_merge($partner, [
+        'phone'             => $telefono,
+        'mobile'            => $celular,
+        'telefono'          => $telefono, // Por si tu modelo/frontend usa 'telefono'
+        'celular'           => $celular,  // Por si tu modelo/frontend usa 'celular'
+        'telefono_contacto' => $telefono ?: $celular, // Mapeo de respaldo
+    ]);
+}
     /**
      * Autocompletado por nombre o documento contra TODOS los clientes de
      * Odoo (estén o no registrados localmente como médico) — usado por el

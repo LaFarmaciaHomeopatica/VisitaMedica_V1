@@ -154,67 +154,45 @@ export default function Ginicio({
     const [limProductos, setLimProductos] = useState(10);
     const [limMedicos,   setLimMedicos]   = useState(10);
 
-    const [odooStats, setOdooStats] = useState({
-        total_transacciones: 0, valor_comprado: 0, valor_formulado: 0,
-        unidades_compradas: 0, unidades_formuladas: 0, medicos_con_tx: 0,
-    });
-    const [odooTendencia, setOdooTendencia] = useState([]);
-    const [odooTopProductos, setOdooTopProductos] = useState([]);
-    const [odooTopMedicos, setOdooTopMedicos] = useState([]);
-    const [odooVisitadoresAnalisis, setOdooVisitadoresAnalisis] = useState([]);
     const [odooLoading, setOdooLoading] = useState(true);
-    const [odooConectado, setOdooConectado] = useState(null);
 
     const isFirstRender = useRef(true);
     const timerRef      = useRef(null);
 
-    const fetchOdooResumen = () => {
-        setOdooLoading(true);
-        fetch(route('Ginicio.odooResumen', {
-            fecha_inicio: fechaInicio,
-            fecha_fin: fechaFin,
+    // Props que dependen de Odoo (declarados como Inertia::lazy en el
+    // controller) más los locales que cambian con los filtros. Al pedirlos
+    // vía "only" se ejecutan sus closures lazy en el servidor sin recargar
+    // toda la página.
+    const PROPS_A_RECARGAR = [
+        'filtros', 'statsLocales', 'visitadoresResumen', 'visitasPorEstado', 'medicos',
+        'stats', 'tendencia', 'topProductos', 'topMedicos', 'visitadoresAnalisis',
+    ];
+
+    const recargarOdoo = () => {
+        router.get(route('Ginicio'), {
+            fecha_inicio:     fechaInicio,
+            fecha_fin:        fechaFin,
             medico_documento: medicoDoc || undefined,
-        }), { headers: { Accept: 'application/json' } })
-            .then(res => res.json())
-            .then(data => {
-                setOdooStats(data.stats ?? {});
-                setOdooTendencia(data.tendencia ?? []);
-                setOdooTopProductos(data.topProductos ?? []);
-                setOdooTopMedicos(data.topMedicos ?? []);
-                setOdooVisitadoresAnalisis(data.visitadoresAnalisis ?? []);
-                setOdooConectado(data.odooConectado ?? false);
-            })
-            .catch(() => setOdooConectado(false))
-            .finally(() => setOdooLoading(false));
+        }, {
+            preserveState: true,
+            only: PROPS_A_RECARGAR,
+            onStart:  () => setOdooLoading(true),
+            onFinish: () => setOdooLoading(false),
+        });
     };
 
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
-            fetchOdooResumen();
+            // Si el controller ya trajo los datos lazy en la carga inicial
+            // (no debería, pero por si acaso), no hace falta repetir.
+            if (stats) { setOdooLoading(false); return; }
+            recargarOdoo();
             return;
         }
         clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-            router.get(route('Ginicio'), {
-                fecha_inicio:     fechaInicio,
-                fecha_fin:        fechaFin,
-                medico_documento: medicoDoc || undefined,
-            }, { preserveState: true });
-            fetchOdooResumen();
-        }, 500);
+        timerRef.current = setTimeout(recargarOdoo, 500);
     }, [fechaInicio, fechaFin, medicoDoc]);
-
-    // ── Datos que vienen de Odoo (lentos): llegan por Inertia::lazy, se
-    // piden aparte para no bloquear el render inicial (conteos locales y
-    // filtros ya llegaron con la carga normal). Si el controller ya los
-    // mandó (stats truthy), no se vuelven a pedir.
-   
-
-    useEffect(() => {
-        if (stats) return; // ya llegaron
-        router.reload({ only: ['stats', 'tendencia', 'topProductos', 'topMedicos', 'visitadoresAnalisis'] });
-    }, [stats, fechaInicio, fechaFin, medicoDoc]);
 
     const limpiar = () => {
         clearTimeout(timerRef.current);
@@ -225,7 +203,16 @@ export default function Ginicio({
         setActualizando(true);
         router.post(route('Ginicio.actualizar'), { medico_documento: medicoDoc || undefined }, {
             preserveScroll: true,
-            onFinish: () => setActualizando(false),
+            // El back() del controller es una visita completa (no parcial),
+            // así que las props lazy (stats, tendencia, topProductos, etc.)
+            // no vienen incluidas y quedan undefined tras borrar el snapshot.
+            // Hay que pedirlas explícitamente con un reload propio; no basta
+            // con esperar a que el useEffect de montaje lo haga, porque el
+            // componente no se remonta en este flujo.
+            onFinish: () => {
+                setActualizando(false);
+                recargarOdoo();
+            },
         });
     };
 

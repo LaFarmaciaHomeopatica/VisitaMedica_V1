@@ -521,7 +521,24 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
         $transacciones = $this->odoo->getTransaccionesPorDocumento($doc, $fechaDesde, $fechaHasta);
         $tarifasSinClasificar = $this->odoo->getTarifasSinClasificarPorDocumento($doc, $fechaDesde, $fechaHasta);
 
-        return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
+
+// Consultamos los datos detallados del contacto en Odoo
+$partnerOdoo = $this->odoo->buscarMedicoPorDocumento($doc);
+
+if ($partnerOdoo) {
+    // Teléfonos
+    $medico->telefono = $partnerOdoo['telefono'] ?? null;
+    $medico->celular  = $partnerOdoo['celular'] ?? null;
+
+    // Cumpleaños / Fecha de nacimiento
+    $medico->fecha_nacimiento = $partnerOdoo['fecha_nacimiento'] ?? null;
+    $medico->mes_nacimiento   = $partnerOdoo['mes_nacimiento'] ?? null;
+    $medico->dia_nacimiento   = $partnerOdoo['dia_nacimiento'] ?? null;
+
+
+}
+
+       return Inertia::render('ADMINISTRADOR/MEDICOS/MedicoDetalle', [
             'medico'               => $medico,
             'tipoDocumentoOdoo'    => $tipoDocumentoOdoo,
             'periodoActivo'        => $periodo,
@@ -537,10 +554,11 @@ $productosUnificados[$clave]['valor_formulado'] += (float) ($linea['total'] ?? $
             'visitasStats'         => $visitasStats,
             'visitas'              => $visitas,
             'visitadoresAsignados' => $visitadoresAsignados,
-            'odooConectado'        => $odooData !== null,
             'categoriaHistorial'   => $historialCategoria,
         ]);
     }
+
+    
 
     public function showPorDocumento(Request $request, $documento)
     {

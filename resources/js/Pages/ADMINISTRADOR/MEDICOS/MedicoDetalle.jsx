@@ -9,7 +9,7 @@ import {
     FaArrowLeft, FaUserDoctor, FaCalendarCheck,
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
     FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus, FaReceipt,
-    FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,FaCommentDots,
+    FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,FaCommentDots,FaMobileScreen,
 } from 'react-icons/fa6';
 import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
@@ -432,28 +432,76 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
                                 </h1>
                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Perfil del médico</span>
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <span>{tipoDocumentoOdoo ?? medico.tipo_documento?.nombre ?? 'Doc.'}: {medico.documento}</span>
-                                {medico.especialidad && (
-                                    <span className="text-blue-500 font-bold uppercase">{medico.especialidad}</span>
-                                )}
-                                {medico.telefono_contacto && (
-                                    <span className="flex items-center gap-1"><FaPhone className="text-blue-400" /> {medico.telefono_contacto}</span>
-                                )}
-                                {medico.horario_atencion && (
-                                    <span className="flex items-center gap-1"><FaClock className="text-amber-400" /> {medico.horario_atencion}</span>
-                                )}
-                                {medico.direccion_detalles && (
-                                    <span className="flex items-center gap-1"><FaLocationDot className="text-rose-400" /> {medico.direccion_detalles}</span>
-                                )}
-                                {geoCoords && (
-                                    <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
-                                       target="_blank" rel="noopener noreferrer"
-                                       className="flex items-center gap-1 text-blue-500 hover:text-blue-700 font-bold transition">
-                                        <FaLocationDot className="text-blue-400" /> ver mapa
-                                    </a>
-                                )}
-                            </p>
+                         <p className="text-[10px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+    {/* Documento */}
+    <span>{tipoDocumentoOdoo ?? medico.tipo_documento?.nombre ?? 'Doc.'}: {medico.documento}</span>
+
+    {/* Especialidad */}
+    {medico.especialidad && (
+        <span className="text-blue-500 font-bold uppercase">{medico.especialidad}</span>
+    )}
+
+   {/* Dirección / Ubicación (Clickeable a Google Maps) */}
+{(medico.direccion_detalles || medico.direccion) && (
+    <a
+        href={
+            geoCoords 
+                ? `https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}` 
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((medico.direccion_detalles || medico.direccion) + ', Bogota, Colombia')}`
+        }
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-slate-500 hover:text-blue-600 font-medium transition group"
+        title="Ver en Google Maps"
+    >
+        <FaLocationDot className="text-rose-400 group-hover:text-blue-600 transition" />
+        <span className="underline decoration-slate-300 underline-offset-2 group-hover:decoration-blue-600">
+            {medico.direccion_detalles || medico.direccion}
+        </span>
+    </a>
+)}
+
+    {/* Teléfono / Celular (Alineado junto a la ubicación) */}
+ 
+{/* Teléfono Fijo o Principal */}
+{(medico.telefono || medico.telefono_contacto) && (
+    <span className="flex items-center gap-1 font-medium text-slate-600">
+        <FaPhone className="text-emerald-500 text-[9px]" /> 
+        {medico.telefono || medico.telefono_contacto}
+    </span>
+)}
+
+{/* Teléfono Móvil / Celular */}
+{medico.celular && (
+    <span className="flex items-center gap-1 font-medium text-slate-600">
+        <FaMobileScreen className="text-emerald-500 text-[11px]" /> 
+        {medico.celular}
+    </span>
+)}
+
+{/* Si no hay ningún número registrado */}
+{!medico.telefono && !medico.celular && !medico.telefono_contacto && (
+    <span className="flex items-center gap-1 text-slate-300 italic">
+        <FaPhone className="text-slate-300 text-[9px]" /> Sin teléfono
+    </span>
+)}
+
+    {/* Horario de Atención */}
+    {medico.horario_atencion && (
+        <span className="flex items-center gap-1">
+            <FaClock className="text-amber-400" /> {medico.horario_atencion}
+        </span>
+    )}
+
+    {/* Enlace al mapa */}
+    {geoCoords && (
+        <a href={`https://www.google.com/maps?q=${geoCoords.lat},${geoCoords.lng}`}
+           target="_blank" rel="noopener noreferrer"
+           className="flex items-center gap-1 text-blue-500 hover:text-blue-700 font-bold transition">
+            <FaLocationDot className="text-blue-400" /> ver mapa
+        </a>
+    )}
+</p>
                         </div>
 
                         {/* ── CARTERA ──────────────────────────────────────── */}
@@ -1388,7 +1436,6 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
         </div>
     </div>
 )}
-
 {/* ── MODAL DE OBSERVACIONES DEL MÉDICO (perfil, no por visita) ── */}
 {observacionMedicoAbierta && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fadeIn">
@@ -1408,7 +1455,7 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
                     <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">
                         {editandoObservacion 
                             ? (medico.observaciones ? 'Editar Observación' : 'Nueva Observación') 
-                            : 'Ver Observación'
+                            : 'Vista Detalles de Observación'
                         }
                     </h3>
                     <p className="text-[10px] text-slate-400 font-medium">
@@ -1418,16 +1465,17 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
             </div>
 
             <div className="mb-4">
+                {/* Textarea habilitado únicamente como modo lectura si editandoObservacion === false */}
                 <textarea
-                    rows={4}
+                    rows={6}
                     value={textoObservacionMedico}
                     readOnly={!editandoObservacion}
                     onChange={(e) => setTextoObservacionMedico(e.target.value)}
-                    placeholder="Escribe aquí observaciones o notas generales sobre este médico..."
-                    className={`w-full text-[11px] p-3 text-slate-700 rounded-lg focus:outline-none transition-all resize-none border ${
+                    placeholder="Sin observaciones registradas..."
+                    className={`w-full text-[11px] p-3 rounded-lg transition-all resize-none border ${
                         !editandoObservacion 
-                            ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-default' 
-                            : 'bg-slate-50 border-slate-200 focus:border-blue-500 focus:bg-white'
+                            ? 'bg-slate-100 border-slate-200 text-slate-700 font-medium cursor-default focus:outline-none select-text' 
+                            : 'bg-slate-50 border-slate-300 text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none'
                     }`}
                 />
             </div>
