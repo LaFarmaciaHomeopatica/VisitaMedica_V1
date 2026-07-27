@@ -36,6 +36,37 @@ function RendimientoBadge({ tendencia, diferencia }) {
     );
 }
 
+function PromedioBadge({ pct }) {
+    if (pct === null || pct === undefined) {
+        return (
+            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border text-slate-400 bg-slate-50 border-slate-200">
+                Nuevo
+            </span>
+        );
+    }
+
+    const isUp = pct > 0;
+    const isDown = pct < 0;
+    let color = '#94a3b8';
+    let Icon = FaMinus;
+
+    if (isUp) {
+        color = '#10b981';
+        Icon = FaArrowUp;
+    } else if (isDown) {
+        color = '#ef4444';
+        Icon = FaArrowDown;
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border"
+              style={{ color, background: `${color}12`, borderColor: `${color}30` }}>
+            <Icon className="text-[7px]" />
+            {isUp ? `+${pct}` : pct}%
+        </span>
+    );
+}
+
 export default function ProductosAlertaAdmin({ 
     auth, 
     medico = {}, 
@@ -44,10 +75,20 @@ export default function ProductosAlertaAdmin({
     mesSeleccionadoLabel = '',
     mesQuery = '',
     puestoReal = null,
-    documentoBase, // <-- NUEVO
-})  {
+    documentoBase, 
+    incluirPromedio = false, // <-- Viene del backend
+    rangoPromedioLabel = '', 
+}) {
     const [search, setSearch] = useState('');
     const [cargandoMes, setCargandoMes] = useState(false);
+    
+    // Asigna directamente la prop incluirPromedio para mantener el estado tras recargar Inertia
+    const [promedioActivo, setPromedioActivo] = useState(incluirPromedio);
+    
+    // Sincroniza si la prop cambia desde el servidor
+    React.useEffect(() => {
+        setPromedioActivo(incluirPromedio);
+    }, [incluirPromedio]);
 
     const productosFiltrados = productosAlertas.filter(prod => 
         (prod.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -62,7 +103,18 @@ export default function ProductosAlertaAdmin({
     setCargandoMes(true);
     router.get(
         route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento),
-        { mes: nuevoMes },
+        { mes: nuevoMes, promedio: promedioActivo ? 1 : 0 },
+        { preserveState: true, replace: true, onFinish: () => setCargandoMes(false) }
+    );
+};
+
+const handleTogglePromedio = () => {
+    const nuevoValor = !promedioActivo;
+    setPromedioActivo(nuevoValor);
+    setCargandoMes(true);
+    router.get(
+        route('Gmedicos.alertasPorDocumento', documentoBase ?? medico.documento),
+        { mes: mesQuery, promedio: nuevoValor ? 1 : 0 },
         { preserveState: true, replace: true, onFinish: () => setCargandoMes(false) }
     );
 };
@@ -73,6 +125,47 @@ export default function ProductosAlertaAdmin({
         if (isNaN(lat) || isNaN(lng)) return null;
         return { lat, lng };
     })();
+
+
+ // Estados para paginación
+const [currentPage, setCurrentPage] = useState(1);
+const [itemsPerPage, setItemsPerPage] = useState(10);
+const [itemsPerPageInput, setItemsPerPageInput] = useState('10');
+
+// Al cambiar la búsqueda o el estado de promedio, volvemos a la página 1
+React.useEffect(() => {
+    setCurrentPage(1);
+}, [search, promedioActivo]);
+
+// Manejador del input de cantidad por página
+const handleItemsPerPageChange = (e) => {
+    const val = e.target.value;
+    setItemsPerPageInput(val); // Permite dejar el input vacío temporalmente al borrar
+
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+        setItemsPerPage(parsed);
+        setCurrentPage(1);
+    }
+};
+
+const handleItemsPerPageBlur = () => {
+    // Si el usuario deja el campo vacío o coloca 0/negativo al salir del input, restaura un valor válido por defecto (10)
+    const parsed = parseInt(itemsPerPageInput, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+        setItemsPerPage(10);
+        setItemsPerPageInput('10');
+        setCurrentPage(1);
+    }
+};
+
+// Cálculo de registros a mostrar según la página actual
+const totalPages = Math.ceil(productosFiltrados.length / itemsPerPage) || 1;
+const pageActualClamped = Math.min(currentPage, totalPages);
+
+const startIndex = (pageActualClamped - 1) * itemsPerPage;
+const endIndex = startIndex + itemsPerPage;
+const productosPaginados = productosFiltrados.slice(startIndex, endIndex);   
 
     return (
         <PanelAdmin user={auth?.user}>
@@ -135,7 +228,22 @@ export default function ProductosAlertaAdmin({
                                 Evolución: {mesSeleccionadoLabel} ➔ {mesActualLabel}
                             </span>
 
-                           
+                            {/* Toggle: comparativa adicional contra el promedio de los últimos 6 meses */}
+                            <button
+                                type="button"
+                                onClick={handleTogglePromedio}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-wider transition-colors ${
+                                    promedioActivo
+                                        ? 'bg-purple-50 border-purple-200 text-purple-700'
+                                        : 'bg-[#F8FAFC] border-slate-200 text-slate-400 hover:border-purple-300'
+                                }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${promedioActivo ? 'bg-purple-500' : 'bg-slate-300'}`} />
+                                Promedio últimos 6 meses
+                                {promedioActivo && rangoPromedioLabel && (
+                                    <span className="text-purple-400 font-bold normal-case">({rangoPromedioLabel})</span>
+                                )}
+                            </button>
                         </div>
                     </div>
 
@@ -189,65 +297,163 @@ export default function ProductosAlertaAdmin({
                             Resultado: {productosFiltrados.length} Productos bajo supervisión
                         </h3>
                     </div>
-
-                    {/* ── TABLA DE ALERTAS CRÍTICAS ── */}
-                    {productosFiltrados.length > 0 ? (
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-blue-600">
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Detalles del Producto</th>
-                                        
-                                        {/* Columnas de Formulación dinámicas */}
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/30">Formulado {mesSeleccionadoLabel}</th>
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/30">Formulado {mesActualLabel} (Actual)</th>
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/50">Evolución Formulación</th>
-                                        
-                                        {/* Columnas Comerciales dinámicas */}
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-emerald-700/20">Comprado {mesSeleccionadoLabel}</th>
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-emerald-700/20">Comprado {mesActualLabel} (Actual)</th>
-                                        <th className="px-6 py-3 text-white text-[9px] font-black uppercase text-center bg-emerald-700/40">Evolución Comercial</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {productosFiltrados.map((prod) => (
-                                        <tr key={prod.codigo} className="hover:bg-blue-50/20 transition-colors">
-                                            <td className="px-6 py-3 border-r border-slate-100 max-w-xs">
-                                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-tight truncate">{prod.nombre}</p>
-                                                <div className="flex gap-2 mt-0.5 text-[9px] font-bold text-slate-400 uppercase">
-                                                    <span>COD: {prod.codigo}</span>
-                                                    <span>·</span>
-                                                    <span className="text-blue-600 font-black">{prod.laboratorio}</span>
-                                                </div>
-                                            </td>
-                                            
-                                            {/* Renderizado de Formulación Histórica vs Actual */}
-                                            <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-slate-50/30">
-                                                {fmt(prod.formulado_mes_seleccionado)} u.
-                                            </td>
-                                            <td className="px-6 py-3 border-r border-slate-100 text-center text-[11px] text-slate-800 font-black bg-slate-50/30">
-                                                {fmt(prod.formulado_mes_actual)} u.
-                                            </td>
-                                            <td className="px-6 py-3 border-r border-slate-100 text-center bg-slate-50/60">
-                                                <RendimientoBadge tendencia={prod.formulado_tendencia} diferencia={prod.formulado_diferencia} />
-                                            </td>
-                                            
-                                            {/* Renderizado Comercial Histórico vs Actual */}
-                                            <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-emerald-50/10">
-                                                {fmt(prod.comprado_mes_seleccionado)} u.
-                                            </td>
-                                            <td className="px-6 py-3 border-r border-slate-100 text-center text-[11px] text-slate-800 font-black bg-emerald-50/10">
-                                                {fmt(prod.comprado_mes_actual)} u.
-                                            </td>
-                                            <td className="px-6 py-3 text-center bg-emerald-50/20">
-                                                <RendimientoBadge tendencia={prod.comprado_tendencia} diferencia={prod.comprado_diferencia} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+{/* ── TABLA DE ALERTAS CRÍTICAS ── */}
+{productosFiltrados.length > 0 ? (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden space-y-4">
+        <table className="w-full text-left border-collapse">
+            <thead>
+                <tr className="bg-blue-600">
+                    <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">
+                        Detalles del Producto
+                    </th>
+                    
+                    {/* ── MODO NORMAL: COLUMNAS MES A MES ── */}
+                    {!promedioActivo ? (
+                        <>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/30">
+                                Formulado {mesSeleccionadoLabel}
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/30">
+                                Formulado {mesActualLabel} (Actual)
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-blue-700/50">
+                                Evolución Formulación
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-emerald-700/20">
+                                Comprado {mesSeleccionadoLabel}
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-emerald-700/20">
+                                Comprado {mesActualLabel} (Actual)
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase text-center bg-emerald-700/40">
+                                Evolución Comercial
+                            </th>
+                        </>
                     ) : (
+                        /* ── MODO PROMEDIO: SOLO DEJA LAS QUE DICEN PROMEDIO ── */
+                        <>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-purple-700/30">
+                                Promedio Form. 6M
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-purple-700/50">
+                                % VS Promedio Form.
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center bg-purple-700/30">
+                                Promedio Compra 6M
+                            </th>
+                            <th className="px-6 py-3 text-white text-[9px] font-black uppercase text-center bg-purple-700/50">
+                                % VS Promedio Compra
+                            </th>
+                        </>
+                    )}
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+                {productosPaginados.map((prod) => (
+                    <tr key={prod.codigo} className="hover:bg-blue-50/20 transition-colors">
+                        {/* Columna Nombre / Código */}
+                        <td className="px-6 py-3 border-r border-slate-100 max-w-xs">
+                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-tight truncate">{prod.nombre}</p>
+                            <div className="flex gap-2 mt-0.5 text-[9px] font-bold text-slate-400 uppercase">
+                                <span>COD: {prod.codigo}</span>
+                                <span>·</span>
+                                <span className="text-blue-600 font-black">{prod.laboratorio}</span>
+                            </div>
+                        </td>
+                        
+                        {/* ── MODO NORMAL: DATOS MES A MES ── */}
+                        {!promedioActivo ? (
+                            <>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-slate-50/30">
+                                    {fmt(prod.formulado_mes_seleccionado)} u.
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[11px] text-slate-800 font-black bg-slate-50/30">
+                                    {fmt(prod.formulado_mes_actual)} u.
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center bg-slate-50/60">
+                                    <RendimientoBadge tendencia={prod.formulado_tendencia} diferencia={prod.formulado_diferencia} />
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-emerald-50/10">
+                                    {fmt(prod.comprado_mes_seleccionado)} u.
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[11px] text-slate-800 font-black bg-emerald-50/10">
+                                    {fmt(prod.comprado_mes_actual)} u.
+                                </td>
+                                <td className="px-6 py-3 text-center bg-emerald-50/20">
+                                    <RendimientoBadge tendencia={prod.comprado_tendencia} diferencia={prod.comprado_diferencia} />
+                                </td>
+                            </>
+                        ) : (
+                            /* ── MODO PROMEDIO: DATOS EXCLUSIVOS DE PROMEDIO ── */
+                            <>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-purple-50/30">
+                                    {fmt(prod.formulado_promedio_6m)} u.
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center bg-purple-50/50">
+                                    <PromedioBadge pct={prod.formulado_variacion_pct} />
+                                </td>
+                                <td className="px-6 py-3 border-r border-slate-100 text-center text-[10px] text-slate-600 font-bold bg-purple-50/30">
+                                    {fmt(prod.comprado_promedio_6m)} u.
+                                </td>
+                                <td className="px-6 py-3 text-center bg-purple-50/50">
+                                    <PromedioBadge pct={prod.comprado_variacion_pct} />
+                                </td>
+                            </>
+                        )}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+
+        {/* ── BARRA DE CONTROLES DE PAGINACIÓN ── */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-[#F8FAFC] border-t border-slate-100 text-[10px] text-slate-500 font-bold uppercase">
+            
+            {/* Input para cambiar items por página */}
+            <div className="flex items-center gap-2">
+                <span>Mostrar</span>
+                <input
+                    type="number"
+                    min="1"
+                    value={itemsPerPageInput}
+                    onChange={handleItemsPerPageChange}
+                    onBlur={handleItemsPerPageBlur}
+                    className="w-16 bg-white border border-slate-200 rounded-lg py-1 px-2 text-center text-[11px] font-black text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span>registros por página</span>
+                <span className="text-slate-400 font-medium ml-2">
+                    (Viendo {startIndex + 1}–{Math.min(endIndex, productosFiltrados.length)} de {productosFiltrados.length})
+                </span>
+            </div>
+
+            {/* Navegación de páginas */}
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                    disabled={pageActualClamped === 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                >
+                    Anterior
+                </button>
+
+                <span className="px-3 py-1.5 font-black text-slate-700">
+                    Página {pageActualClamped} de {totalPages}
+                </span>
+
+                <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                    disabled={pageActualClamped >= totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                >
+                    Siguiente
+                </button>
+            </div>
+        </div>
+    </div>
+) : (
+
+
                         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-[11px]">
                             <FaFileMedical className="text-4xl text-slate-200 mb-2 mx-auto block" />
                             No se detectaron transacciones ni variaciones críticas en el período seleccionado.

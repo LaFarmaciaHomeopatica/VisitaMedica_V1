@@ -123,10 +123,9 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
         $categoriaNombre = trim($row['categoria'] ?? '');
         $categoriaId     = $this->categorias[$categoriaNombre] ?? null;
 
-        $tipoDocRaw = trim($row['tipo_documento'] ?? '');
-        $tipoDocId  = $this->tiposDoc[strtoupper($tipoDocRaw)]
-                   ?? $this->tiposDoc[strtolower($tipoDocRaw)]
-                   ?? 1;
+      $tipoDocId  = !empty($tipoDocRaw)
+    ? ($this->tiposDoc[strtoupper($tipoDocRaw)] ?? $this->tiposDoc[strtolower($tipoDocRaw)] ?? null)
+    : null;
 
         $visitadorNombreExcel = strtolower(preg_replace('/\s+/', ' ', trim($row['visitador_assigned'] ?? $row['visitador_asignado'] ?? '')));
         $visitadorId          = $this->visitadores[$visitadorNombreExcel] ?? null;

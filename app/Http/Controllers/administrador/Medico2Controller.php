@@ -110,6 +110,78 @@ class Medico2Controller extends Controller
         return $topeId !== null && $categoriaId === $topeId;
     }
 
+    // =========================================================================
+    //  COMPARATIVA "PROMEDIO ÚLTIMOS 6 MESES" — Nuevo
+    // =========================================================================
+    /**
+     * Calcula, por código de producto, el promedio mensual de compra y
+     * formulación de los 6 meses completos inmediatamente anteriores al
+     * mes actual, y lo compara (en %) contra el mes actual.
+     *
+     * No reemplaza la comparativa por mes seleccionado: es un dato adicional.
+     */
+    private function calcularPromedioSeisMeses(string $documento, Carbon $hoyReal, string $inicioMesActualStr, string $finMesActualStr): array
+    {
+        $inicioMesActual = Carbon::parse($inicioMesActualStr);
+
+        // 6 meses completos justo antes del mes actual
+        $finPromedio    = $inicioMesActual->copy()->subDay()->endOfMonth();
+        $inicioPromedio = $inicioMesActual->copy()->subMonths(6)->startOfMonth();
+
+        $rangoPromedioLabel = ucfirst($inicioPromedio->locale('es')->isoFormat('MMM YYYY'))
+            . ' – ' . ucfirst($finPromedio->locale('es')->isoFormat('MMM YYYY'));
+
+        // ── Comprado: reutilizamos getProductosComparativo con el rango de 6 meses como período A ──
+        $odooPromedio = $this->odoo->getProductosComparativo(
+            $documento,
+            ['desde' => $inicioPromedio->format('Y-m-d'), 'hasta' => $finPromedio->format('Y-m-d')],
+            ['desde' => $inicioMesActualStr,               'hasta' => $finMesActualStr]
+        );
+
+        $compradoPromedioPorCodigo = collect();
+        if ($odooPromedio['encontrado'] ?? false) {
+            $compradoPromedioPorCodigo = collect($odooPromedio['productos'])
+                ->mapWithKeys(fn($p) => [$p['codigo'] => round(((float) $p['comp_a']) / 6, 1)]);
+        }
+
+        // ── Formulado: mismo rango de 6 meses ──
+        $formulacionesPromedio = collect($this->odoo->getFormulacionPorDocumento($documento, $inicioPromedio->format('Y-m-d')))
+            ->filter(function ($l) use ($inicioPromedio, $finPromedio) {
+                $fecha  = Carbon::parse($l['fecha'] ?? now());
+                $estado = strtoupper($l['estado'] ?? '');
+                return $fecha->between($inicioPromedio, $finPromedio) && !in_array($estado, ['CANCEL', 'CANCELADO', 'CANCELADA']);
+            })
+            ->groupBy('codigo')
+            ->map(fn($grupo) => round(((float) $grupo->sum('cantidad')) / 6, 1));
+
+        // ── Unificamos por código ──
+        $codigos = $compradoPromedioPorCodigo->keys()->merge($formulacionesPromedio->keys())->unique();
+
+        $datos = $codigos->mapWithKeys(function ($codigo) use ($compradoPromedioPorCodigo, $formulacionesPromedio) {
+            return [$codigo => [
+                'comprado_promedio'  => $compradoPromedioPorCodigo->get($codigo, 0),
+                'formulado_promedio' => $formulacionesPromedio->get($codigo, 0),
+            ]];
+        });
+
+        return [
+            'datos'      => $datos,
+            'rangoLabel' => $rangoPromedioLabel,
+        ];
+    }
+
+    /**
+     * Calcula la variación porcentual entre un valor actual y un promedio.
+     * Devuelve null cuando no hay base de comparación (promedio 0 y actual > 0).
+     */
+    private function calcularVariacionPromedio(float $actual, float $promedio): ?float
+    {
+        if ($promedio > 0) {
+            return round((($actual - $promedio) / $promedio) * 100, 1);
+        }
+        return $actual > 0 ? null : 0.0;
+    }
+
     /**
      * Reemplaza medico->especialidad (columna local, legado) por la
      * especialidad real resuelta desde el tag del contacto en Odoo,
@@ -139,7 +211,7 @@ class Medico2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'documento'            => 'required|string|unique:medicos,documento',
+            'documento'            => 'nullable|string|unique:medicos,documento',
             'nombre'               => 'required|string|max:100',
             'tipo_documento_id'    => 'required|integer',
             'geolocalizacion'      => 'nullable|string|max:300',
@@ -994,6 +1066,17 @@ if ($partnerOdoo) {
         $finMesSeleccionado    = $mesSeleccionado->copy()->endOfMonth()->format('Y-m-d');
         $mesSeleccionadoLabel  = ucfirst($mesSeleccionado->locale('es')->isoFormat('MMMM YYYY'));
 
+        // ── Promedio últimos 6 meses (opcional, no reemplaza el selector de mes) ──
+        $incluirPromedio  = $request->boolean('promedio', false);
+        $rangoPromedioLabel = null;
+        $promedioPorCodigo = collect();
+
+        if ($incluirPromedio) {
+            $promedioCalculo    = $this->calcularPromedioSeisMeses($doc, $hoyReal, $inicioMesActual, $finMesActual);
+            $promedioPorCodigo  = $promedioCalculo['datos'];
+            $rangoPromedioLabel = $promedioCalculo['rangoLabel'];
+        }
+
         // ── Consulta comparativa a Odoo ───────────────────────────────────────
         $odooResult = $this->odoo->getProductosComparativo(
             $doc,
@@ -1021,7 +1104,7 @@ if ($partnerOdoo) {
                 })->groupBy('codigo');
 
             // Mapeamos e inyectamos los datos reales cruzados por código
-            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual) {
+            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual, $promedioPorCodigo, $incluirPromedio) {
                 $codigo = $p['codigo'];
 
                 $cantFormSeleccionado = $formulacionesMesSeleccionado->has($codigo) ? (int)$formulacionesMesSeleccionado->get($codigo)->sum('cantidad') : 0;
@@ -1032,7 +1115,7 @@ if ($partnerOdoo) {
                 if ($diffFormulado > 0) $tendenciaFormulado = 'subio';
                 if ($diffFormulado < 0) $tendenciaFormulado = 'bajo';
 
-                return [
+                $fila = [
                     'codigo'                     => $codigo,
                     'nombre'                     => $p['nombre'],
                     'laboratorio'                => $p['laboratorio'] ?? '—',
@@ -1051,6 +1134,18 @@ if ($partnerOdoo) {
                     'comprado_diferencia'        => (int) $p['diferencia'],
                     'comprado_tendencia'         => $p['tendencia'],
                 ];
+
+                if ($incluirPromedio) {
+                    $promedio = $promedioPorCodigo->get($codigo, ['comprado_promedio' => 0, 'formulado_promedio' => 0]);
+
+                    $fila['comprado_promedio_6m']   = $promedio['comprado_promedio'];
+                    $fila['comprado_variacion_pct']  = $this->calcularVariacionPromedio((float) $p['comp_b'], (float) $promedio['comprado_promedio']);
+
+                    $fila['formulado_promedio_6m']  = $promedio['formulado_promedio'];
+                    $fila['formulado_variacion_pct'] = $this->calcularVariacionPromedio((float) $cantFormActual, (float) $promedio['formulado_promedio']);
+                }
+
+                return $fila;
             })->all();
         }
 
@@ -1064,6 +1159,8 @@ if ($partnerOdoo) {
             'mesQuery'             => $mesQuery,
             'puestoReal'           => $puestoReal,
             'odooConectado'        => $odooResult['encontrado'],
+            'incluirPromedio'      => $incluirPromedio,
+            'rangoPromedioLabel'   => $rangoPromedioLabel,
         ]);
     }
 
@@ -1104,6 +1201,17 @@ if ($partnerOdoo) {
         $finMesSeleccionado    = $mesSeleccionado->copy()->endOfMonth()->format('Y-m-d');
         $mesSeleccionadoLabel  = ucfirst($mesSeleccionado->locale('es')->isoFormat('MMMM YYYY'));
 
+        // ── Promedio últimos 6 meses (opcional, no reemplaza el selector de mes) ──
+        $incluirPromedio    = $request->boolean('promedio', false);
+        $rangoPromedioLabel = null;
+        $promedioPorCodigo  = collect();
+
+        if ($incluirPromedio) {
+            $promedioCalculo    = $this->calcularPromedioSeisMeses($documento, $hoyReal, $inicioMesActual, $finMesActual);
+            $promedioPorCodigo  = $promedioCalculo['datos'];
+            $rangoPromedioLabel = $promedioCalculo['rangoLabel'];
+        }
+
         $odooResult = $this->odoo->getProductosComparativo(
             $documento,
             ['desde' => $inicioMesSeleccionado, 'hasta' => $finMesSeleccionado],
@@ -1130,7 +1238,7 @@ if ($partnerOdoo) {
                 })->groupBy('codigo');
 
             // Mapeamos e inyectamos los datos reales cruzados por código
-            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual) {
+            $productosAlertas = collect($odooResult['productos'])->map(function ($p) use ($formulacionesMesSeleccionado, $formulacionesMesActual, $promedioPorCodigo, $incluirPromedio) {
                 $codigo = $p['codigo'];
 
                 $cantFormSeleccionado = $formulacionesMesSeleccionado->has($codigo) ? (int)$formulacionesMesSeleccionado->get($codigo)->sum('cantidad') : 0;
@@ -1141,7 +1249,7 @@ if ($partnerOdoo) {
                 if ($diffFormulado > 0) $tendenciaFormulado = 'subio';
                 if ($diffFormulado < 0) $tendenciaFormulado = 'bajo';
 
-                return [
+                $fila = [
                     'codigo'                     => $codigo,
                     'nombre'                     => $p['nombre'],
                     'laboratorio'                => $p['laboratorio'] ?? '—',
@@ -1160,6 +1268,18 @@ if ($partnerOdoo) {
                     'comprado_diferencia'        => (int) $p['diferencia'],
                     'comprado_tendencia'         => $p['tendencia'],
                 ];
+
+                if ($incluirPromedio) {
+                    $promedio = $promedioPorCodigo->get($codigo, ['comprado_promedio' => 0, 'formulado_promedio' => 0]);
+
+                    $fila['comprado_promedio_6m']    = $promedio['comprado_promedio'];
+                    $fila['comprado_variacion_pct']  = $this->calcularVariacionPromedio((float) $p['comp_b'], (float) $promedio['comprado_promedio']);
+
+                    $fila['formulado_promedio_6m']   = $promedio['formulado_promedio'];
+                    $fila['formulado_variacion_pct'] = $this->calcularVariacionPromedio((float) $cantFormActual, (float) $promedio['formulado_promedio']);
+                }
+
+                return $fila;
             })->all();
         }
 
@@ -1174,6 +1294,8 @@ if ($partnerOdoo) {
             'puestoReal'           => $puestoReal,
             'odooConectado'        => $odooResult['encontrado'],
             'documentoBase'        => $documento,
+            'incluirPromedio'      => $incluirPromedio,
+            'rangoPromedioLabel'   => $rangoPromedioLabel,
         ]);
     }
 

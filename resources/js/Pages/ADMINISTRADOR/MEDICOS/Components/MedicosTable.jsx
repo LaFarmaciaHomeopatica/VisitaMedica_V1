@@ -81,7 +81,7 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                                 </td>
                                 <td className="px-6 py-2 border-r border-slate-50">
                                     <span className="text-[10px] text-slate-600 font-medium">
-                                        {m.tipo_documento?.nombre || 'DOC'}: {m.documento}
+                                         {m.documento}
                                     </span>
                                 </td>
                                 <td className="px-6 py-2 border-r border-slate-50">
