@@ -5,7 +5,7 @@ import PanelAdmin from '../PanelAdmin';
 // Hooks
 import { useVisitasFilter } from './HooksV/useVisitasFilter';
 import { useVisitaForm } from './HooksV/useVisitaForm';
-import { useVisitasSelection } from './HooksV/useVisitasSelection'; // Nuevo Hook
+import { useVisitasSelection } from './HooksV/useVisitasSelection';
 
 // Componentes
 import VisitasToolbar from './ComponentsV/VisitasToolbar';
@@ -15,6 +15,8 @@ import VisitaViewModal from './ComponentsV/VisitaViewModal';
 import VisitaDeleteModal from './ComponentsV/VisitaDeleteModal';
 
 const VisitasIndex = ({ auth, visitas = [], visitadores = [], productos = [] }) => {
+    // 1. Inicialización de Hooks
+    // Si visitas viene en formato array lo pasa directo; si viene paginado extrae .data
     const listaVisitas = Array.isArray(visitas) ? visitas : (visitas?.data || []);
     const filter = useVisitasFilter(listaVisitas, [], visitadores);
     const form = useVisitaForm(visitas);
@@ -50,23 +52,19 @@ const VisitasIndex = ({ auth, visitas = [], visitadores = [], productos = [] }) 
             <div className="w-full min-h-screen flex flex-col bg-white">
                 {/* TOOLBAR: Conectado a filtros, paginación y selección masiva */}
                 <VisitasToolbar
-                    // Búsqueda
                     searchTerm={filter.searchTerm}
                     onSearchChange={filter.setSearchTerm}
 
-                    // Selección
                     selectedIds={selection.selectedIds}
                     onSelectAll={selection.toggleSelectAll}
-                    currentItems={filter.currentItems} // Necesario para el "Seleccionar Todo"
+                    currentItems={filter.currentItems}
 
-                    // Paginación
                     currentPage={filter.currentPage}
                     onPageChange={filter.setCurrentPage}
                     totalPages={filter.totalPages}
                     itemsPerPage={filter.itemsPerPage}
                     onItemsPerPageChange={filter.setItemsPerPage}
 
-                    // Acciones
                     onNew={form.openCreateModal}
                     onDelete={handleBulkDelete}
                     onExport={handleBulkExport}
@@ -75,14 +73,11 @@ const VisitasIndex = ({ auth, visitas = [], visitadores = [], productos = [] }) 
                 {/* TABLA: Conectada a datos y selección individual por fila */}
                 <VisitasTable
                     currentItems={filter.currentItems}
-                    medicos={medicos}
                     visitadores={visitadores}
 
-                    // Selección individual
                     selectedIds={selection.selectedIds}
                     onSelectOne={selection.toggleSelectOne}
 
-                    // Acciones de fila
                     onView={form.openViewModal}
                     onEdit={form.openEditModal}
                     onDelete={form.openDeleteModal}
@@ -111,7 +106,6 @@ const VisitasIndex = ({ auth, visitas = [], visitadores = [], productos = [] }) 
                 isOpen={form.isViewModalOpen}
                 onClose={() => form.setIsViewModalOpen(false)}
                 visita={form.selectedVisita}
-                medicos={medicos}
                 visitadores={visitadores}
             />
 
