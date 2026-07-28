@@ -12,9 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         
-        // Excluimos la cookie del cifrado automático para que JavaScript pueda leerla
+        // 1. Excluimos la cookie del cifrado automático para que JS pueda leerla
         $middleware->encryptCookies(except: [
             'download_token',
+        ]);
+
+        // 2. Excluimos la ruta de exportación de la verificación CSRF (evita el error 419)
+        $middleware->validateCsrfTokens(except: [
+            'medicos/exportar',
+            'Gmedicos/exportar', // Agregado por si tu ruta lleva la 'G' inicial según tu URL anterior
         ]);
 
         // Registro de Middlewares Globales / Web
