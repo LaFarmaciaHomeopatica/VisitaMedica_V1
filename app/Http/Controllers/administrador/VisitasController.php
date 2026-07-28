@@ -19,22 +19,43 @@ class VisitasController extends Controller
      */
 public function index()
 {
+    // Aumentamos memoria para evitar caídas en el servidor al renderizar
+    ini_set('memory_limit', '512M');
+
     return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
-        // Trae la relación 'medico' con todos sus campos para las tarjetas y listas
-        'visitas' => Visita::with(['medico', 'visitador'])->orderBy('id', 'desc')->get(),
+        // Solicitamos únicamente los campos necesarios de Visitas
+        'visitas' => Visita::select(
+            'id', 
+            'visitador_id', 
+            'medico_id', 
+            'fecha_programada', 
+            'fecha_realizada', 
+            'estado', 
+            'comentarios', 
+            'muestras', 
+            'comentario_muestra'
+        )
+        ->with([
+            'medico:id,nombre,documento', 
+            'visitador:id,nombre'
+        ])
+        ->orderBy('id', 'desc')
+        ->get(),
         
-        // ✅ CORRECCIÓN: Agregamos 'documento' al select para que llegue al frontend
         'medicos' => Medico::select(
             'id', 
             'nombre', 
-            'documento', // <-- Columna clave añadida
+            'documento', 
             'visitador_id', 
             'direccion_detalles', 
             'geolocalizacion'
         )->get(),
         
         'visitadores' => Visitador::select('id', 'nombre')->get(),
-        'productos' => Productos::select('id', 'codigo', 'nombre')->orderBy('nombre', 'asc')->get(),
+        
+        'productos' => Productos::select('id', 'codigo', 'nombre')
+            ->orderBy('nombre', 'asc')
+            ->get(),
     ]);
 }
 

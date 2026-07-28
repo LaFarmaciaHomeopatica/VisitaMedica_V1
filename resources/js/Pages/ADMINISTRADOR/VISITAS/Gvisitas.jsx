@@ -16,7 +16,9 @@ import VisitaDeleteModal from './ComponentsV/VisitaDeleteModal';
 
 const VisitasIndex = ({ auth, visitas = [], medicos = [], visitadores = [], productos = [] }) => {
     // 1. Inicialización de Hooks
-    const filter = useVisitasFilter(visitas, medicos, visitadores);
+   // Si visitas viene en formato array lo pasa directo; si viene paginado extrae .data
+const listaVisitas = Array.isArray(visitas) ? visitas : (visitas?.data || []);
+const filter = useVisitasFilter(listaVisitas, medicos, visitadores);
     const form = useVisitaForm(visitas, medicos);
     const selection = useVisitasSelection();
 
