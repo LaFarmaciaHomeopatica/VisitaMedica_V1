@@ -130,7 +130,8 @@ Route::middleware(['auth'])->group(function () {
 
 
         // Ruta para descargar el Excel (Exportar)
-    Route::get('productos/exportar', [ProductosController::class, 'export'])->name('productos.export');
+           Route::post('/medicos/exportar', [Medico2Controller::class, 'exportar'])->name('Gmedicos.exportar');
+
 
     // Ruta para procesar el archivo subido (Importar)
     Route::post('productos/importar', [ProductosController::class, 'import'])->name('productos.import');

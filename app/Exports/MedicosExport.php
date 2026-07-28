@@ -3,11 +3,12 @@
 namespace App\Exports;
 
 use App\Models\Medico;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 
-class MedicosExport implements FromCollection, WithHeadings, WithMapping
+class MedicosExport implements FromQuery, WithHeadings, WithMapping, WithChunkReading
 {
     protected $ids;
 
@@ -20,18 +21,31 @@ class MedicosExport implements FromCollection, WithHeadings, WithMapping
     }
 
     /**
-    * Retorna la colección de médicos filtrada.
+    * Retorna el query (no la colección ya cargada) para que Laravel Excel
+    * pueda traer y escribir los registros en bloques (chunks) en vez de
+    * cargar los 5000+ médicos completos en memoria de una sola vez.
     */
-    public function collection()
+    public function query()
     {
         // Añadimos 'categoria' al eager loading
-        $query = Medico::with(['tipoDocumento', 'visitador', 'categoria']);
+        $query = Medico::query()
+            ->with(['tipoDocumento', 'visitador', 'categoria'])
+            ->orderBy('id'); // orden estable, requerido para que el chunking sea consistente
 
         if (!empty($this->ids)) {
             $query->whereIn('id', $this->ids);
         }
 
-        return $query->get();
+        return $query;
+    }
+
+    /**
+    * Tamaño de cada bloque leído/escrito. 500 es un buen balance entre
+    * memoria y cantidad de queries a la base de datos.
+    */
+    public function chunkSize(): int
+    {
+        return 500;
     }
 
     /**

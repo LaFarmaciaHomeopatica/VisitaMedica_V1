@@ -11,6 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        
+        // Excluimos la cookie del cifrado automático para que JavaScript pueda leerla
+        $middleware->encryptCookies(except: [
+            'download_token',
+        ]);
+
         // Registro de Middlewares Globales / Web
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,

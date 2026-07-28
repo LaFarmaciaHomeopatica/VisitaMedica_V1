@@ -20,6 +20,7 @@ use Carbon\Carbon;
 use App\Models\MedicoTemporal;
 use App\Models\MedicoCategoriaHistorial;
 use App\Services\OdooService;  // ← Service nuevo
+use Illuminate\Support\Facades\Cookie;
 
 class Medico2Controller extends Controller
 {
@@ -300,17 +301,25 @@ class Medico2Controller extends Controller
     // =========================================================================
     //  EXPORT / IMPORT / MASIVOS — Sin cambios
     // =========================================================================
+public function exportar(Request $request)
+{
+    $idsRaw = $request->input('ids');
+    $ids    = $idsRaw ? explode(',', $idsRaw) : [];
+    $downloadToken = $request->input('download_token');
 
-    public function exportar(Request $request)
-    {
-        $idsRaw = $request->input('ids');
-        $ids    = $idsRaw ? explode(',', $idsRaw) : [];
-
-        return Excel::download(
-            new MedicosExport($ids),
-            'Medicos_LFH_' . date('d-m-Y') . '.xlsx'
-        );
+    if ($downloadToken) {
+        // Asignamos la cookie en texto plano accesible por JavaScript (httpOnly = false)
+        $cookie = cookie('download_token', $downloadToken, 1, '/', null, false, false);
+        Cookie::queue($cookie);
     }
+
+    return Excel::download(
+        new MedicosExport($ids),
+        'Medicos_LFH_' . date('d-m-Y') . '.xlsx'
+    );
+}
+
+
 
     public function importar(Request $request)
     {
