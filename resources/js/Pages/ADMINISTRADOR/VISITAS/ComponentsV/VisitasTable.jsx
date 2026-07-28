@@ -45,7 +45,8 @@ export default function VisitasTable({
                     <tbody className="divide-y divide-slate-100 bg-white">
                         {currentItems.length > 0 ? currentItems.map(v => {
                             // Buscamos el médico correspondiente a esta fila
-                            const medicoActual = medicos?.find(m => m.id === v.medico_id);
+                            // Buscamos el médico correspondiente a esta fila
+const medicoActual = medicos?.find(m => m.id === v.medico_id) || v.medico;
 
                             return (
                                 <tr

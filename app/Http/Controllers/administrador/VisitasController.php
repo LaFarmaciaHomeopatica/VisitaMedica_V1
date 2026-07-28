@@ -19,11 +19,7 @@ class VisitasController extends Controller
      */
 public function index()
 {
-    // Aumentamos memoria para evitar caídas en el servidor al renderizar
-    ini_set('memory_limit', '512M');
-
     return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
-        // Solicitamos únicamente los campos necesarios de Visitas
         'visitas' => Visita::select(
             'id', 
             'visitador_id', 
@@ -36,27 +32,44 @@ public function index()
             'comentario_muestra'
         )
         ->with([
-            'medico:id,nombre,documento', 
-            'visitador:id,nombre'
-        ])
+    'medico:id,nombre,documento,direccion_detalles,geolocalizacion', 
+    'visitador:id,nombre'
+])
         ->orderBy('id', 'desc')
         ->get(),
-        
-        'medicos' => Medico::select(
-            'id', 
-            'nombre', 
-            'documento', 
-            'visitador_id', 
-            'direccion_detalles', 
-            'geolocalizacion'
-        )->get(),
-        
+
+        // 'medicos' ya NO se carga completo aquí (son 5000+ registros).
+        // Se obtiene bajo demanda vía medicosPorVisitador() cuando el
+        // usuario elige un visitador en el modal de crear/editar visita.
+
         'visitadores' => Visitador::select('id', 'nombre')->get(),
-        
+
         'productos' => Productos::select('id', 'codigo', 'nombre')
             ->orderBy('nombre', 'asc')
             ->get(),
     ]);
+}
+
+/**
+ * Devuelve los médicos de un visitador específico (carga bajo demanda).
+ * Usada por el modal de crear/editar visita para no traer los 5000+
+ * médicos completos en cada carga de /Gvisitas.
+ */
+public function medicosPorVisitador($visitadorId)
+{
+    $medicos = Medico::where('visitador_id', $visitadorId)
+        ->select(
+            'id',
+            'nombre',
+            'documento',
+            'visitador_id',
+            'direccion_detalles',
+            'geolocalizacion'
+        )
+        ->orderBy('nombre', 'asc')
+        ->get();
+
+    return response()->json($medicos);
 }
 
     /**

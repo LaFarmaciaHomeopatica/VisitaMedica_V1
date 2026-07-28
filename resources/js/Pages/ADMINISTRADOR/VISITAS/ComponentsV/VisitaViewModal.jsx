@@ -4,7 +4,7 @@ import { getEstadoEstilo, getNameById } from './visitaHelpers';
 export default function VisitaViewModal({ isOpen, onClose, visita, medicos, visitadores }) {
     if (!isOpen || !visita) return null;
 
-    const medicoActual = medicos?.find(m => m.id === visita.medico_id);
+    const medicoActual = medicos?.find(m => m.id === visita.medico_id) || visita.medico;
     const tieneUbicacion = visita.latitud && visita.longitud;
 
     const mapaUrl = tieneUbicacion

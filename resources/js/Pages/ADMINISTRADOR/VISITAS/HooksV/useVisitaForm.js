@@ -2,12 +2,17 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 
-export const useVisitaForm = (visitas, medicos) => {
+export const useVisitaForm = (visitas) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedVisita, setSelectedVisita] = useState(null);
+
+    // Médicos del visitador seleccionado, cargados bajo demanda (ya no viene
+    // un array global de 5000+ médicos desde el controlador)
+    const [medicosFiltradosPorVisitador, setMedicosFiltradosPorVisitador] = useState([]);
+    const [loadingMedicos, setLoadingMedicos] = useState(false);
 
     const { data, setData, post, put, delete: destroy, processing, errors, reset, clearErrors } = useForm({
         id: null,
@@ -16,8 +21,8 @@ export const useVisitaForm = (visitas, medicos) => {
         fecha_programada: '',
         fecha_realizada: '',
         estado: 'sin programar',
-        muestras: '', // <--- AGREGAR ESTO
-        comentario_muestra: '', // <--- AGREGAR ESTO
+        muestras: '',
+        comentario_muestra: '',
         comentarios: '',
     });
 
@@ -33,11 +38,30 @@ export const useVisitaForm = (visitas, medicos) => {
         }
     }, [errors]);
 
-    // Médicos filtrados según el visitador seleccionado
-    const medicosFiltradosPorVisitador = useMemo(() => {
-        if (!data.visitador_id) return [];
-        return medicos.filter(m => String(m.visitador_id) === String(data.visitador_id));
-    }, [data.visitador_id, medicos]);
+    // Cargar médicos del visitador seleccionado bajo demanda
+    useEffect(() => {
+        if (!data.visitador_id) {
+            setMedicosFiltradosPorVisitador([]);
+            return;
+        }
+
+        let cancelado = false;
+        setLoadingMedicos(true);
+
+        fetch(route('Gvisitas.medicosPorVisitador', data.visitador_id))
+            .then(res => res.json())
+            .then(medicos => {
+                if (!cancelado) setMedicosFiltradosPorVisitador(medicos);
+            })
+            .catch(() => {
+                if (!cancelado) setMedicosFiltradosPorVisitador([]);
+            })
+            .finally(() => {
+                if (!cancelado) setLoadingMedicos(false);
+            });
+
+        return () => { cancelado = true; };
+    }, [data.visitador_id]);
 
     // Sincronización de fecha_realizada al cambiar fecha_programada
     const handleFechaProgramadaChange = (val) => {
@@ -76,28 +100,25 @@ export const useVisitaForm = (visitas, medicos) => {
         }
     };
 
-    // Acciones
-    // En useVisitaForm.js, asegúrate de que esto esté así:
     const openCreateModal = () => {
         clearErrors();
         setIsEditing(false);
-        reset(); // Esto resetea a los valores iniciales del useForm
-
-        // Aseguramos que los campos de productos estén vacíos por si acaso
+        reset();
         setData({
-            ...data, // Mantenemos la estructura
+            ...data,
             id: null,
             medico_id: '',
             visitador_id: '',
             fecha_programada: '',
             fecha_realizada: '',
             estado: 'sin programar',
-            muestras: '', // <--- Vital que esté vacío al crear
+            muestras: '',
             comentario_muestra: '',
             comentarios: '',
         });
         setIsModalOpen(true);
     };
+
     const openEditModal = (visita) => {
         clearErrors();
         setIsEditing(true);
@@ -112,12 +133,13 @@ export const useVisitaForm = (visitas, medicos) => {
                 ? visita.fecha_realizada.replace(' ', 'T').substring(0, 16)
                 : '',
             estado: visita.estado,
-            muestras: visita.muestras || '', // <--- AGREGAR ESTO
-            comentario_muestra: visita.comentario_muestra || '', // <--- AGREGAR ESTO
+            muestras: visita.muestras || '',
+            comentario_muestra: visita.comentario_muestra || '',
             comentarios: visita.comentarios || '',
         });
         setIsModalOpen(true);
     };
+
     const openViewModal = (visita) => {
         setSelectedVisita(visita);
         setIsViewModalOpen(true);
@@ -130,10 +152,6 @@ export const useVisitaForm = (visitas, medicos) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
-        // Opcional: Log para depurar si el valor de muestras está llegando antes de enviar
-        // console.log("Enviando muestras:", data.muestras);
-
         if (isEditing) {
             put(route('Gvisitas.update', data.id), {
                 onSuccess: () => {
@@ -141,7 +159,6 @@ export const useVisitaForm = (visitas, medicos) => {
                     reset();
                     Swal.fire({ icon: 'success', title: 'ACTUALIZADO', timer: 1500, showConfirmButton: false });
                 },
-                // Agrega esto para ver errores en consola si algo falla en el servidor
                 onError: (err) => console.error("Error al actualizar:", err)
             });
         } else {
@@ -154,7 +171,6 @@ export const useVisitaForm = (visitas, medicos) => {
                 onError: (err) => console.error("Error al guardar:", err)
             });
         }
-
     };
 
     const handleConfirmDelete = () => {
@@ -174,13 +190,11 @@ export const useVisitaForm = (visitas, medicos) => {
         isEditing,
         selectedVisita,
         medicosFiltradosPorVisitador,
+        loadingMedicos,
         handleFechaProgramadaChange,
         handleMedicoChange,
         openCreateModal, openEditModal,
         openViewModal, openDeleteModal,
         handleSubmit, handleConfirmDelete,
     };
-
-
-
 };

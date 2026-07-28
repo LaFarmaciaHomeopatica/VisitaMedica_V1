@@ -112,6 +112,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/Gvisitas/{id}', [VisitasController::class, 'update'])->name('Gvisitas.update');
         Route::delete('/Gvisitas/{id}', [VisitasController::class, 'destroy'])->name('Gvisitas.destroy');
         Route::delete('/Gvisitas', [VisitasController::class, 'destroyBulk'])->name('Gvisitas.destroyBulk');
+
+Route::get('/Gvisitas/medicos/{visitador_id}', [VisitasController::class, 'medicosPorVisitador'])->name('Gvisitas.medicosPorVisitador');
+
         // Buscador de ID
         Route::get('/usuarios/buscar/{id}', [DvisitadoresController::class, 'buscarUsuario'])->name('usuarios.buscar');
 
