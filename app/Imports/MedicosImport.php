@@ -179,6 +179,7 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
             'horario_atencion'      => $row['horario_atencion'] ?? null,
             'visitador_id'          => $visitadorId,
             'fecha_inicio_relacion' => $fechaFinal,
+            'deleted_at'            => null, // <--- FORZAMOS RESTAURACIÓN EN MEMORIA
         ];
 
         // 6. FLUSH cada 500 filas
@@ -194,18 +195,23 @@ class MedicosImport implements OnEachRow, WithHeadingRow, WithChunkReading
     }
 
     private function flush(): void
-    {
-        if (empty($this->insertData)) return;
+{
+    if (empty($this->insertData)) return;
 
+    try {
         DB::table('medicos')->upsert($this->insertData, ['documento'], [
             'nombre', 'especialidad', 'categoria_id',
             'tipo_documento_id', 'visitador_id', 'telefono_contacto',
             'geolocalizacion', 'direccion_detalles', 'horario_atencion',
-            'fecha_inicio_relacion',
+            'fecha_inicio_relacion', 'deleted_at', 
         ]);
-
-        $this->insertData = [];
+    } catch (\Exception $e) {
+        \Log::error('Error en upsert de médicos: ' . $e->getMessage());
+        throw $e;
     }
+
+    $this->insertData = [];
+}
 
     private function flushTemporal(): void
     {

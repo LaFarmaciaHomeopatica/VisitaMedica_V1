@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Medico extends Model
 {
-    use HasFactory;
-public $timestamps = false;
+    use HasFactory, SoftDeletes;
+
+    public $timestamps = false;
+
     /**
      * El nombre de la tabla asociada al modelo.
      * * @var string
@@ -33,7 +36,7 @@ public $timestamps = false;
         'fecha_inicio_relacion',
         'tipo_documento_id',
         'nombre',
-        'observaciones', // <-- Nuevo campo añadido
+        'observaciones',
     ];
 
     /**
@@ -45,7 +48,7 @@ public $timestamps = false;
         'fecha_inicio_relacion' => 'date',
         'visitador_id' => 'integer',
         'tipo_documento_id' => 'integer',
-
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -54,6 +57,14 @@ public $timestamps = false;
     public function visitador(): BelongsTo
     {
         return $this->belongsTo(Visitador::class, 'visitador_id');
+    }
+
+    /**
+     * Visitas registradas para este médico.
+     */
+    public function visitas()
+    {
+        return $this->hasMany(Visita::class, 'medico_id');
     }
 
     /**
@@ -66,13 +77,13 @@ public $timestamps = false;
 
     public function tipoDocumento()
     {
-        // Nota: Asegúrate de que la columna en la tabla medicos se llame tipo_documento_id
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
     }
 
-    public function categoria() {
-    return $this->belongsTo(Categoria::class, 'categoria_id');
-}
+    public function categoria()
+    {
+        return $this->belongsTo(Categoria::class, 'categoria_id');
+    }
 
     public function categoriaHistorial()
     {

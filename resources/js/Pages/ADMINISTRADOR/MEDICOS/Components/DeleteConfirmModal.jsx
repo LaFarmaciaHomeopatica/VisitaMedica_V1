@@ -4,6 +4,7 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, medicos
     if (!isOpen) return null;
 
     const hasVisitorAssigned = medicosSeleccionados.some(m => m.visitador_id !== null);
+    const hasVisitasRegistradas = medicosSeleccionados.some(m => (m.visitas_count ?? 0) > 0);
 
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -18,11 +19,12 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, medicos
 
                 <h3 className="text-xl font-black text-slate-800 uppercase text-center">¿Confirmar eliminación?</h3>
 
+                {/* 👇 AQUÍ: dentro del .map(), se agrega el badge de visitas_count */}
                 <div className="mt-6 max-h-[200px] overflow-y-auto space-y-2 mb-4 pr-2">
                     {medicosSeleccionados.map(medico => (
                         <div key={medico.id} className="flex flex-col p-3 bg-slate-50 rounded-2xl border border-slate-100">
                             <span className="text-xs font-bold text-slate-700">{medico.nombre}</span>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Visitador:</span>
                                 {medico.visitador ? (
                                     <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
@@ -30,6 +32,12 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, medicos
                                     </span>
                                 ) : (
                                     <span className="text-[10px] font-medium text-slate-400 italic">Sin asignar</span>
+                                )}
+
+                                {medico.visitas_count > 0 && (
+                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                        {medico.visitas_count} visita{medico.visitas_count !== 1 ? 's' : ''} registrada{medico.visitas_count !== 1 ? 's' : ''}
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -41,6 +49,16 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, medicos
                         <p className="text-[10px] text-amber-700 font-black uppercase flex items-center justify-center gap-2">
                             <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
                             Atención: Hay visitadores vinculados
+                        </p>
+                    </div>
+                )}
+
+                {/* 👇 AQUÍ: nuevo banner, justo después del de visitador vinculado */}
+                {hasVisitasRegistradas && (
+                    <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-center mb-4">
+                        <p className="text-[10px] text-amber-700 font-black uppercase flex items-center justify-center gap-2">
+                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                            Uno o más médicos tienen visitas en su historial
                         </p>
                     </div>
                 )}

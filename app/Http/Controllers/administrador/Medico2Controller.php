@@ -40,7 +40,9 @@ class Medico2Controller extends Controller
     return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
         // Envolvemos los médicos en Inertia::defer
         'medicos' => Inertia::defer(function () {
-            $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])->get();
+          $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
+    ->withCount('visitas')
+    ->get();
             $this->inyectarEspecialidadOdoo($medicos);
             $this->inyectarTendenciaCategoria($medicos);
             return $medicos;
@@ -291,12 +293,18 @@ class Medico2Controller extends Controller
 
         return Redirect::route('Gmedicos.index')->with('message', 'Médico actualizado con éxito.');
     }
+public function destroy(Medico $medico)
+{
+    $visitasCount = $medico->visitas()->count();
 
-    public function destroy(Medico $medico)
-    {
-        $medico->delete();
-        return Redirect::route('Gmedicos.index')->with('message', 'Médico eliminado correctamente.');
-    }
+    $medico->delete(); // ahora es soft delete, no toca la FK
+
+    $mensaje = $visitasCount > 0
+        ? "Médico eliminado. Ten en cuenta que tenía {$visitasCount} visita(s) registrada(s) en su historial."
+        : 'Médico eliminado correctamente.';
+
+    return Redirect::route('Gmedicos.index')->with('message', $mensaje);
+}
 
     // =========================================================================
     //  EXPORT / IMPORT / MASIVOS — Sin cambios
@@ -365,23 +373,27 @@ public function exportar(Request $request)
 
         return redirect()->back();
     }
+public function eliminarMasivo(Request $request)
+{
+    $request->validate(['ids' => 'required|array']);
+    $ids = array_filter($request->ids, 'is_numeric');
 
-    public function eliminarMasivo(Request $request)
-    {
-        $request->validate([
-            'ids' => 'required|array',
-        ]);
+    // Contamos cuántos de estos médicos tienen visitas, antes de borrar
+    $conVisitas = Medico::whereIn('id', $ids)
+        ->whereHas('visitas')
+        ->count();
 
-        $ids = array_filter($request->ids, 'is_numeric');
-
-        set_time_limit(0);
-
-        foreach (array_chunk($ids, 500) as $chunk) {
-            Medico::whereIn('id', $chunk)->delete();
-        }
-
-        return redirect()->back()->with('message', 'Médicos eliminados con éxito.');
+    set_time_limit(0);
+    foreach (array_chunk($ids, 500) as $chunk) {
+        Medico::whereIn('id', $chunk)->delete(); // soft delete respeta whereIn()->delete()
     }
+
+    $mensaje = $conVisitas > 0
+        ? "Médicos eliminados. {$conVisitas} de ellos tenían visitas registradas y se conservan en el historial."
+        : 'Médicos eliminados con éxito.';
+
+    return redirect()->back()->with('message', $mensaje);
+}
 
     // =========================================================================
     //  DETALLE DEL MÉDICO — Datos de transacciones desde Odoo
