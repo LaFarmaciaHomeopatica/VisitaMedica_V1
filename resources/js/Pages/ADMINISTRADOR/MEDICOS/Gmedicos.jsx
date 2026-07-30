@@ -38,6 +38,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedMedico, setSelectedMedico] = useState(null);
 
+
     // --- Datos derivados ---
     const medicosSeleccionados = medicos.filter(m => selection.selectedIds.includes(m.id));
     const hasPreviousAssignment = medicosSeleccionados.some(m => m.visitador_id !== null);
@@ -163,6 +164,8 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                     currentPage={filter.currentPage}
                     onPageChange={filter.setCurrentPage}
                     totalPages={filter.totalPages}
+                    soloSinVisitador={filter.soloSinVisitador}          
+    onToggleSoloSinVisitador={filter.setSoloSinVisitador} 
                 />
 
                 {/* Envolvemos la tabla con Deferred para mostrar un indicador mientras cargan los médicos */}

@@ -81,19 +81,29 @@ export const useMedicosImport = (medicos, visitadores) => {
                     .replace(/\s+/g, '_');
             });
 
-            const rows = raw.slice(1).map(row => {
-                let obj = {};
-                headers.forEach((h, i) => {
-                    if (!h) return;
-                    let key = h;
-                    if (['telefono', 'celular', 'tel'].includes(h)) key = 'telefono_contacto';
-                    if (h === 'telefono_contacto') key = 'telefono_contacto';
-                    if (['detalles_direccion', 'direccion', 'dir'].includes(h)) key = 'direccion_detalles';
-                    if (['visitador', 'visitador_asignado', 'visitador_asignado_'].includes(h)) key = 'visitador_asignado';
-                    obj[key] = row[i] !== undefined ? row[i] : null;
-                });
-                return obj;
-            });
+            const rows = raw.slice(1)
+    .map(row => {
+        let obj = {};
+        headers.forEach((h, i) => {
+            if (!h) return;
+            let key = h;
+            if (['telefono', 'celular', 'tel'].includes(h)) key = 'telefono_contacto';
+            if (h === 'telefono_contacto') key = 'telefono_contacto';
+            if (['detalles_direccion', 'direccion', 'dir'].includes(h)) key = 'direccion_detalles';
+            if (['visitador', 'visitador_asignado', 'visitador_asignado_'].includes(h)) key = 'visitador_asignado';
+            obj[key] = row[i] !== undefined ? row[i] : null;
+        });
+        return obj;
+    })
+    // 👇 NUEVO: descartamos filas fantasma (sin documento y sin nombre/apellido),
+    // el mismo criterio que ya usa MedicosImport.php en el backend.
+    .filter(row => {
+        const tieneDocumento = !!(row.documento?.toString().trim());
+        const tieneNombre = !!(row.nombre?.toString().trim() || row.apellido?.toString().trim());
+        return tieneDocumento || tieneNombre;
+    });
+
+            
 
             const duplicados = [];
             const filasParaProcesar = rows.map(row => {

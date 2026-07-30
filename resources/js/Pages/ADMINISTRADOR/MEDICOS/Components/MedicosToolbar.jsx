@@ -7,7 +7,7 @@ export default function MedicosToolbar({
     fileInputRef, onFileChange,
     currentItems = [], onSelectAll,
     itemsPerPage, onItemsPerPageChange,
-    currentPage, onPageChange, totalPages,
+    currentPage, onPageChange, totalPages, soloSinVisitador, onToggleSoloSinVisitador, // 👈 nuevos props
 }) {
     return (
         <div className="fixed top-14 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
@@ -44,6 +44,18 @@ export default function MedicosToolbar({
                             className="w-full bg-slate-50 border border-slate-300 rounded-lg py-2 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-slate-700"
                         />
                     </div>
+
+                     <label className="flex items-center gap-1.5 cursor-pointer border-l border-slate-200 pl-3">
+                        <input
+                            type="checkbox"
+                            checked={soloSinVisitador}
+                            onChange={e => onToggleSoloSinVisitador(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-black text-orange-600 uppercase tracking-tight leading-none select-none whitespace-nowrap">
+                            Sin<br />Visitador
+                        </span>
+                    </label>
                 </div>
 
                 {/* 2. SECCIÓN CENTRAL: PAGINACIÓN (NÚMEROS VISIBLES) */}

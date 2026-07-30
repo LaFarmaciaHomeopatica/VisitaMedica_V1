@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import PanelAdmin from '../PanelAdmin';
 import {
@@ -10,6 +10,7 @@ import {
     FaBoxOpen, FaFileInvoiceDollar, FaPhone, FaClock, FaLocationDot, FaFlask,
     FaCalendarDays, FaXmark, FaArrowTrendUp, FaArrowTrendDown, FaMinus, FaReceipt,
     FaTriangleExclamation, FaRotate, FaSpinner, FaCheck,FaCommentDots,FaMobileScreen,
+    FaCircleInfo, FaChevronDown,
 } from 'react-icons/fa6';
 import BarraComparativa, { COLOR_COMPRADO, COLOR_FORMULADO, LeyendaCompradoFormulado } from '@/Components/BarraComparativa';
 
@@ -219,9 +220,23 @@ export default function MedicoDetalle({
     const [busquedaProd, setBusquedaProd] = useState('');
     const [ordenProd, setOrdenProd]       = useState('valor_desc'); // 'valor_desc' | 'valor_asc' | 'alfa'
     const [mostrarCalendario, setMostrarCalendario] = useState(false);
+    const [mostrarInfoMedico, setMostrarInfoMedico] = useState(false);
+    const infoMedicoRef = useRef(null);
     const [fechaDesdeInput, setFechaDesdeInput] = useState(fechaDesdeActiva || '');
     const [fechaHastaInput, setFechaHastaInput] = useState(fechaHastaActiva || '');
     const [observacionActiva, setObservacionActiva] = useState(null);
+
+    // Cierra el dropdown de info del médico al hacer clic fuera
+    useEffect(() => {
+        if (!mostrarInfoMedico) return;
+        const handleClickFuera = (e) => {
+            if (infoMedicoRef.current && !infoMedicoRef.current.contains(e.target)) {
+                setMostrarInfoMedico(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickFuera);
+        return () => document.removeEventListener('mousedown', handleClickFuera);
+    }, [mostrarInfoMedico]);
     // Estado para abrir/cerrar el modal de EDICIÓN de observación
 const [visitaAEditar, setVisitaAEditar] = useState(null); // Guarda el objeto de la visita
 const [textoObservacion, setTextoObservacion] = useState(''); // Guarda el texto mientras escribe
@@ -450,13 +465,31 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
                     </Link>
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="min-w-0">
-                            <div className="flex items-baseline gap-2 flex-wrap">
+                            <div className="flex items-baseline gap-2 flex-wrap relative" ref={infoMedicoRef}>
                                 <h1 className="text-[19px] font-black text-slate-800 leading-none uppercase">
                                     {medico.nombre} {medico.apellido}
                                 </h1>
                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Perfil del médico</span>
-                            </div>
-                         <p className="text-[10px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+
+                                {/* Botón para desplegar la info del médico */}
+                                <button
+                                    type="button"
+                                    onClick={() => setMostrarInfoMedico(v => !v)}
+                                    className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest rounded-full border px-2 py-1 transition ${
+                                        mostrarInfoMedico
+                                            ? 'bg-blue-50 border-blue-200 text-blue-600'
+                                            : 'bg-white border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200'
+                                    }`}
+                                >
+                                    <FaCircleInfo className="text-[10px]" />
+                                    Info
+                                    <FaChevronDown className={`text-[8px] transition-transform ${mostrarInfoMedico ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {/* Dropdown con los datos del médico */}
+                                {mostrarInfoMedico && (
+                                    <div className="absolute left-0 top-full mt-2 z-20 w-[min(90vw,420px)] rounded-xl border border-slate-100 bg-white shadow-xl p-3">
+                                        <p className="text-[10px] text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-2">
     {/* Documento */}
     <span>{tipoDocumentoOdoo ?? medico.tipo_documento?.nombre ?? 'Doc.'}: {medico.documento}</span>
 
@@ -533,6 +566,9 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
         </a>
     )}
 </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* ── CARTERA ──────────────────────────────────────── */}
@@ -1425,6 +1461,62 @@ const [guardandoObs, setGuardandoObs] = useState(false); // Spinner de carga al 
                 </button>
             </div>
         </div>
+    </div>
+)}
+
+
+{/* Tab: Historial de visitas */}
+{tabActiva === 'visitas' && (
+    <div className="p-2">
+        {(visitas ?? []).length === 0 ? (
+            <div className="text-center py-16 text-slate-300">
+                <FaCalendarCheck className="text-4xl mb-2 mx-auto block" />
+                <p className="text-[11px] font-bold uppercase">Sin visitas registradas para este médico.</p>
+            </div>
+        ) : (
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-blue-600">
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Visitador</th>
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-center">Estado</th>
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Fecha Programada</th>
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Fecha Realizada</th>
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Comentarios</th>
+                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                    {visitas.map(v => (
+                        <tr key={v.id} className="hover:bg-blue-50/20 transition-colors">
+                            <td className="px-5 py-2.5 text-[11px] font-bold text-slate-700 border-r border-slate-50">
+                                {v.nombre_visitador?.trim() || 'Sin visitador'}
+                            </td>
+                            <td className="px-5 py-2.5 text-center border-r border-slate-50">
+                                <EstadoBadge estado={v.estado} />
+                            </td>
+                            <td className="px-5 py-2.5 text-[10px] text-slate-600 font-medium border-r border-slate-50">
+                                {v.fecha_programada ?? '—'}
+                            </td>
+                            <td className="px-5 py-2.5 text-[10px] text-slate-600 font-medium border-r border-slate-50">
+                                {v.fecha_realizada ?? '—'}
+                            </td>
+                            <td className="px-5 py-2.5 text-[10px] text-slate-500 border-r border-slate-50 max-w-[220px] truncate">
+                                {v.comentarios || <span className="text-slate-300 italic">Sin observaciones</span>}
+                            </td>
+                            <td className="px-5 py-2.5 text-center">
+                                <button
+                                    onClick={() => { setVisitaAEditar(v); setTextoObservacion(v.comentarios ?? ''); }}
+                                    className="p-1.5 bg-slate-50 text-slate-400 rounded-lg hover:bg-amber-500 hover:text-white transition-all shadow-sm inline-flex items-center"
+                                    title="Ver / editar observación"
+                                >
+                                    <FaCommentDots className="h-3.5 w-3.5" />
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        )}
     </div>
 )}
 {/* ── MODAL DE OBSERVACIONES DEL MÉDICO (perfil, no por visita) ── */}
