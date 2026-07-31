@@ -67,6 +67,19 @@ class TopMedicosController extends Controller
         ]);
     }
 
+    /**
+     * Resuelve la especialidad real de un médico desde el tag del contacto
+     * en Odoo, cruzando por documento. Mismo patrón que
+     * Medico2Controller::resolverEspecialidadOdoo(). Si Odoo no tiene un tag
+     * reconocido para ese documento, devuelve null.
+     */
+    private function resolverEspecialidadOdoo(?string $documento): ?string
+    {
+        if (empty($documento)) return null;
+
+        return $this->odoo->getEspecialidadesPorDocumentos([$documento])[trim($documento)] ?? null;
+    }
+
     public function detalleTop(Request $request, string $documento)
     {
         $visitador = Visitador::where('usuario_id', Auth::id())->firstOrFail();
@@ -111,7 +124,7 @@ return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
         'id'                 => $medico->id,
         'documento'          => $medico->documento,
         'nombre'             => trim($medico->nombre),
-        'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
+        'especialidad'       => $this->resolverEspecialidadOdoo($medico->documento) ?? 'General',
         'direccion_detalles' => $medico->direccion_detalles,
         'telefono_contacto'  => $medico->telefono_contacto,
         'telefono'           => $partnerOdoo['telefono'] ?? null,

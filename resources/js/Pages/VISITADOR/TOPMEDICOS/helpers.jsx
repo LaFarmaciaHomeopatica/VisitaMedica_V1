@@ -35,12 +35,12 @@ export const MODOS = {
         acento: 'w-1.5 bg-[#24C765]',
         activeBtn: 'bg-white text-gray-800 shadow-sm',
     },
-    formuladores: {
+   formuladores: {
         label: 'Formuladores',
         icon: <FaFlask size={10} />,
-        gradiente: 'from-[#1C85E8] to-[#0A69C2]',
-        badge: 'bg-blue-600 text-white',
-        acento: 'w-1.5 bg-[#1C85E8]',
+        gradiente: 'from-[#7C3AED] to-[#5B21B6]',
+        badge: 'bg-purple-600 text-white',
+        acento: 'w-1.5 bg-[#7C3AED]',
         activeBtn: 'bg-white text-gray-800 shadow-sm',
     },
 };

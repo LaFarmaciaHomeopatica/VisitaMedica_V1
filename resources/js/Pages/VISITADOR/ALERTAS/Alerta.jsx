@@ -9,26 +9,63 @@ import {
     FaArrowUp,
     FaArrowDown,
     FaMinus,
-    FaSpinner // Añadimos un icono de carga
+    FaSpinner,
+    FaChevronLeft,
+    FaChevronRight
 } from 'react-icons/fa6';
 
-const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', periodoBLabel = '' }) => {
-    // Nota: cambiamos el valor por defecto de medicosAlertas a null para identificar la carga inicial
-    
+const Alerta = ({
+    datosAlertas = null,
+    mesActual = '',
+    periodoALabel = '',
+    periodoBLabel = '',
+    perPageInicial = 10,
+    paginaInicial = 1,
+}) => {
+
     // ── Estados Locales ──
     const [search, setSearch] = useState('');
     const [mesFiltro, setMesFiltro] = useState(mesActual);
-
-    // Estado para controlar la altura exacta del header flotante
+    const [perPage, setPerPage] = useState(perPageInicial);
+    const [perPageInput, setPerPageInput] = useState(String(perPageInicial));
+    const [cargando, setCargando] = useState(false);
     const [headerHeight, setHeaderHeight] = useState(180);
     const headerRef = useRef(null);
 
-    // ── 1. Disparar la carga diferida de Inertia al montar el componente ──
-    useEffect(() => {
-        router.reload({ only: ['medicosAlertas'] });
-    }, [mesFiltro]); // Se vuelve a disparar si el mes del filtro cambia
+    const datosListos = datosAlertas !== null;
+    const medicosAlertas = datosAlertas?.medicosAlertas ?? [];
+    const pagination = datosAlertas?.pagination ?? {
+        total: 0,
+        per_page: perPage,
+        current_page: paginaInicial,
+        last_page: 1,
+    };
 
-    // ── Efecto para medir el Header dinámicamente ──
+    // ── Petición a la vista actual pidiendo SOLO la data pesada (Odoo) ──
+    // Esto hace que la vista entre de inmediato (skeleton) y los datos
+    // se vayan cargando en segundo plano, sin bloquear la navegación.
+    const irA = (params = {}) => {
+        router.get('/visitador/alertas', {
+            mes: mesFiltro,
+            page: pagination.current_page || 1,
+            per_page: perPage,
+            ...params,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['datosAlertas'],
+            onStart: () => setCargando(true),
+            onFinish: () => setCargando(false),
+        });
+    };
+
+    // ── Disparar carga diferida al entrar a la vista ──
+    useEffect(() => {
+        irA({ page: paginaInicial, per_page: perPageInicial, mes: mesActual });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Medir Header dinámicamente ──
     useEffect(() => {
         if (!headerRef.current) return;
 
@@ -42,11 +79,10 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Evitamos fallos si medicosAlertas aún es null durante la carga inicial
-    const datosListos = medicosAlertas !== null;
+    const bloqueado = !datosListos || cargando;
 
-    const medicosFiltrados = datosListos 
-        ? medicosAlertas.filter(medico => 
+    const medicosFiltrados = datosListos
+        ? medicosAlertas.filter(medico =>
             medico.nombre.toLowerCase().includes(search.toLowerCase()) ||
             medico.especialidad.toLowerCase().includes(search.toLowerCase()) ||
             medico.documento.includes(search)
@@ -58,12 +94,48 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
     const handleMesChange = (e) => {
         const newMes = e.target.value;
         setMesFiltro(newMes);
-        // Reseteamos a null para que se muestre el spinner/skeleton al cambiar de mes
-        router.get('/visitador/alertas', { mes: newMes }, { preserveState: true });
+        irA({ mes: newMes, page: 1 });
+    };
+
+    // ── Cambios de página ──
+    const cambiarPagina = (nuevaPagina) => {
+        if (nuevaPagina < 1 || nuevaPagina > pagination.last_page) return;
+        irA({ page: nuevaPagina });
+    };
+
+    // ── Cantidad de registros por página (input libre) ──
+    const PER_PAGE_MIN = 1;
+    const PER_PAGE_MAX = 200;
+
+    // Mientras se escribe: solo filtra dígitos y deja borrar todo (incluso vacío)
+    const handlePerPageInputChange = (e) => {
+        const soloDigitos = e.target.value.replace(/\D/g, '');
+        setPerPageInput(soloDigitos);
+    };
+
+    // Al confirmar (blur o Enter): valida, aplica límites y dispara la carga
+    const confirmarPerPage = () => {
+        let valor = parseInt(perPageInput, 10);
+
+        if (isNaN(valor) || valor < PER_PAGE_MIN) valor = PER_PAGE_MIN;
+        if (valor > PER_PAGE_MAX) valor = PER_PAGE_MAX;
+
+        setPerPageInput(String(valor));
+
+        if (valor !== perPage) {
+            setPerPage(valor);
+            irA({ per_page: valor, page: 1 });
+        }
+    };
+
+    const handlePerPageKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // dispara el onBlur -> confirmarPerPage
+        }
     };
 
     const handleMedicoClick = (documento) => {
-        if (!datosListos) return;
+        if (bloqueado) return;
         router.get(`/visitador/alertas/${documento}`, { mes: mesFiltro });
     };
 
@@ -91,7 +163,6 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
         );
     };
 
-    // Componente interno para simular la carga con efecto Shimmer (Skeleton)
     const SkeletonCard = () => (
         <div className="bg-white/50 backdrop-blur-md rounded-xl p-4 border border-white/40 animate-pulse flex justify-between h-20 items-center">
             <div className="space-y-2 flex-1">
@@ -137,16 +208,17 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
                                 type="text"
                                 value={search}
                                 onChange={handleSearch}
-                                disabled={!datosListos}
-                                placeholder={datosListos ? "Buscar médico por nombre, especialidad o documento..." : "Cargando listado de médicos..."}
+                                disabled={bloqueado}
+                                placeholder={datosListos ? "Buscar médico, especialidad..." : "Cargando listado de médicos..."}
                                 className="w-full bg-blue-50/50 border-none rounded-full py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-300 outline-none transition-all shadow-inner placeholder:text-gray-300 font-medium text-gray-700 disabled:opacity-60"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3.5">
-                    <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+                {/* Sub-Header con Filtro de Mes y Barra de Paginación Estilo Imagen */}
+                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px] px-5 py-3">
+                    <div className="max-w-[1440px] mx-auto flex flex-col gap-2.5">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10 w-fit">
@@ -164,18 +236,62 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
                                     </span>
                                 )}
                             </div>
-                            <div className="hidden sm:flex items-center gap-1.5 text-white/95 text-[10px] font-black uppercase tracking-wider bg-white/15 px-3 py-1.5 rounded-full border border-white/10">
-                                {datosListos ? (
-                                    <>
-                                        <FaBell className="text-xs text-yellow-300 animate-bounce" />
-                                        <span>Menor rendimiento primero</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <FaSpinner className="text-xs text-white animate-spin" />
-                                        <span>Sincronizando con Odoo...</span>
-                                    </>
-                                )}
+
+                            {/* BARRA DE PAGINACIÓN ADAPTADA SEGÚN LA IMAGEN */}
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end pt-1 sm:pt-0">
+                                {/* Total registros */}
+                                <span className="text-white font-black text-sm md:text-base">
+                                    {pagination.total}
+                                </span>
+
+                                {/* Controles centrales */}
+                                <div className="flex items-center gap-2">
+                                    {/* Botón Anterior */}
+                                    <button
+                                        onClick={() => cambiarPagina(pagination.current_page - 1)}
+                                        disabled={pagination.current_page <= 1 || bloqueado}
+                                        className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:hover:bg-white/20 active:scale-95"
+                                    >
+                                        <FaChevronLeft className="text-xs" />
+                                    </button>
+
+                                    {/* Etiqueta PÁG. [ 1 ] / 16 */}
+                                    <div className="flex items-center gap-1.5 text-white text-xs font-black tracking-wider uppercase">
+                                        <span>PÁG.</span>
+                                        <span className="bg-white/30 text-white px-2.5 py-1 rounded-xl text-xs font-black min-w-[28px] text-center flex items-center justify-center">
+                                            {cargando ? <FaSpinner className="animate-spin text-[10px]" /> : pagination.current_page}
+                                        </span>
+                                        <span className="opacity-80">/ {pagination.last_page}</span>
+                                    </div>
+
+                                    {/* Botón Siguiente */}
+                                    <button
+                                        onClick={() => cambiarPagina(pagination.current_page + 1)}
+                                        disabled={pagination.current_page >= pagination.last_page || bloqueado}
+                                        className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:hover:bg-white/20 active:scale-95"
+                                    >
+                                        <FaChevronRight className="text-xs" />
+                                    </button>
+                                </div>
+
+                                {/* Cantidad de registros por página (editable libremente) */}
+                                <div className="flex items-center gap-1.5">
+                                    <span className="hidden sm:inline text-[9px] font-black text-white/70 uppercase tracking-wider">
+                                        Ver
+                                    </span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={perPageInput}
+                                        onChange={handlePerPageInputChange}
+                                        onBlur={confirmarPerPage}
+                                        onKeyDown={handlePerPageKeyDown}
+                                        disabled={bloqueado}
+                                        placeholder="10"
+                                        className="bg-white/30 hover:bg-white/40 focus:bg-white text-white focus:text-gray-800 w-14 px-2 py-1 rounded-xl text-xs font-black outline-none border-none text-center disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -189,28 +305,27 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
             >
                 <main className="max-w-[1440px] mx-auto px-4 md:px-6 space-y-4">
                     
-                    
-                    {/* ── MANEJO DE ESTADOS EN LA VISTA ── */}
                     {!datosListos ? (
-                        // 1. Vista en estado "Cargando" de Odoo
                         <div className="space-y-4">
                             <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
                                 <FaSpinner className="text-sm text-[#02CFE3] animate-spin" /> 
                                 Consultando métricas en tiempo real...
                             </h3>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <SkeletonCard />
-                                <SkeletonCard />
-                                <SkeletonCard />
-                                <SkeletonCard />
+                                {Array.from({ length: Math.min(perPage, 6) || 3 }).map((_, i) => (
+                                    <SkeletonCard key={i} />
+                                ))}
                             </div>
                         </div>
                     ) : medicosFiltrados.length > 0 ? (
-                        // 2. Vista con datos cargados con éxito
-                        <div className="space-y-4">
+                        <div className={`space-y-4 transition-opacity duration-200 ${cargando ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                             <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2">
-                                <FaBell className="text-sm text-[#02CFE3]" /> 
-                                Mostrando {medicosFiltrados.length} médicos ordenados por alertas críticas
+                                {cargando ? (
+                                    <FaSpinner className="text-sm text-[#02CFE3] animate-spin" />
+                                ) : (
+                                    <FaBell className="text-sm text-[#02CFE3]" />
+                                )}
+                                {cargando ? 'Actualizando resultados...' : 'Mostrando médicos ordenados por alertas críticas'}
                             </h3>
                             
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -289,7 +404,6 @@ const Alerta = ({ medicosAlertas = null, mesActual = '', periodoALabel = '', per
                             </div>
                         </div>
                     ) : (
-                        // 3. Estado vacío definitivo
                         <div className="text-center py-20 bg-white/50 backdrop-blur-md rounded-[30px] border border-dashed border-gray-200 text-gray-400 text-sm italic">
                             <FaUserDoctor className="text-4xl text-gray-200 mb-3 mx-auto block" />
                             No se encontraron médicos con datos en este filtro.

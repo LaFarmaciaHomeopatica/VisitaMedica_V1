@@ -98,9 +98,14 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
             <div className="mt-2 sm:mt-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full">
                 
                 {/* Especialidad ocupa todo el ancho de la cuadrícula */}
-                <span className="col-span-2 sm:col-span-1 text-center sm:text-left text-[9px] font-black uppercase bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-xl border border-white/20">
-                    {medico?.especialidad || 'General'}
-                </span>
+                <div className="col-span-2 sm:col-span-1 flex flex-col items-center sm:items-start justify-center bg-gradient-to-r from-emerald-400 to-teal-500 px-3 py-1.5 rounded-xl border border-emerald-300/40 shadow-sm">
+                    <span className="text-[7px] font-bold uppercase tracking-widest text-white/80 leading-none">
+                        Especialidad
+                    </span>
+                    <span className="text-[10px] font-black uppercase text-white leading-tight">
+                        {medico?.especialidad || 'General'}
+                    </span>
+                </div>
 
                 {/* Alerta */}
 <Link
