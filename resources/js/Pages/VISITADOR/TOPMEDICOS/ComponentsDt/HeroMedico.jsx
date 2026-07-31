@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import {
     FaCrown, FaBell, FaPhoneFlip, FaLocationDot, FaSpinner,
-    FaArrowsRotate, FaCommentDots, FaXmark, FaCheck
+    FaArrowsRotate, FaCommentDots, FaXmark, FaCheck, FaCalendarDay
 } from 'react-icons/fa6';
+
+const MESES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 // ─── Hero del médico (carga siempre al instante, independiente de Odoo) ──────
 const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl }) => {
@@ -98,12 +103,12 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
                 </span>
 
                 {/* Alerta */}
-                <Link
-                    href={`/visitador/alertas/${medico.documento}?mes=${mesActual}`}
-                    className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                    <FaBell size={10} /> Alerta
-                </Link>
+<Link
+    href={`/visitador/alertas/${medico.documento}?mes=${mesActual}&origen=detalle`}
+    className="bg-amber-400/90 hover:bg-amber-400 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-amber-300/40 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
+>
+    <FaBell size={10} /> Alerta
+</Link>
 
                 {/* Info */}
                 <button
@@ -152,23 +157,92 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
                                     {(medico?.tipo_documento?.nombre || '') + ' ' + (medico?.documento || 'N/A')}
                                 </p>
                             </div>
-                            <div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">ID Registro</p>
-                                <p className="text-xs font-bold text-gray-700 mt-0.5">#{medico?.id}</p>
-                            </div>
+                          
+                    <div>
+    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Cumpleaños</p>
+    <div className="flex items-center gap-1.5 mt-0.5">
+        <FaCalendarDay className="text-[#1C85E8] text-[11px]" />
+        <p className="text-xs font-bold text-gray-700">
+            {(() => {
+                if (!medico?.mes_nacimiento && !medico?.dia_nacimiento) {
+                    return 'No registrado';
+                }
+
+                // 1. Diccionario para traducir meses en inglés / variaciones a español
+                const TRADUCCION_MESES = {
+                    january: 'Enero', jan: 'Enero',
+                    february: 'Febrero', feb: 'Febrero',
+                    march: 'Marzo', mar: 'Marzo',
+                    april: 'Abril', apr: 'Abril',
+                    may: 'Mayo',
+                    june: 'Junio', jun: 'Junio',
+                    july: 'Julio', jul: 'Julio',
+                    august: 'Agosto', aug: 'Agosto',
+                    september: 'Septiembre', sep: 'Septiembre', sept: 'Septiembre',
+                    october: 'Octubre', oct: 'Octubre',
+                    november: 'Noviembre', nov: 'Noviembre',
+                    december: 'Diciembre', dec: 'Diciembre'
+                };
+
+                let nombreMes = '';
+                const mesRaw = String(medico.mes_nacimiento || '').trim().toLowerCase();
+                const mesNum = parseInt(mesRaw, 10);
+
+                // 2. Si viene como número (ej: 3, "03", "3.0")
+                if (!isNaN(mesNum) && MESES_ES[mesNum - 1]) {
+                    nombreMes = MESES_ES[mesNum - 1];
+                } 
+                // 3. Si viene en inglés o texto, lo buscamos en el diccionario
+                else if (TRADUCCION_MESES[mesRaw]) {
+                    nombreMes = TRADUCCION_MESES[mesRaw];
+                } 
+                // 4. Si ya venía en español en texto, dejamos la primera letra en mayúscula
+                else if (mesRaw) {
+                    nombreMes = mesRaw.charAt(0).toUpperCase() + mesRaw.slice(1);
+                }
+
+                const dia = medico.dia_nacimiento ? `${medico.dia_nacimiento}` : '';
+
+                return `${dia} ${dia && nombreMes ? 'de' : ''} ${nombreMes}`.trim() || 'No registrado';
+            })()}
+        </p>
+    </div>
+</div>
                         </div>
 
                         <div className="space-y-3 sm:border-l sm:pl-5 border-gray-100">
                             <div>
                                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-xs font-bold text-gray-700">{medico?.telefono_contacto || '---'}</p>
-                                    {medico?.telefono_contacto && (
-                                        <a href={`tel:${medico.telefono_contacto}`} className="text-[#24C765] hover:scale-110 transition-transform">
-                                            <FaPhoneFlip className="text-[11px]" />
-                                        </a>
-                                    )}
-                                </div>
+                                {(medico?.celular || medico?.telefono || medico?.telefono_contacto) ? (
+                                    <div className="space-y-1 mt-0.5">
+                                        {medico?.celular && (
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs font-bold text-gray-700">{medico.celular}</p>
+                                                <a href={`tel:${medico.celular}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                    <FaPhoneFlip className="text-[11px]" />
+                                                </a>
+                                            </div>
+                                        )}
+                                        {medico?.telefono && medico.telefono !== medico?.celular && (
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs font-bold text-gray-700">{medico.telefono}</p>
+                                                <a href={`tel:${medico.telefono}`} className="text-[#1C85E8] hover:scale-110 transition-transform">
+                                                    <FaPhoneFlip className="text-[11px]" />
+                                                </a>
+                                            </div>
+                                        )}
+                                        {!medico?.celular && !medico?.telefono && medico?.telefono_contacto && (
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs font-bold text-gray-700">{medico.telefono_contacto}</p>
+                                                <a href={`tel:${medico.telefono_contacto}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                    <FaPhoneFlip className="text-[11px]" />
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs font-bold text-gray-700 mt-0.5">---</p>
+                                )}
                             </div>
                             <div>
                                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Horario de Atención</p>
@@ -301,5 +375,3 @@ const HeroMedico = ({ medico, mesActual, puestoReal, cargandoOdoo, googleMapsUrl
 };
 
 export default HeroMedico;
-
-

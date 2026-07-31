@@ -83,11 +83,45 @@ const MESES_NOMBRES = {
 };
 
 // Helper para obtener el mes completo limpiando espacios y minúsculas
-function formatoMesCompleto(mes) {
+const formatoMesCompleto = (mes) => {
     if (!mes) return '—';
-    const mesLimpio = String(mes).trim().toLowerCase();
-    return MESES_NOMBRES[mesLimpio] ?? mes; // Si no lo encuentra, muestra el valor original
-}
+
+    const MESES_ES = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    const TRADUCCION_MESES = {
+        january: 'Enero', jan: 'Enero',
+        february: 'Febrero', feb: 'Febrero',
+        march: 'Marzo', mar: 'Marzo',
+        april: 'Abril', apr: 'Abril',
+        may: 'Mayo',
+        june: 'Junio', jun: 'Junio',
+        july: 'Julio', jul: 'Julio',
+        august: 'Agosto', aug: 'Agosto',
+        september: 'Septiembre', sep: 'Septiembre', sept: 'Septiembre',
+        october: 'Octubre', oct: 'Octubre',
+        november: 'Noviembre', nov: 'Noviembre',
+        december: 'Diciembre', dec: 'Diciembre'
+    };
+
+    const mesRaw = String(mes).trim().toLowerCase();
+    const mesNum = parseInt(mesRaw, 10);
+
+    // 1. Si es un número (ej: 3, "03")
+    if (!isNaN(mesNum) && MESES_ES[mesNum - 1]) {
+        return MESES_ES[mesNum - 1];
+    }
+
+    // 2. Si viene en inglés o abreviado
+    if (TRADUCCION_MESES[mesRaw]) {
+        return TRADUCCION_MESES[mesRaw];
+    }
+
+    // 3. Si ya es texto en español, capitaliza la primera letra
+    return mesRaw.charAt(0).toUpperCase() + mesRaw.slice(1);
+};
 
 // ── subcomponents ─────────────────────────────────────────────────────────────
 function KpiCard({ label, value, accent, href }) {

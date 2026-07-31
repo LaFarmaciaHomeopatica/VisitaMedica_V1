@@ -99,20 +99,31 @@ class TopMedicosController extends Controller
 
         $snapshot = OdooSnapshot::buscar($medico->documento, $periodoCache, $mes);
 
-        return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
-            'medico' => [
-                'id'                 => $medico->id,
-                'documento'          => $medico->documento,
-                'nombre'             => trim($medico->nombre),
-                'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
-                'direccion_detalles' => $medico->direccion_detalles,
-                'telefono_contacto'  => $medico->telefono_contacto,
-                'horario_atencion'   => $medico->horario_atencion,
-                'geolocalizacion'    => $medico->geolocalizacion,
-                'observaciones'      => $medico->observaciones,
-                'tipo_documento'     => $medico->tipoDocumento ? [
-                    'nombre' => $medico->tipoDocumento->nombre
-                ] : null,
+        // Datos reales de contacto (teléfono/celular) y cumpleaños desde Odoo —
+        // mismo patrón que Medico2Controller::show() en el admin. OJO: la
+        // dirección y el horario de atención NO existen en Odoo, siguen
+        // siendo 100% locales (direccion_detalles / horario_atencion).
+        // BUSCAR ODOO PARTNER
+$partnerOdoo = $this->odoo->buscarMedicoPorDocumento($medico->documento);
+
+return Inertia::render('VISITADOR/TOPMEDICOS/DetallesTop', [
+    'medico' => [
+        'id'                 => $medico->id,
+        'documento'          => $medico->documento,
+        'nombre'             => trim($medico->nombre),
+        'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
+        'direccion_detalles' => $medico->direccion_detalles,
+        'telefono_contacto'  => $medico->telefono_contacto,
+        'telefono'           => $partnerOdoo['telefono'] ?? null,
+        'celular'            => $partnerOdoo['celular'] ?? null,
+        'mes_nacimiento'     => $partnerOdoo['mes_nacimiento'] ?? null, // <-- Asegurar que no sea nulo
+        'dia_nacimiento'     => $partnerOdoo['dia_nacimiento'] ?? null,
+        'horario_atencion'   => $medico->horario_atencion,
+        'geolocalizacion'    => $medico->geolocalizacion,
+        'observaciones'      => $medico->observaciones,
+        'tipo_documento'     => $medico->tipoDocumento ? [
+            'nombre' => $medico->tipoDocumento->nombre
+        ] : null,
             ],
             'mesActual'        => $mes,
             'periodoActivo'    => $periodo,

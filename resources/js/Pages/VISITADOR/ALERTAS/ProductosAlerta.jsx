@@ -12,10 +12,20 @@ import {
     FaPhoneFlip,
     FaLocationDot,
     FaCalendarDays,
+    FaCalendarDay,
+    FaCommentDots,
     FaSpinner 
 } from 'react-icons/fa6';
 
+const MESES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
 const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '', puestoReal = null }) => {
+    const queryParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const origen = queryParams.get('origen') || '';
+    
     // ── Estados Locales ──
     const [search, setSearch] = useState('');
     const [mostrarDetalles, setMostrarDetalles] = useState(false); 
@@ -26,7 +36,12 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
     // Estado para controlar la altura exacta del header flotante
     const [headerHeight, setHeaderHeight] = useState(180);
     const headerRef = useRef(null);
-    
+
+    // ── Construcción dinámica de la ruta de retorno ──
+    const backUrl = origen === 'detalle'
+        ? `/visitador/top-medicos/${medico.documento}?mes=${mesActual}`
+        : `/visitador/alertas?mes=${mesActual}`;
+
     // Referencia para activar el input de fecha nativo de forma programática
     const monthInputRef = useRef(null);
 
@@ -58,31 +73,25 @@ const ProductosAlerta = ({ medico = {}, productosAlertas = null, mesActual = '',
         );
     };
 
-
     const handleItemsPerPageChange = (e) => {
-    const val = e.target.value; // Capturamos lo que escribe el usuario como string
-    
-    // 1. Permitir que el usuario lo deje vacío para que escriba libremente
-    setItemsPerPageInput(val);
+        const val = e.target.value;
+        setItemsPerPageInput(val);
 
-    // 2. Si está vacío o es un 0, mantenemos 10 registros por detrás temporalmente para evitar divisiones por cero
-    if (val === '' || parseInt(val, 10) <= 0) {
-        setItemsPerPage(10);
-        return;
-    }
+        if (val === '' || parseInt(val, 10) <= 0) {
+            setItemsPerPage(10);
+            return;
+        }
 
-    // 3. Si es un número válido, actualizamos el paginador real y volvemos a la página 1
-    setItemsPerPage(Number(val));
-    setCurrentPage(1);
-};
+        setItemsPerPage(Number(val));
+        setCurrentPage(1);
+    };
 
-// Asegurar que si el input queda vacío al perder el foco (onBlur), se rellene con el valor real mínimo
-const handleItemsPerPageBlur = () => {
-    if (itemsPerPageInput === '' || parseInt(itemsPerPageInput, 10) <= 0) {
-        setItemsPerPageInput('10');
-        setItemsPerPage(10);
-    }
-};
+    const handleItemsPerPageBlur = () => {
+        if (itemsPerPageInput === '' || parseInt(itemsPerPageInput, 10) <= 0) {
+            setItemsPerPageInput('10');
+            setItemsPerPage(10);
+        }
+    };
 
     const formatMesLabel = (mesString) => {
         if (!mesString) return '';
@@ -116,25 +125,23 @@ const handleItemsPerPageBlur = () => {
           )
         : [];
 
-    // 🌟 CÁLCULOS MATEMÁTICOS PARA LA PAGINACIÓN LOCAL
+    // CÁLCULOS MATEMÁTICOS PARA LA PAGINACIÓN LOCAL
     const totalItems = productosFiltrados.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
-    // Ajuste por si el filtro reduce las páginas drásticamente
     useEffect(() => {
         if (currentPage > totalPages) {
             setCurrentPage(totalPages);
         }
     }, [productosFiltrados, totalPages, currentPage]);
 
-    // Segmentación de los productos correspondientes a la página actual
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const productosPaginados = productosFiltrados.slice(indexOfFirstItem, indexOfLastItem);
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
-        setCurrentPage(1); // Resetea a la primera página al buscar
+        setCurrentPage(1);
     };
 
     const RendimientoIndicador = ({ tendencia, diferencia }) => {
@@ -161,8 +168,7 @@ const handleItemsPerPageBlur = () => {
         );
     };
 
-    const telefonoMedico = medico?.telefono || medico?.telefono_contacto || '';
-    const direccionMedico = medico?.direccion || medico?.direccion_detalles || '';
+    const direccionMedico = medico?.direccion_detalles || medico?.direccion || '';
 
     const googleMapsUrl = medico?.geolocalizacion
         ? `https://maps.google.com/?q=${encodeURIComponent(medico.geolocalizacion)}`
@@ -187,13 +193,11 @@ const handleItemsPerPageBlur = () => {
                 ref={headerRef}
                 className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20 overflow-hidden"
             >
-                {/* Contenedor Superior: Buscador y Filtros */}
                 <div className="max-w-[1440px] mx-auto p-4 md:p-6 pb-2 md:pb-3 space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
-                        
                         <div className="flex items-center gap-3 shrink-0">
                             <Link
-                                href={`/visitador/alertas?mes=${mesActual}`}
+                                href={backUrl}
                                 className="w-9 h-9 flex items-center justify-center bg-blue-50 rounded-full text-[#1C85E8] hover:bg-blue-100 transition-colors shrink-0 shadow-sm active:scale-90"
                             >
                                 <FaArrowLeft className="text-xs" /> 
@@ -209,7 +213,7 @@ const handleItemsPerPageBlur = () => {
                             </div>
                         </div>
 
-                        {/* Barra de Búsqueda */}
+                        {/* Buscador */}
                         <div className="relative flex-grow max-w-xl">
                             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-blue-400">
                                 <FaMagnifyingGlass className="text-xs md:text-sm" />
@@ -224,7 +228,7 @@ const handleItemsPerPageBlur = () => {
                             />
                         </div>
 
-                        {/* Controles de Período */}
+                        {/* Controles Período */}
                         <div className="flex flex-wrap items-center gap-3 shrink-0 self-end md:self-auto">
                             <div 
                                 onClick={() => monthInputRef.current?.showPicker()}
@@ -252,21 +256,17 @@ const handleItemsPerPageBlur = () => {
                                 </span>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
-                {/* 🌟 BARRA DE PAGINACIÓN PEGAJOSA Y ADHERIDA AL HEADER (FUSIONADA AL BLANCO) */}
+                {/* Barra de Paginación */}
                 {datosListos && productosFiltrados.length > 0 && (
                     <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] px-6 py-2 flex items-center justify-between text-white text-[10px] md:text-[11px] font-black uppercase tracking-wider select-none border-t border-white/10">
-                        
-                        {/* Izquierda */}
                         <div className="flex items-center gap-1">
                             <span>{totalItems}</span>
                             <span className="opacity-90 font-bold">productos</span>
                         </div>
 
-                        {/* Centro */}
                         <div className="flex items-center gap-2">
                             <button
                                 disabled={currentPage === 1}
@@ -293,7 +293,6 @@ const handleItemsPerPageBlur = () => {
                             </button>
                         </div>
 
-                        {/* Derecha */}
                         <div className="flex items-center gap-1.5 font-bold">
                             <span className="opacity-80 text-[9px]">VER</span>
                             <input
@@ -322,7 +321,7 @@ const handleItemsPerPageBlur = () => {
                     <section className="bg-gradient-to-br from-[#1C85E8] to-[#0A69C2] p-6 rounded-[30px] shadow-lg text-white relative">
                         <div className="flex items-start gap-4">
                             
-                            {/* Avatar del Puesto Ranking */}
+                            {/* Avatar Ranking */}
                             {puestoReal === null ? (
                                 <div className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-white/30 bg-white/10 backdrop-blur-md animate-pulse">
                                     <FaSpinner className="text-white text-xs animate-spin" />
@@ -363,32 +362,109 @@ const handleItemsPerPageBlur = () => {
                             </div>
                         </div>
 
-                        {/* Datos Detallados Desplegables */}
+                        {/* 🌟 DATOS DETALLADOS DESPLEGABLES (IGUAL QUE EN HERO MÉDICO) 🌟 */}
                         {mostrarDetalles && (
                             <div className="bg-white/90 backdrop-blur-md rounded-[20px] border border-white/50 mt-5 p-5 text-slate-800 animate-in slide-in-from-top-2 duration-200 text-left">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
-                                        <p className="text-xs font-bold text-gray-700 mt-0.5">
-                                            {(medico?.tipo_documento?.nombre || 'CC') + ' ' + (medico?.documento || '—')}
-                                        </p>
-                                    </div>
-                                    <div className="sm:border-l sm:pl-5 border-gray-100">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <p className="text-xs font-bold text-gray-700">{telefonoMedico || 'No registrado'}</p>
-                                            {telefonoMedico && (
-                                                <a href={`tel:${telefonoMedico}`} className="text-[#24C765] hover:scale-110 transition-transform">
-                                                    <FaPhoneFlip className="text-[11px]" />
-                                                </a>
-                                            )}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Documento</p>
+                                            <p className="text-xs font-bold text-gray-700 mt-0.5">
+                                                {(medico?.tipo_documento?.nombre || '') + ' ' + (medico?.documento || 'N/A')}
+                                            </p>
+                                        </div>
+                                      
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Cumpleaños</p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <FaCalendarDay className="text-[#1C85E8] text-[11px]" />
+                                                <p className="text-xs font-bold text-gray-700">
+                                                    {(() => {
+                                                        if (!medico?.mes_nacimiento && !medico?.dia_nacimiento) {
+                                                            return 'No registrado';
+                                                        }
+
+                                                        const TRADUCCION_MESES = {
+                                                            january: 'Enero', jan: 'Enero',
+                                                            february: 'Febrero', feb: 'Febrero',
+                                                            march: 'Marzo', mar: 'Marzo',
+                                                            april: 'Abril', apr: 'Abril',
+                                                            may: 'Mayo',
+                                                            june: 'Junio', jun: 'Junio',
+                                                            july: 'Julio', jul: 'Julio',
+                                                            august: 'Agosto', aug: 'Agosto',
+                                                            september: 'Septiembre', sep: 'Septiembre', sept: 'Septiembre',
+                                                            october: 'Octubre', oct: 'Octubre',
+                                                            november: 'Noviembre', nov: 'Noviembre',
+                                                            december: 'Diciembre', dec: 'Diciembre'
+                                                        };
+
+                                                        let nombreMes = '';
+                                                        const mesRaw = String(medico.mes_nacimiento || '').trim().toLowerCase();
+                                                        const mesNum = parseInt(mesRaw, 10);
+
+                                                        if (!isNaN(mesNum) && MESES_ES[mesNum - 1]) {
+                                                            nombreMes = MESES_ES[mesNum - 1];
+                                                        } else if (TRADUCCION_MESES[mesRaw]) {
+                                                            nombreMes = TRADUCCION_MESES[mesRaw];
+                                                        } else if (mesRaw) {
+                                                            nombreMes = mesRaw.charAt(0).toUpperCase() + mesRaw.slice(1);
+                                                        }
+
+                                                        const dia = medico.dia_nacimiento ? `${medico.dia_nacimiento}` : '';
+
+                                                        return `${dia} ${dia && nombreMes ? 'de' : ''} ${nombreMes}`.trim() || 'No registrado';
+                                                    })()}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
+
+                                    <div className="space-y-3 sm:border-l sm:pl-5 border-gray-100">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Contacto Directo</p>
+                                            {(medico?.celular || medico?.telefono || medico?.telefono_contacto) ? (
+                                                <div className="space-y-1 mt-0.5">
+                                                    {medico?.celular && (
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-gray-700">{medico.celular}</p>
+                                                            <a href={`tel:${medico.celular}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                                <FaPhoneFlip className="text-[11px]" />
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                    {medico?.telefono && medico.telefono !== medico?.celular && (
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-gray-700">{medico.telefono}</p>
+                                                            <a href={`tel:${medico.telefono}`} className="text-[#1C85E8] hover:scale-110 transition-transform">
+                                                                <FaPhoneFlip className="text-[11px]" />
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                    {!medico?.celular && !medico?.telefono && medico?.telefono_contacto && (
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-gray-700">{medico.telefono_contacto}</p>
+                                                            <a href={`tel:${medico.telefono_contacto}`} className="text-[#24C765] hover:scale-110 transition-transform">
+                                                                <FaPhoneFlip className="text-[11px]" />
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs font-bold text-gray-700 mt-0.5">---</p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Horario de Atención</p>
+                                            <p className="text-xs font-bold text-gray-700 mt-0.5">{medico?.horario_atencion || 'No definido'}</p>
+                                        </div>
+                                    </div>
+
                                     <div className="sm:border-l sm:pl-5 border-gray-100 flex flex-col justify-center">
                                         <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Dirección de Consultorio</p>
                                         <div className="flex items-start gap-2 mt-0.5">
                                             <p className="text-xs font-bold text-gray-700 leading-tight flex-1">
-                                                {direccionMedico || 'Sin dirección registrada'}
+                                                {medico?.direccion_detalles || 'Sin dirección registrada'}
                                             </p>
                                             <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
                                                 className="text-[#1C85E8] shrink-0 hover:scale-110 transition-transform mt-0.5">
@@ -397,13 +473,22 @@ const handleItemsPerPageBlur = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {medico?.observaciones && (
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-[#0A69C2] flex items-center gap-1.5">
+                                            <FaCommentDots className="text-[#1C85E8]" /> Observaciones del Médico
+                                        </p>
+                                        <p className="text-xs font-semibold text-gray-700 mt-1 whitespace-pre-line leading-relaxed">
+                                            {medico.observaciones}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </section>
 
-                   
-
-                    {/* ── SECCIONES SEGÚN ESTADO DE CARGA ── */}
+                    {/* SECCIONES DE CARGA Y PRODUCTOS */}
                     {!datosListos ? (
                         <div className="space-y-4">
                             <h3 className="text-xs font-black text-gray-400 px-1 uppercase tracking-widest flex items-center gap-2 mt-4 text-left">
@@ -420,7 +505,6 @@ const handleItemsPerPageBlur = () => {
                     ) : productosFiltrados.length > 0 ? (
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {/* 🌟 RECORRIDO DE PRODUCTOS USANDO LA VARIABLE CORRECTA DE LA PAGINACIÓN */}
                                 {productosPaginados.map((prod) => (
                                     <div
                                         key={prod.codigo}

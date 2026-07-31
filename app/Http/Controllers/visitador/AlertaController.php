@@ -139,37 +139,49 @@ class AlertaController extends Controller
     ]);
 }
 
-    public function detalle(Request $request, string $documento)
-    {
-        $visitador = Visitador::where('usuario_id', Auth::id())->first();
-        if (!$visitador) {
-            return redirect()->route('panel')->with('error', 'Visitador no encontrado.');
-        }
+   public function detalle(Request $request, string $documento)
+{
+    $visitador = Visitador::where('usuario_id', Auth::id())->first();
+    if (!$visitador) {
+        return redirect()->route('panel')->with('error', 'Visitador no encontrado.');
+    }
 
-        $medico = $visitador->medicos()->with('tipoDocumento')->where('documento', $documento)->firstOrFail();
+    $medico = $visitador->medicos()->with('tipoDocumento')->where('documento', $documento)->firstOrFail();
 
-        $mesFiltroStr = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
-        $mesCompararInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
-        $mesCompararFin = $mesCompararInicio->copy()->endOfMonth();
+    // 🌟 1. CONSULTAMOS LOS DATOS EXTENDIDOS DESDE ODOO (igual que en Medico2Controller)
+    $partnerOdoo = $this->odoo->buscarMedicoPorDocumento($medico->documento);
 
-        $mesActualInicio = Carbon::now()->startOfMonth();
-        $mesActualFin = Carbon::now()->endOfMonth();
+    $mesFiltroStr = $request->input('mes', Carbon::now()->subMonth()->format('Y-m'));
+    $mesCompararInicio = Carbon::parse($mesFiltroStr . '-01')->startOfMonth();
+    $mesCompararFin = $mesCompararInicio->copy()->endOfMonth();
 
-        return Inertia::render('VISITADOR/ALERTAS/ProductosAlerta', [
-            'mesActual'  => $mesFiltroStr,
-            'medico'     => [
-                'id'                 => $medico->id,
-                'documento'          => $medico->documento,
-                'nombre'             => trim($medico->nombre),
-                'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
-                'telefono_contacto'  => $medico->telefono_contacto,
-                'direccion_detalles' => $medico->direccion_detalles,
-                'horario_atencion'   => $medico->horario_atencion,
-                'geolocalizacion'    => $medico->geolocalizacion,
-                'tipo_documento'     => $medico->tipoDocumento ? ['nombre' => $medico->tipoDocumento->nombre] : null,
-            ],
+    $mesActualInicio = Carbon::now()->startOfMonth();
+    $mesActualFin = Carbon::now()->endOfMonth();
 
-            'productosAlertas' => Inertia::lazy(function () use ($medico, $mesCompararInicio, $mesCompararFin, $mesActualInicio, $mesActualFin) {
+    return Inertia::render('VISITADOR/ALERTAS/ProductosAlerta', [
+        'mesActual'  => $mesFiltroStr,
+        'medico'     => [
+            'id'                 => $medico->id,
+            'documento'          => $medico->documento,
+            'nombre'             => trim($medico->nombre),
+            'especialidad'       => $this->odoo->resolverEspecialidadPorDocumento($medico->documento) ?? 'General',
+            
+            // 🌟 2. DATOS EXTRAÍDOS DE ODOO O CAÍDAS AL REGISTRO LOCAL
+            'celular'            => $partnerOdoo['celular'] ?? $medico->celular,
+            'telefono'           => $partnerOdoo['telefono'] ?? $medico->telefono,
+            'telefono_contacto'  => $medico->telefono_contacto,
+            'mes_nacimiento'     => $partnerOdoo['mes_nacimiento'] ?? $medico->mes_nacimiento,
+            'dia_nacimiento'     => $partnerOdoo['dia_nacimiento'] ?? $medico->dia_nacimiento,
+            'observaciones'      => $medico->observaciones,
+
+            'direccion_detalles' => $medico->direccion_detalles,
+            'horario_atencion'   => $medico->horario_atencion,
+            'geolocalizacion'    => $medico->geolocalizacion,
+            'tipo_documento'     => $medico->tipoDocumento ? ['nombre' => $medico->tipoDocumento->nombre] : null,
+        ],
+
+        'productosAlertas' => Inertia::lazy(function () use ($medico, $mesCompararInicio, $mesCompararFin, $mesActualInicio, $mesActualFin) {
+            // ... resto de la función sin cambios
                 $odooResult = $this->odoo->getProductosComparativo(
                     $medico->documento,
                     ['desde' => $mesCompararInicio->format('Y-m-d'), 'hasta' => $mesCompararFin->format('Y-m-d')],

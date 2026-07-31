@@ -18,7 +18,12 @@ const TopMedicos = ({
     const topMedicos = odooDatosPesados?.topMedicos || [];
 
     // ── Estados Locales ──
-    const [search, setSearch] = useState(filters.search || '');
+   // En TopMedicos.jsx (Línea 22)
+const searchInicial = (filters.search && filters.search !== 'null' && filters.search !== 'undefined') 
+    ? filters.search 
+    : '';
+
+const [search, setSearch] = useState(searchInicial);
     const [mesFiltro, setMesFiltro] = useState(mesActual);
     const [topLimit, setTopLimit] = useState(10);
     const [vistaTipo, setVistaTipo] = useState('general'); 
@@ -191,8 +196,8 @@ const TopMedicos = ({
 
                                         return (
                                             <Link
-                                                key={medico.documento}
-                                                href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search}`}
+                                        key={medico.documento}
+    href={`/visitador/top-medicos/${medico.documento}?mes=${mesFiltro}&vista=${vistaTipo}&limit=${topLimit}&search=${search || ''}`}
                                                 className="bg-white/80 backdrop-blur-md rounded-xl flex gap-0 items-stretch shadow-sm border border-white/40 hover:shadow-md hover:scale-[1.002] active:scale-[0.995] transition-all duration-200 overflow-hidden text-left block w-full"
                                             >
                                                 {/* Acento lateral */}
