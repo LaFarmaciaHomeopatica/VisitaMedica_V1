@@ -183,13 +183,13 @@ export const useMedicosImport = (medicos, visitadores) => {
 
         const headers = [
             'documento', 'nombre', 'tipo_documento', 'especialidad',
-            'categoria', 'telefono_contacto', 'direccion_detalles', 'geolocalizacion',
+            'categoria', 'telefono_contacto', 'direccion_detalles',
             'horario_atencion', 'visitador_asignado', 'fecha_inicio_relacion',
         ];
         const sample = [
             '12345678', 'María García', tiposDocumento[0]?.codigo ?? 'CC',
             'Cardiología', categorias[0]?.nombre ?? '', '3001234567',
-            'Calle 10 # 5-20', '', 'Lunes-Viernes 8am-12pm',
+            'Calle 10 # 5-20', 'Lunes-Viernes 8am-12pm',
             visitadores[0] ? `${visitadores[0].nombre} ${visitadores[0].apellido}` : '',
             '2024-01-15',
         ];

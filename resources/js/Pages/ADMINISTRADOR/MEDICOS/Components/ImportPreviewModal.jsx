@@ -62,7 +62,6 @@ function calcCambios(row, original) {
         especialidad: !cmp(row.especialidad, original.especialidad),
         categoria: !cmp(row.categoria, original.categoria?.nombre),
         telefono_contacto: !cmp(row.telefono_contacto, original.telefono_contacto),
-        geolocalizacion: !cmp(row.geolocalizacion, original.geolocalizacion),
         direccion_detalles: !cmp(row.direccion_detalles, original.direccion_detalles),
         horario_atencion: !cmp(row.horario_atencion, original.horario_atencion),
         // ✅ CORREGIDO: reconoce "sin visitador"/"sin asignar" y nombres en cualquier orden
@@ -126,7 +125,7 @@ export default function ImportPreviewModal({ isOpen, onClose, onConfirm, preview
                         <thead className="sticky top-0 bg-slate-100 uppercase z-20 shadow-sm">
                             <tr>
                                 {['Estado', 'Documento', 'Nombre', 'Especialidad', 'Categoría', 'Teléfono',
-                                    'Geolocalización', 'Dirección Detalles', 'Horario Atención', 'Visitador', 'Fecha Inicio'].map(h => (
+                                     'Dirección Detalles', 'Horario Atención', 'Visitador', 'Fecha Inicio'].map(h => (
                                         <th key={h} className="px-3 py-2 font-bold text-slate-600 border-b">{h}</th>
                                     ))}
                             </tr>
@@ -154,7 +153,7 @@ export default function ImportPreviewModal({ isOpen, onClose, onConfirm, preview
                                         <CeldaCambio valor={row.especialidad} cambio={c.especialidad} actual={original?.especialidad} />
                                         <CeldaCambio valor={row.categoria} cambio={c.categoria} actual={original?.categoria?.nombre} />
                                         <CeldaCambio valor={row.telefono_contacto} cambio={c.telefono_contacto} actual={original?.telefono_contacto} />
-                                        <CeldaCambio valor={row.geolocalizacion} cambio={c.geolocalizacion} actual={original?.geolocalizacion} />
+
                                         <CeldaCambio valor={row.direccion_detalles} cambio={c.direccion_detalles} actual={original?.direccion_detalles} />
                                         <CeldaCambio valor={row.horario_atencion} cambio={c.horario_atencion} actual={original?.horario_atencion} />
                                         {/* ✅ CORREGIDO: muestra el nombre del visitador desde el Excel */}

@@ -36,7 +36,7 @@ export default function ExportConfirmModal({ isOpen, onClose, onConfirm, selecte
                             <thead>
                                 <tr className="bg-slate-100 uppercase">
                                     {['Tipo Documento', 'Documento', 'Nombre', 'Especialidad', 'Categoría',
-                                        'Teléfono', 'Geolocalización', 'Detalles Dirección', 'Horario Atención',
+                                        'Teléfono', 'Detalles Dirección', 'Horario Atención',
                                         'Visitador Asignado', 'Fecha Inicio Relación'].map(h => (
                                             <th key={h} className="px-2 py-2 font-bold text-slate-600 border border-slate-200">{h}</th>
                                         ))}
@@ -51,7 +51,6 @@ export default function ExportConfirmModal({ isOpen, onClose, onConfirm, selecte
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">{m.especialidad}</td>
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">{m.categoria?.nombre || 'N/A'}</td>
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">{m.telefono_contacto}</td>
-                                        <td className="px-2 py-1 border border-slate-100 whitespace-nowrap font-mono text-[8px]">{m.geolocalizacion}</td>
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">{m.direccion_detalles}</td>
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">{m.horario_atencion}</td>
                                         <td className="px-2 py-1 border border-slate-100 whitespace-nowrap">

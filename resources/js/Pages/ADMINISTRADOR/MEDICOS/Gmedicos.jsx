@@ -195,6 +195,7 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                 onSubmit={form.handleSubmit}
                 tiposDocumento={tiposDocumento}
                 visitadorNombre={form.visitadorNombre}
+                visitadores={visitadores} 
             />
 
             <ExportConfirmModal

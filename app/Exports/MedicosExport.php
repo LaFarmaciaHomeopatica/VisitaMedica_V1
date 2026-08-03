@@ -60,7 +60,7 @@ class MedicosExport implements FromQuery, WithHeadings, WithMapping, WithChunkRe
             $medico->especialidad,
             $medico->categoria->nombre ?? 'Sin Categoría', // <--- Agregado después de especialidad
             $medico->telefono_contacto,
-            $medico->geolocalizacion,
+            
             $medico->direccion_detalles,
             $medico->horario_atencion,
          $medico->visitador 
@@ -82,7 +82,6 @@ class MedicosExport implements FromQuery, WithHeadings, WithMapping, WithChunkRe
             'Especialidad',
             'Categoría', // <--- Agregado después de Especialidad
             'Teléfono',
-            'Geolocalización',
             'Detalles Dirección',
             'Horario Atención',
             'Visitador Asignado',

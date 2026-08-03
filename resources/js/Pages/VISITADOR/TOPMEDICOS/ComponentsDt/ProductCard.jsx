@@ -11,8 +11,9 @@ const ProductCard = ({ item, index, modo }) => {
     const accentLeft = isCompra
         ? 'bg-[#24C765]'
         : isFormula
-        ? 'bg-[#1C85E8]'
+       ? 'bg-[#7C3AED]' 
         : 'bg-gradient-to-b from-[#1C85E8] via-[#02CFE3] to-[#24C765]';
+
 
     const rankColor = 'text-slate-400';
 
@@ -51,20 +52,19 @@ const ProductCard = ({ item, index, modo }) => {
                         )}
 
                         {isGeneral && <div className="w-px h-5 bg-gray-200/80 shrink-0 mx-0.5" />}
-
-                        {(isFormula || isGeneral) && (
-                            <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
-                                <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                                    Formulado
-                                </p>
-                                <p className="text-[11px] font-black text-[#1C85E8] leading-none">
-                                    {formatNum(item.cantidad_formulada ?? item.cantidad ?? 0)} <span className="text-[9px] font-bold text-gray-400/80">und.</span>
-                                </p>
-                                <p className="text-[9px] font-black text-gray-700 leading-none mt-0.5 truncate">
-                                    {formatCOP(item.valor_formulado ?? item.valor ?? 0)}
-                                </p>
-                            </div>
-                        )}
+{(isFormula || isGeneral) && (
+    <div className="text-left flex-1 min-w-[75px] max-w-[110px]">
+        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">
+            Formulado
+        </p>
+        <p className="text-[11px] font-black text-[#7C3AED] leading-none">
+            {formatNum(item.cantidad_formulada ?? item.cantidad ?? 0)} <span className="text-[9px] font-bold text-gray-400/80">und.</span>
+        </p>
+        <p className="text-[9px] font-black text-gray-700 leading-none mt-0.5 truncate">
+            {formatCOP(item.valor_formulado ?? item.valor ?? 0)}
+        </p>
+    </div>
+)}
                     </div>
 
                     <div className="min-w-0 shrink-0 flex justify-end">

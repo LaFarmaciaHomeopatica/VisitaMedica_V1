@@ -49,9 +49,9 @@ const LaboratoriosAcordeon = ({ laboratoriosComprados = [], laboratoriosFormulad
     const isFormula = modo === 'formuladores';
     const isGeneral = modo === 'general';
 
-    const accentBar  = isCompra ? 'bg-[#24C765]' : isFormula ? 'bg-[#1C85E8]' : 'bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765]';
-    const headerBg   = isCompra ? 'bg-emerald-50 border-emerald-100' : isFormula ? 'bg-blue-50 border-blue-100' : 'bg-sky-50 border-sky-100';
-    const headerText = isCompra ? 'text-[#24C765]' : isFormula ? 'text-[#1C85E8]' : 'text-sky-600';
+    const accentBar  = isCompra ? 'bg-[#24C765]' : isFormula ? 'bg-[#7C3AED]' : 'bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765]';
+    const headerBg   = isCompra ? 'bg-emerald-50 border-emerald-100' : isFormula ? 'bg-purple-50 border-purple-100' : 'bg-sky-50 border-sky-100';
+    const headerText = isCompra ? 'text-[#24C765]' : isFormula ? 'text-[#7C3AED]' : 'text-sky-600';
     const rankColor  = () => 'text-slate-400';
 
     return (
@@ -90,7 +90,7 @@ const LaboratoriosAcordeon = ({ laboratoriosComprados = [], laboratoriosFormulad
                                         ? isCompra
                                             ? 'bg-[#24C765] text-white'
                                             : isFormula
-                                            ? 'bg-[#1C85E8] text-white'
+                                            ? 'bg-[#7C3AED] text-white'
                                             : 'bg-sky-500 text-white'
                                         : 'text-gray-400 hover:text-gray-600'
                                 }`}
@@ -149,7 +149,7 @@ const LaboratoriosAcordeon = ({ laboratoriosComprados = [], laboratoriosFormulad
                                                 </p>
                                             )}
                                             {(isFormula || isGeneral) && (
-                                                <p className="text-[10px] font-black text-[#1C85E8]">
+                                                <p className="text-[10px] font-black text-[#7C3AED]">
                                                     {formatNum(lab.cantidad_formulada ?? lab.cantidad ?? 0)}
                                                     <span className="text-[9px] font-bold text-gray-300 ml-0.5">fórmula</span>
                                                 </p>
