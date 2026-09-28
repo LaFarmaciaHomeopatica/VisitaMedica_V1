@@ -17,67 +17,67 @@ class VisitasController extends Controller
     /**
      * Muestra la lista de visitas.
      */
-public function index()
-{
-    return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
-        'visitas' => Visita::select(
-            'id', 
-            'visitador_id', 
-            'medico_id', 
-            'fecha_programada', 
-            'fecha_realizada', 
-            'estado', 
-            'comentarios', 
-            'muestras', 
-            'comentario_muestra'
-        )
-        ->with([
-    'medico:id,nombre,documento,direccion_detalles,geolocalizacion', 
-    'visitador:id,nombre'
-])
-        ->orderBy('id', 'desc')
-        ->get(),
-
-        // 'medicos' ya NO se carga completo aquí (son 5000+ registros).
-        // Se obtiene bajo demanda vía medicosPorVisitador() cuando el
-        // usuario elige un visitador en el modal de crear/editar visita.
-
-        'visitadores' => Visitador::select('id', 'nombre')->get(),
-
-        'productos' => Productos::select('id', 'codigo', 'nombre')
-            ->orderBy('nombre', 'asc')
+    public function index()
+    {
+        return Inertia::render('ADMINISTRADOR/VISITAS/Gvisitas', [
+            'visitas' => Visita::select(
+                'id',
+                'visitador_id',
+                'medico_id',
+                'fecha_programada',
+                'fecha_realizada',
+                'fecha_fin_real',   // <-- agregado
+                'latitud',          // <-- agregado
+                'longitud',         // <-- agregado
+                'estado',
+                'comentarios',
+                'muestras',
+                'comentario_muestra'
+            )
+            ->with([
+                'medico:id,nombre,documento,direccion_detalles,geolocalizacion',
+                'visitador:id,nombre'
+            ])
+            ->orderBy('id', 'desc')
             ->get(),
-    ]);
-}
 
-/**
- * Devuelve los médicos de un visitador específico (carga bajo demanda).
- * Usada por el modal de crear/editar visita para no traer los 5000+
- * médicos completos en cada carga de /Gvisitas.
- */
-public function medicosPorVisitador($visitadorId)
-{
-    $medicos = Medico::where('visitador_id', $visitadorId)
-        ->select(
-            'id',
-            'nombre',
-            'documento',
-            'visitador_id',
-            'direccion_detalles',
-            'geolocalizacion'
-        )
-        ->orderBy('nombre', 'asc')
-        ->get();
+            // 'medicos' ya NO se carga completo aquí (son 5000+ registros).
+            // Se obtiene bajo demanda vía medicosPorVisitador() cuando el
+            // usuario elige un visitador en el modal de crear/editar visita.
 
-    return response()->json($medicos);
-}
+            'visitadores' => Visitador::select('id', 'nombre')->get(),
+
+            'productos' => Productos::select('id', 'codigo', 'nombre')
+                ->orderBy('nombre', 'asc')
+                ->get(),
+        ]);
+    }
+
+    /**
+     * Devuelve los médicos de un visitador específico (carga bajo demanda).
+     */
+    public function medicosPorVisitador($visitadorId)
+    {
+        $medicos = Medico::where('visitador_id', $visitadorId)
+            ->select(
+                'id',
+                'nombre',
+                'documento',
+                'visitador_id',
+                'direccion_detalles',
+                'geolocalizacion'
+            )
+            ->orderBy('nombre', 'asc')
+            ->get();
+
+        return response()->json($medicos);
+    }
 
     /**
      * Almacena una nueva visita con validación de relación y disponibilidad.
      */
     public function store(Request $request)
     {
-        // 1. Validaciones básicas de Laravel
         $validated = $request->validate([
             'visitador_id'       => 'required|exists:visitadores,id',
             'medico_id'          => [
@@ -94,9 +94,8 @@ public function medicosPorVisitador($visitadorId)
             'comentario_muestra' => 'nullable|string',
         ]);
 
-        // 2. Validación de Disponibilidad (Se mantiene para evitar choques exactos)
         $existeCruce = Visita::where('fecha_programada', $request->fecha_programada)
-            ->where(function($query) use ($request) {
+            ->where(function ($query) use ($request) {
                 $query->where('visitador_id', $request->visitador_id)
                       ->orWhere('medico_id', $request->medico_id);
             })
@@ -108,7 +107,6 @@ public function medicosPorVisitador($visitadorId)
             ])->withInput();
         }
 
-        // 3. Crear la visita
         Visita::create($validated);
 
         return Redirect::route('Gvisitas.index')->with('success', 'Visita creada correctamente.');
@@ -137,10 +135,9 @@ public function medicosPorVisitador($visitadorId)
             'comentario_muestra' => 'nullable|string',
         ]);
 
-        // Validación de Disponibilidad (Excluyendo la visita actual)
         $existeCruce = Visita::where('id', '!=', $id)
             ->where('fecha_programada', $request->fecha_programada)
-            ->where(function($query) use ($request) {
+            ->where(function ($query) use ($request) {
                 $query->where('visitador_id', $request->visitador_id)
                       ->orWhere('medico_id', $request->medico_id);
             })
