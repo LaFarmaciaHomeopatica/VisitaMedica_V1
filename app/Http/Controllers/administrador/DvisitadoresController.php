@@ -26,7 +26,7 @@ class DvisitadoresController extends Controller
 
     public function index()
     {
-        $visitadores = Visitador::with(['tipoDocumento', 'user', 'metas' => function ($query) {
+        $visitadores = Visitador::with(['tipoDocumento', 'user', 'zona', 'metas' => function ($query) {
             $query->latest('fecha_meta')->limit(1);
         }])->get();
 

@@ -27,7 +27,7 @@ const PendientesTab = ({ visitasPendientesFiltradas, medicos, irAEjecutarVisita 
                         <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-gray-800 text-sm leading-tight truncate">
                                 {medicoData
-                                    ? `${medicoData.nombre} ${medicoData.apellido}`
+                                    ? `${medicoData.nombre} ${medicoData.apellido || ''}`
                                     : 'Médico Desconocido'}
                             </h4>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
