@@ -144,6 +144,12 @@ class MedicoTemporalController extends Controller
             'file' => 'required|mimes:xlsx,xls,csv|max:10240', // Max 10MB
         ]);
 
+        // Archivos grandes (4000+ filas) pueden superar los límites por defecto del hosting.
+        // Le damos bastante margen de tiempo y memoria por si acaso.
+        set_time_limit(600);
+        ini_set('max_execution_time', 600);
+        ini_set('memory_limit', '1024M');
+
         try {
             Excel::import(new MedicosTempImport, $request->file('file'));
 

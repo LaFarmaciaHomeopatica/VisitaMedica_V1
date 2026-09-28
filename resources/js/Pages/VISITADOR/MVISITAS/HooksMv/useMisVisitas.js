@@ -52,7 +52,7 @@ export const useMisVisitas = (visitasDB, doctores) => {
         return (visitasDB || []).map(v => ({
             ...v,
             fecha: parseISO(v.fecha_programada),
-            doctor: v.medico ? `${v.medico.nombre} ${v.medico.apellido}` : 'Médico no asignado'
+            doctor: v.medico ? `${v.medico.nombre} ${v.medico.apellido || ''}` : 'Médico no asignado'
         }));
     }, [visitasDB]);
 
@@ -128,7 +128,7 @@ useEffect(() => {
     return visitas.filter(v => {
         // 1. Obtener el nombre del doctor que realmente se muestra
         const nombreDoctor = v.medico 
-            ? `${v.medico.nombre} ${v.medico.apellido}`.toLowerCase()
+            ? `${v.medico.nombre} ${v.medico.apellido || ''}`.toLowerCase()
             : 'médico desconocido médico no asignado'; // Incluimos ambas variantes por seguridad
 
         // 2. Obtener la especialidad (si existe en tu relación)

@@ -201,7 +201,7 @@ const ModalGestionarVisita = ({ logic, doctores = [], productos = [] }) => {
                             Doctor
                         </label>
                         <div className="w-full bg-gray-50 rounded-2xl p-4 text-xs font-bold mt-1 text-gray-700">
-                            {datosMedico?.nombre} {datosMedico?.apellido}
+                            {datosMedico?.nombre} {datosMedico?.apellido || ''}
                         </div>
 
                         

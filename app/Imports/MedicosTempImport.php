@@ -7,8 +7,10 @@ use App\Models\MedicoTemporal;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithUpserts;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
 
-class MedicosTempImport implements ToModel, WithHeadingRow, WithUpserts
+class MedicosTempImport implements ToModel, WithHeadingRow, WithUpserts, WithChunkReading, WithBatchInserts
 {
     /**
      * Mapea cada fila del Excel a un registro del modelo.
@@ -24,6 +26,10 @@ class MedicosTempImport implements ToModel, WithHeadingRow, WithUpserts
          * 'Nombre Referencia' -> $row['nombre_referencia']
          * 'Origen Datos' -> $row['origen_datos']
          */
+        if (empty($row['documento'])) {
+            return null;
+        }
+
         return new MedicoTemporal([
             'documento'         => $row['documento'],
             'nombre_referencia' => $row['nombre_referencia'],
@@ -41,5 +47,21 @@ class MedicosTempImport implements ToModel, WithHeadingRow, WithUpserts
     public function uniqueBy()
     {
         return 'documento';
+    }
+
+    /**
+     * Tamaño del lote para lectura del archivo (evita agotar memoria).
+     */
+    public function chunkSize(): int
+    {
+        return 300;
+    }
+
+    /**
+     * Tamaño del lote para inserción en base de datos.
+     */
+    public function batchSize(): int
+    {
+        return 300;
     }
 }
