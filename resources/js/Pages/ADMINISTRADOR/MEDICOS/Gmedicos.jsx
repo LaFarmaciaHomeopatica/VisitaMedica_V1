@@ -22,7 +22,7 @@ import AssignVisitorModal from './Components/AssignVisitorModal';
 import ReviewSelectionModal from './Components/ReviewSelectionModal';
 import MedicoViewModal from './Components/MedicoViewModal';
 
-const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], categorias = [] }) => {
+const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], categorias = [], filtroVisitador = null }) => {
     // --- Hooks ---
     const filter = useMedicosFilter(medicos);
     const selection = useMedicosSelection();
@@ -167,7 +167,22 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                     soloSinVisitador={filter.soloSinVisitador}          
     onToggleSoloSinVisitador={filter.setSoloSinVisitador} 
                 />
-
+{filtroVisitador && (
+    <div className="mx-4 mt-12 mb-2 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-4 py-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+            Mostrando médicos de:{' '}
+            <span className="text-blue-700">
+                {filtroVisitador.nombre} {filtroVisitador.apellido}
+            </span>
+        </span>
+        <button
+            onClick={() => router.get(route('Gmedicos.index'))}
+            className="text-[11px] font-black uppercase tracking-wide text-blue-600 hover:underline"
+        >
+            Ver todos
+        </button>
+    </div>
+)}
                 {/* Envolvemos la tabla con Deferred para mostrar un indicador mientras cargan los médicos */}
                 <Deferred data="medicos" fallback={<CargandoMedicosState />}>
                     <MedicosTable

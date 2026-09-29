@@ -27,6 +27,10 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = 
     const handleToggleEstado = (id) => {
         router.patch(route('Gvisitadores.toggleEstado', id), {}, { preserveScroll: true });
     };
+    // --- VER MÉDICOS DEL VISITADOR (abre Gmedicos con el filtro aplicado) ---
+const handleVerMedicos = (v) => {
+    router.get(route('Gmedicos.index'), { visitador_id: v.id });
+};
 
     // --- ABRIR MODAL CREAR ---
     const openCreateModal = () => {
@@ -93,6 +97,7 @@ const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = 
                         currentItems={filteredVisitadores}
                         onEdit={openEditModal}
                         onToggleEstado={handleToggleEstado}
+                           onVerMedicos={handleVerMedicos}
                     />
                 </div>
             </div>

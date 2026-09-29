@@ -35,14 +35,17 @@ class Medico2Controller extends Controller
     //  CRUD BÁSICO — Sin cambios
     // =========================================================================
 
- public function index()
+ public function index(Request $request)
 {
+    // Filtro opcional: llega desde el listado de visitadores (?visitador_id=5)
+    $visitadorId = $request->integer('visitador_id') ?: null;
+
     return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
-        // Envolvemos los médicos en Inertia::defer
-        'medicos' => Inertia::defer(function () {
-          $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
-    ->withCount('visitas')
-    ->get();
+        'medicos' => Inertia::defer(function () use ($visitadorId) {
+            $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
+                ->withCount('visitas')
+                ->when($visitadorId, fn ($q) => $q->where('visitador_id', $visitadorId))
+                ->get();
             $this->inyectarEspecialidadOdoo($medicos);
             $this->inyectarTendenciaCategoria($medicos);
             return $medicos;
@@ -50,6 +53,9 @@ class Medico2Controller extends Controller
         'visitadores'    => Visitador::all(['id', 'nombre', 'apellido']),
         'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
         'categorias'     => Categoria::all(['id', 'nombre']),
+        'filtroVisitador' => $visitadorId
+            ? Visitador::select('id', 'nombre', 'apellido')->find($visitadorId)
+            : null,
     ]);
 }
 

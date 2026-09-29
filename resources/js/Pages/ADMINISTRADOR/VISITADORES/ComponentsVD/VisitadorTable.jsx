@@ -1,9 +1,9 @@
 // resources/js/Pages/ADMINISTRADOR/VISITADORES/ComponentsVD/VisitadorTable.jsx
 import React from 'react';
 import { Link } from '@inertiajs/react';
-import { FaChartLine } from 'react-icons/fa6';
+import { FaChartLine, FaUserDoctor } from 'react-icons/fa6';
 
-const VisitadorTable = ({ currentItems, onEdit, onToggleEstado }) => {
+const VisitadorTable = ({ currentItems, onEdit, onToggleEstado,onVerMedicos }) => {
     return (
         <div className="flex-grow w-full mt-[30px]">
             <div className="overflow-x-auto w-full">
@@ -92,6 +92,14 @@ const VisitadorTable = ({ currentItems, onEdit, onToggleEstado }) => {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                                 </svg>
                                             </button>
+
+                                            <button
+    onClick={() => onVerMedicos(v)}
+    className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm inline-flex items-center"
+    title="Ver médicos de este visitador"
+>
+    <FaUserDoctor className="h-4 w-4" />
+</button>
                                         </div>
                                     </td>
                                 </tr>
