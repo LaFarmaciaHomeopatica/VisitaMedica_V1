@@ -1,4 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaCalendarDays } from 'react-icons/fa6';
+
+const MESES = [
+    { value: '1', label: 'Enero' },
+    { value: '2', label: 'Febrero' },
+    { value: '3', label: 'Marzo' },
+    { value: '4', label: 'Abril' },
+    { value: '5', label: 'Mayo' },
+    { value: '6', label: 'Junio' },
+    { value: '7', label: 'Julio' },
+    { value: '8', label: 'Agosto' },
+    { value: '9', label: 'Septiembre' },
+    { value: '10', label: 'Octubre' },
+    { value: '11', label: 'Noviembre' },
+    { value: '12', label: 'Diciembre' },
+    { value: 'todos', label: 'Todos los Meses' },
+];
 
 export default function MedicosToolbar({
     searchTerm, onSearchChange,
@@ -7,13 +24,33 @@ export default function MedicosToolbar({
     fileInputRef, onFileChange,
     currentItems = [], onSelectAll,
     itemsPerPage, onItemsPerPageChange,
-    currentPage, onPageChange, totalPages, soloSinVisitador, onToggleSoloSinVisitador, // 👈 nuevos props
+    currentPage, onPageChange, totalPages, soloSinVisitador, onToggleSoloSinVisitador,
+    filtroMes, onMesChange,
+    fechaDesde, fechaHasta, onFechaRangeChange, onClearRangoDates, modoFiltro,
 }) {
+    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+    const [tempDesde, setTempDesde] = useState(fechaDesde || '');
+    const [tempHasta, setTempHasta] = useState(fechaHasta || '');
+
+    const handleApplyRange = () => {
+        if (tempDesde && tempHasta) {
+            onFechaRangeChange && onFechaRangeChange(tempDesde, tempHasta);
+            setIsCalendarOpen(false);
+        }
+    };
+
+    const handleClearRange = () => {
+        setTempDesde('');
+        setTempHasta('');
+        onClearRangoDates && onClearRangoDates();
+        setIsCalendarOpen(false);
+    };
+
     return (
         <div className="fixed top-14 left-0 right-0 z-50 bg-white border-b border-slate-200 w-full shadow-sm px-4 py-2">
             <div className="flex items-center justify-between gap-2 overflow-x-auto lg:overflow-visible">
 
-                {/* 1. SECCIÓN IZQUIERDA: CHECKBOX Y BUSCADOR */}
+                {/* 1. SECCIÓN IZQUIERDA: CHECKBOX, BUSCADOR Y FILTROS DE FECHAS */}
                 <div className="flex items-center gap-3 min-w-fit">
                     <div className="flex items-center gap-3 border-r border-slate-200 pr-3">
                         <label className="flex items-center gap-2 cursor-pointer group">
@@ -30,7 +67,7 @@ export default function MedicosToolbar({
                         </label>
                     </div>
 
-                    <div className="relative w-48 lg:w-64 group">
+                    <div className="relative w-36 lg:w-44 group">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3">
                             <svg className="w-4 h-4 text-slate-400 group-focus-within:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -41,11 +78,110 @@ export default function MedicosToolbar({
                             placeholder="Buscar..."
                             value={searchTerm}
                             onChange={e => onSearchChange(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-300 rounded-lg py-2 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-slate-700"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg py-1.5 pl-9 pr-3 text-xs font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-slate-700"
                         />
                     </div>
 
-                     <label className="flex items-center gap-1.5 cursor-pointer border-l border-slate-200 pl-3">
+                    {/* SELECTOR DE FILTRO DE MES O RANGO CON ICONO DE CALENDARIO COMPACTO */}
+                    <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3 relative">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight leading-none select-none">
+                            Mes:
+                        </span>
+                        <select
+                            value={modoFiltro === 'rango' ? 'custom' : (filtroMes || 'todos')}
+                            onChange={e => {
+                                if (e.target.value !== 'custom') {
+                                    handleClearRange();
+                                    onMesChange && onMesChange(e.target.value);
+                                }
+                            }}
+                            className={`border text-xs font-bold rounded-lg py-1 px-2 outline-none cursor-pointer ${modoFiltro === 'rango' ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-blue-50 border-blue-200 text-blue-700'}`}
+                        >
+                            {MESES.map(m => (
+                                <option key={m.value} value={m.value}>
+                                    {m.label}
+                                </option>
+                            ))}
+                            <option value="custom" disabled>-- Rango Libre --</option>
+                        </select>
+
+                        {/* BOTÓN ICONO DE CALENDARIO */}
+                        <button
+                            type="button"
+                            onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                            className={`p-2 rounded-lg border font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
+                                modoFiltro === 'rango'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                    : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                            }`}
+                            title={modoFiltro === 'rango' ? `Rango activo: ${fechaDesde} al ${fechaHasta}` : 'Filtrar por Rango Libre (Desde / Hasta)'}
+                        >
+                            <FaCalendarDays className="w-3.5 h-3.5" />
+                            {modoFiltro === 'rango' && (
+                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                            )}
+                        </button>
+
+                        {/* POPOVER DESPLEGABLE DE FECHAS */}
+                        {isCalendarOpen && (
+                            <div className="absolute top-full left-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3.5 w-64 animate-in fade-in duration-150">
+                                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                        <FaCalendarDays className="text-blue-600" />
+                                        Rango de Fechas Libre
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCalendarOpen(false)}
+                                        className="text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <div className="space-y-2.5">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Desde:</label>
+                                        <input
+                                            type="date"
+                                            value={tempDesde}
+                                            onChange={e => setTempDesde(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Hasta:</label>
+                                        <input
+                                            type="date"
+                                            value={tempHasta}
+                                            onChange={e => setTempHasta(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-3">
+                                        {modoFiltro === 'rango' ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleClearRange}
+                                                className="text-[10px] font-bold text-rose-600 hover:underline"
+                                            >
+                                                Limpiar Rango
+                                            </button>
+                                        ) : <div />}
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyRange}
+                                            disabled={!tempDesde || !tempHasta}
+                                            className="px-3.5 py-1.5 bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-40 cursor-pointer"
+                                        >
+                                            Aplicar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer border-l border-slate-200 pl-3">
                         <input
                             type="checkbox"
                             checked={soloSinVisitador}

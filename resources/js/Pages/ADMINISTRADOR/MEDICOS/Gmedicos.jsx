@@ -21,8 +21,28 @@ import DeleteConfirmModal from './Components/DeleteConfirmModal';
 import AssignVisitorModal from './Components/AssignVisitorModal';
 import ReviewSelectionModal from './Components/ReviewSelectionModal';
 import MedicoViewModal from './Components/MedicoViewModal';
+import VisitasDetalleModal from './Components/VisitasDetalleModal';
 
-const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], categorias = [], filtroVisitador = null }) => {
+const MESES_NOMBRES = {
+    '1': 'Enero', '2': 'Febrero', '3': 'Marzo', '4': 'Abril',
+    '5': 'Mayo', '6': 'Junio', '7': 'Julio', '8': 'Agosto',
+    '9': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre',
+    'todos': 'Todos los Meses'
+};
+
+const Gmedicos = ({
+    auth,
+    medicos = [],
+    visitadores = [],
+    tiposDocumento = [],
+    categorias = [],
+    filtroVisitador = null,
+    filtroMes = null,
+    filtroAnio = null,
+    filtroFechaDesde = null,
+    filtroFechaHasta = null,
+    modoFiltro = 'mes',
+}) => {
     // --- Hooks ---
     const filter = useMedicosFilter(medicos);
     const selection = useMedicosSelection();
@@ -37,6 +57,56 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedMedico, setSelectedMedico] = useState(null);
+
+    // Modal de resumen de visitas por médico
+    const [isVisitasModalOpen, setIsVisitasModalOpen] = useState(false);
+    const [selectedMedicoVisitas, setSelectedMedicoVisitas] = useState(null);
+
+    const handleMesChange = (nuevoMes) => {
+        const queryParams = {};
+        if (filtroVisitador) {
+            queryParams.visitador_id = filtroVisitador.id;
+        }
+        if (nuevoMes) {
+            queryParams.mes = nuevoMes;
+        }
+        router.get(route('Gmedicos.index'), queryParams, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleFechaRangeChange = (desde, hasta) => {
+        if (!desde || !hasta) return;
+        const queryParams = {};
+        if (filtroVisitador) {
+            queryParams.visitador_id = filtroVisitador.id;
+        }
+        queryParams.fecha_desde = desde;
+        queryParams.fecha_hasta = hasta;
+
+        router.get(route('Gmedicos.index'), queryParams, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleClearRangoDates = () => {
+        const queryParams = {};
+        if (filtroVisitador) {
+            queryParams.visitador_id = filtroVisitador.id;
+        }
+        queryParams.mes = filtroMes || 'todos';
+        router.get(route('Gmedicos.index'), queryParams, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleOpenVisitasModal = (medico) => {
+        setSelectedMedicoVisitas(medico);
+        setIsVisitasModalOpen(true);
+    };
 
 
     // --- Datos derivados ---
@@ -165,7 +235,14 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                     onPageChange={filter.setCurrentPage}
                     totalPages={filter.totalPages}
                     soloSinVisitador={filter.soloSinVisitador}          
-    onToggleSoloSinVisitador={filter.setSoloSinVisitador} 
+                    onToggleSoloSinVisitador={filter.setSoloSinVisitador} 
+                    filtroMes={filtroMes}
+                    onMesChange={handleMesChange}
+                    fechaDesde={filtroFechaDesde}
+                    fechaHasta={filtroFechaHasta}
+                    onFechaRangeChange={handleFechaRangeChange}
+                    onClearRangoDates={handleClearRangoDates}
+                    modoFiltro={modoFiltro}
                 />
 {filtroVisitador && (
     <div className="mx-4 mt-12 mb-2 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-4 py-2">
@@ -191,12 +268,25 @@ const Gmedicos = ({ auth, medicos = [], visitadores = [], tiposDocumento = [], c
                         onSelectOne={selection.handleSelectOne}
                         onEdit={form.openEditModal}
                         onView={openViewModal}
+                        onVerVisitas={handleOpenVisitasModal}
                     />
                 </Deferred>
             </div>
 
             {/* Modal / Overlay de Carga para Exportación */}
             {isExporting && <ExportLoadingModal />}
+
+            {/* Modal de Detalle de Visitas por Médico */}
+            <VisitasDetalleModal
+                isOpen={isVisitasModalOpen}
+                onClose={() => setIsVisitasModalOpen(false)}
+                medico={selectedMedicoVisitas}
+                nombreMes={
+                    modoFiltro === 'rango' && filtroFechaDesde && filtroFechaHasta
+                        ? `${filtroFechaDesde} al ${filtroFechaHasta}`
+                        : (MESES_NOMBRES[filtroMes] || 'Mes Actual')
+                }
+            />
 
             {/* Modales */}
             <MedicoFormModal

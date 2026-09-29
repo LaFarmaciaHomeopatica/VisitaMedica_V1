@@ -40,24 +40,93 @@ class Medico2Controller extends Controller
     // Filtro opcional: llega desde el listado de visitadores (?visitador_id=5)
     $visitadorId = $request->integer('visitador_id') ?: null;
 
+    $fechaDesde = $request->input('fecha_desde');
+    $fechaHasta = $request->input('fecha_hasta');
+    $mesInput   = $request->input('mes');
+
+    // Determinamos si se aplicó un rango libre de fechas o filtro mensual
+    $modoFiltro = ($fechaDesde && $fechaHasta) ? 'rango' : 'mes';
+
+    $mes  = ($mesInput !== null && $mesInput !== 'todos') ? (int) $mesInput : ($mesInput === 'todos' ? null : Carbon::now()->month);
+    $anio = $request->integer('anio') ?: Carbon::now()->year;
+
     return Inertia::render('ADMINISTRADOR/MEDICOS/Gmedicos', [
-        'medicos' => Inertia::defer(function () use ($visitadorId) {
+        'medicos' => Inertia::defer(function () use ($visitadorId, $modoFiltro, $mes, $anio, $fechaDesde, $fechaHasta) {
             $medicos = Medico::with(['visitador', 'tipoDocumento', 'categoria'])
-                ->withCount('visitas')
                 ->when($visitadorId, fn ($q) => $q->where('visitador_id', $visitadorId))
                 ->get();
+
+            $this->inyectarVisitasResumen($medicos, $modoFiltro, $mes, $anio, $fechaDesde, $fechaHasta);
             $this->inyectarEspecialidadOdoo($medicos);
             $this->inyectarTendenciaCategoria($medicos);
             return $medicos;
         }),
-        'visitadores'    => Visitador::all(['id', 'nombre', 'apellido']),
-        'tiposDocumento' => TipoDocumento::all(['id', 'codigo', 'nombre']),
-        'categorias'     => Categoria::all(['id', 'nombre']),
+        'visitadores'     => Visitador::all(['id', 'nombre', 'apellido']),
+        'tiposDocumento'  => TipoDocumento::all(['id', 'codigo', 'nombre']),
+        'categorias'      => Categoria::all(['id', 'nombre']),
         'filtroVisitador' => $visitadorId
             ? Visitador::select('id', 'nombre', 'apellido')->find($visitadorId)
             : null,
+        'filtroMes'       => $mesInput !== null ? (string) $mesInput : (string) Carbon::now()->month,
+        'filtroAnio'      => $anio,
+        'filtroFechaDesde'=> $fechaDesde,
+        'filtroFechaHasta'=> $fechaHasta,
+        'modoFiltro'      => $modoFiltro,
     ]);
 }
+
+    /**
+     * Inyecta el resumen de visitas (total y desglose por estado con conteo > 0)
+     * a cada médico según el mes/año o el rango de fechas libre (fecha_desde a fecha_hasta).
+     */
+    private function inyectarVisitasResumen(iterable $medicos, string $modoFiltro, ?int $mes, ?int $anio, ?string $fechaDesde, ?string $fechaHasta): void
+    {
+        $medicoIds = collect($medicos)->pluck('id')->all();
+        if (empty($medicoIds)) return;
+
+        $query = DB::table('visitas')
+            ->whereIn('medico_id', $medicoIds);
+
+        if ($modoFiltro === 'rango' && $fechaDesde && $fechaHasta) {
+            $query->whereBetween(DB::raw("DATE(COALESCE(fecha_realizada, fecha_programada))"), [$fechaDesde, $fechaHasta]);
+        } else {
+            if ($mes !== null) {
+                $query->whereRaw("MONTH(COALESCE(fecha_realizada, fecha_programada)) = ?", [$mes]);
+            }
+            if ($anio !== null) {
+                $query->whereRaw("YEAR(COALESCE(fecha_realizada, fecha_programada)) = ?", [$anio]);
+            }
+        }
+
+        $visitasGrouped = $query
+            ->select('medico_id', 'estado', DB::raw('COUNT(*) as total'))
+            ->groupBy('medico_id', 'estado')
+            ->get()
+            ->groupBy('medico_id');
+
+        foreach ($medicos as $medico) {
+            $group = $visitasGrouped->get($medico->id, collect());
+            $estadosCount = [];
+            $totalVisitas = 0;
+
+            foreach ($group as $item) {
+                $estado = $item->estado ?? 'Sin Estado';
+                $cnt = (int) $item->total;
+                if ($cnt > 0) {
+                    $estadosCount[$estado] = $cnt;
+                    $totalVisitas += $cnt;
+                }
+            }
+
+            $medico->visitas_count = $totalVisitas;
+            $medico->visitas_resumen = [
+                'total' => $totalVisitas,
+                'estados' => $estadosCount,
+            ];
+        }
+    }
+
+
 
     /**
      * Agrega medico->categoria_tendencia ('subio'|'bajo'|'igual'|null) comparando

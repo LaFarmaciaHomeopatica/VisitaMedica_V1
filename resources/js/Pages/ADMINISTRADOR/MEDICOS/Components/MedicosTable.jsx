@@ -9,7 +9,7 @@ function TendenciaCategoria({ tendencia }) {
     return null;
 }
 
-export default function MedicosTable({ currentItems, selectedIds, onSelectOne, onEdit, onView }) {
+export default function MedicosTable({ currentItems, selectedIds, onSelectOne, onEdit, onView, onVerVisitas }) {
     // true mientras Inertia navega hacia el detalle del médico
     const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
@@ -56,6 +56,7 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Especialidad</th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Categoría</th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100">Visitador</th>
+                            <th className="px-6 py-4 text-white font-bold text-[10px] uppercase tracking-wider border-r border-slate-100 text-center">Visitas</th>
                             <th className="px-6 py-4 text-white font-bold text-[10px] uppercase text-center">Acción</th>
                         </tr>
                     </thead>
@@ -107,6 +108,16 @@ export default function MedicosTable({ currentItems, selectedIds, onSelectOne, o
                                     ) : (
                                         <span className="text-[9px] text-slate-300 italic">Sin asignar</span>
                                     )}
+                                </td>
+                                <td className="px-6 py-2 border-r border-slate-50 text-center">
+                                    <button
+                                        onClick={() => onVerVisitas && onVerVisitas(m)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 shadow-xs cursor-pointer group"
+                                        title="Oprime para ver cuantas visitas están en cada estado registrado"
+                                    >
+                                        <span>{m.visitas_resumen ? m.visitas_resumen.total : (m.visitas_count || 0)}</span>
+                                        <span className="text-[8px] opacity-75 group-hover:opacity-100">visita(s)</span>
+                                    </button>
                                 </td>
                                 <td className="px-6 py-2 text-center flex gap-1 justify-center">
                                     <button
