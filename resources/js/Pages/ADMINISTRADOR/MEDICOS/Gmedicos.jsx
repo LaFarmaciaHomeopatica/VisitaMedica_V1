@@ -151,6 +151,28 @@ const Gmedicos = ({
         form.appendChild(idsInput);
     }
 
+    if (filtroMes) {
+        const mesInput = document.createElement('input');
+        mesInput.type = 'hidden';
+        mesInput.name = 'mes';
+        mesInput.value = filtroMes;
+        form.appendChild(mesInput);
+    }
+
+    if (filtroFechaDesde && filtroFechaHasta) {
+        const desdeInput = document.createElement('input');
+        desdeInput.type = 'hidden';
+        desdeInput.name = 'fecha_desde';
+        desdeInput.value = filtroFechaDesde;
+        form.appendChild(desdeInput);
+
+        const hastaInput = document.createElement('input');
+        hastaInput.type = 'hidden';
+        hastaInput.name = 'fecha_hasta';
+        hastaInput.value = filtroFechaHasta;
+        form.appendChild(hastaInput);
+    }
+
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);

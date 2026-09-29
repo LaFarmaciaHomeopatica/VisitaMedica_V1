@@ -390,6 +390,11 @@ public function exportar(Request $request)
     $ids    = $idsRaw ? explode(',', $idsRaw) : [];
     $downloadToken = $request->input('download_token');
 
+    $fechaDesde = $request->input('fecha_desde');
+    $fechaHasta = $request->input('fecha_hasta');
+    $mesInput   = $request->input('mes');
+    $anio       = $request->integer('anio') ?: Carbon::now()->year;
+
     if ($downloadToken) {
         // Asignamos la cookie en texto plano accesible por JavaScript (httpOnly = false)
         $cookie = cookie('download_token', $downloadToken, 1, '/', null, false, false);
@@ -397,7 +402,7 @@ public function exportar(Request $request)
     }
 
     return Excel::download(
-        new MedicosExport($ids),
+        new MedicosExport($ids, $mesInput, $anio, $fechaDesde, $fechaHasta),
         'Medicos_LFH_' . date('d-m-Y') . '.xlsx'
     );
 }
