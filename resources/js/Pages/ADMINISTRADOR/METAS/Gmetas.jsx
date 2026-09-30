@@ -109,7 +109,7 @@ function FilaMeta({ visitador, progreso, mes, odooCargado }) {
                 <p className="text-[10px] font-black text-slate-700 uppercase leading-none">
                     {visitador.nombre} {visitador.apellido}
                 </p>
-                <p className="text-[9px] text-slate-400 mt-0.5">Zona {visitador.zona_id}</p>
+                
             </td>
 
             {/* Estado meta */}

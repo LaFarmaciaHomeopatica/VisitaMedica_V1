@@ -15,6 +15,55 @@ const fmtM = n => new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', maximumFractionDigits: 0,
 }).format(n ?? 0);
 
+// Botones Comprado / Formulado. Volver a presionar el activo regresa a 'todos'.
+function FiltroCompradoFormulado({ valor, onChange }) {
+    return (
+        <div className="flex items-center gap-1">
+            {[
+                { id: 'comprado',  label: 'Comprado',  color: COLOR_COMPRADO },
+                { id: 'formulado', label: 'Formulado', color: COLOR_FORMULADO },
+            ].map(b => {
+                const activo = valor === b.id;
+                return (
+                    <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => onChange(activo ? 'todos' : b.id)}
+                        className="text-[9px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full border transition-all"
+                        style={{
+                            color: activo ? '#fff' : b.color,
+                            backgroundColor: activo ? b.color : 'transparent',
+                            borderColor: b.color,
+                        }}
+                    >
+                        {b.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// Barra única (cuando se filtra por comprado o formulado).
+function BarraUnica({ valor, max, color }) {
+    return (
+        <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${max > 0 ? (valor / max) * 100 : 0}%`, backgroundColor: color }}
+            />
+        </div>
+    );
+}
+
+// Filtra (opcional) y ordena una lista según el filtro elegido.
+function aplicarFiltro(lista, filtro, campoComprado, campoFormulado, ocultarCeros = true) {
+    if (filtro === 'todos') return lista;
+    const campo = filtro === 'comprado' ? campoComprado : campoFormulado;
+    const base = ocultarCeros ? lista.filter(x => Number(x[campo] ?? 0) > 0) : lista;
+    return [...base].sort((a, b) => Number(b[campo] ?? 0) - Number(a[campo] ?? 0));
+}
+
 const COLORS_ESTADO = {
     efectiva: '#10b981', programada: '#4184F0', reprogramada: '#f59e0b',
     cancelada: '#ef4444', 'No contactado': '#94a3b8', 'sin programar': '#cbd5e1',
@@ -152,6 +201,10 @@ export default function Ginicio({
     const [medicoDoc,   setMedicoDoc]   = useState(filtros.medico_seleccionado || '');
     const [actualizando, setActualizando] = useState(false);
     const [limProductos, setLimProductos] = useState(10);
+    // Filtro del Top productos: 'todos' | 'comprado' | 'formulado'
+    const [filtroProductos, setFiltroProductos] = useState('todos');
+    const [filtroMedicos, setFiltroMedicos] = useState('todos');
+    const [filtroVisitadores, setFiltroVisitadores] = useState('todos');
     const [limMedicos,   setLimMedicos]   = useState(10);
 
     const [odooLoading, setOdooLoading] = useState(true);
@@ -232,9 +285,19 @@ export default function Ginicio({
         color: COLORS_ESTADO[v.estado] ?? '#94a3b8',
     }));
 
-    const productosData = (topProductos ?? []).slice(0, limProductos === Infinity ? undefined : limProductos);
-    const medicosData = (topMedicos ?? []).slice(0, limMedicos === Infinity ? undefined : limMedicos);
-    const visitadoresAnalisisData = visitadoresAnalisis ?? [];
+    const productosFiltrados = aplicarFiltro(topProductos ?? [], filtroProductos, 'valor_comprado', 'valor_formulado');
+    const productosData = productosFiltrados.slice(0, limProductos === Infinity ? undefined : limProductos);
+    const campoProducto = filtroProductos === 'comprado' ? 'valor_comprado' : 'valor_formulado';
+    const maxProductoValor = Math.max(1, ...productosData.map(p => Number(p[campoProducto] ?? 0)));
+    const medicosFiltrados = aplicarFiltro(topMedicos ?? [], filtroMedicos, 'compradas', 'formuladas');
+    const medicosData = medicosFiltrados.slice(0, limMedicos === Infinity ? undefined : limMedicos);
+    const campoMedico = filtroMedicos === 'comprado' ? 'compradas' : 'formuladas';
+    const maxMedicoValor = Math.max(1, ...medicosData.map(m => Number(m[campoMedico] ?? 0)));
+
+    // Visitadores: se reordenan pero no se ocultan (es una lista corta del equipo).
+    const visitadoresAnalisisData = aplicarFiltro(visitadoresAnalisis ?? [], filtroVisitadores, 'valor_comprado', 'valor_formulado', false);
+    const campoVisitador = filtroVisitadores === 'comprado' ? 'valor_comprado' : 'valor_formulado';
+    const maxVisitadorValor = Math.max(1, ...visitadoresAnalisisData.map(v => Number(v[campoVisitador] ?? 0)));
 
 
     return (
@@ -390,7 +453,7 @@ export default function Ginicio({
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <SectionHeader label="Productos · período" title="Top productos por valor" />
                                 <div className="flex items-center gap-3">
-                                    <LeyendaCompradoFormulado />
+                                    <FiltroCompradoFormulado valor={filtroProductos} onChange={setFiltroProductos} />
                                     <span className="text-[9px] text-slate-400">Mostrar</span>
                                     <select
                                         value={limProductos}
@@ -404,7 +467,7 @@ export default function Ginicio({
                             </div>
                             {odooLoading ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px] animate-pulse">Cargando datos de Odoo...</div>
-                            ) : (topProductos?.length === 0) ? (
+                            ) : (topProductos?.length === 0 || productosData.length === 0) ? (
                                 <div className="flex items-center justify-center h-48 text-slate-300 text-[11px]">Sin datos</div>
                             ) : (
                                     <div className="space-y-4">
@@ -419,11 +482,20 @@ export default function Ginicio({
                                                             )}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
-                                                        <BarraComparativa comprado={p.valor_comprado} formulado={p.valor_formulado ?? 0} />
-                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(p.valor_formulado ?? 0)}</span>
-                                                    </div>
+                                                    {filtroProductos === 'todos' ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(p.valor_comprado)}</span>
+                                                            <BarraComparativa comprado={p.valor_comprado} formulado={p.valor_formulado ?? 0} />
+                                                            <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(p.valor_formulado ?? 0)}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <BarraUnica valor={Number(p[campoProducto] ?? 0)} max={maxProductoValor} color={filtroProductos === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO} />
+                                                            <span className="text-[9px] font-black w-24 shrink-0 text-right" style={{ color: filtroProductos === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO }}>
+                                                                {fmtM(p[campoProducto] ?? 0)}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                         ))}
                                     </div>
@@ -435,7 +507,7 @@ export default function Ginicio({
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <SectionHeader label="Ranking" title="Top médicos por unidades" />
                                 <div className="flex items-center gap-3">
-                                    <LeyendaCompradoFormulado />
+                                    <FiltroCompradoFormulado valor={filtroMedicos} onChange={setFiltroMedicos} />
                                     <span className="text-[9px] text-slate-400">Mostrar</span>
                                     <select
                                         value={limMedicos}
@@ -460,11 +532,20 @@ export default function Ginicio({
                                                 </span>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-[10px] font-black text-slate-700 uppercase leading-tight mb-1.5">{m.nombre}</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[9px] font-black w-10 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmt(m.compradas)}</span>
-                                                        <BarraComparativa comprado={m.compradas} formulado={m.formuladas} />
-                                                        <span className="text-[9px] font-black w-10 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmt(m.formuladas)}</span>
-                                                    </div>
+                                                    {filtroMedicos === 'todos' ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[9px] font-black w-10 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmt(m.compradas)}</span>
+                                                            <BarraComparativa comprado={m.compradas} formulado={m.formuladas} />
+                                                            <span className="text-[9px] font-black w-10 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmt(m.formuladas)}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <BarraUnica valor={Number(m[campoMedico] ?? 0)} max={maxMedicoValor} color={filtroMedicos === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO} />
+                                                            <span className="text-[9px] font-black w-14 shrink-0 text-right" style={{ color: filtroMedicos === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO }}>
+                                                                {fmt(m[campoMedico] ?? 0)}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -483,7 +564,7 @@ export default function Ginicio({
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                                 <div className="flex items-center justify-between gap-3 flex-wrap">
                                     <SectionHeader label="Equipo" title="Ranking de visitadores por valor generado" />
-                                    <LeyendaCompradoFormulado />
+                                    <FiltroCompradoFormulado valor={filtroVisitadores} onChange={setFiltroVisitadores} />
                                 </div>
                                 <div className="space-y-5">
                                     {visitadoresAnalisisData.map((v, i) => (
@@ -496,11 +577,20 @@ export default function Ginicio({
                                                         <p className="text-[11px] font-black text-slate-700 uppercase leading-none">{v.nombre}</p>
                                                         <span className="text-[9px] text-slate-400 font-bold">{v.medicos_activos} méd. · {v.total_visitas} visitas</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(v.valor_comprado)}</span>
-                                                        <BarraComparativa comprado={v.valor_comprado} formulado={v.valor_formulado} />
-                                                        <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(v.valor_formulado)}</span>
-                                                    </div>
+                                                    {filtroVisitadores === 'todos' ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[9px] font-black w-16 text-right shrink-0" style={{ color: COLOR_COMPRADO }}>{fmtM(v.valor_comprado)}</span>
+                                                            <BarraComparativa comprado={v.valor_comprado} formulado={v.valor_formulado} />
+                                                            <span className="text-[9px] font-black w-16 shrink-0" style={{ color: COLOR_FORMULADO }}>{fmtM(v.valor_formulado)}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <BarraUnica valor={Number(v[campoVisitador] ?? 0)} max={maxVisitadorValor} color={filtroVisitadores === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO} />
+                                                            <span className="text-[9px] font-black w-24 shrink-0 text-right" style={{ color: filtroVisitadores === 'comprado' ? COLOR_COMPRADO : COLOR_FORMULADO }}>
+                                                                {fmtM(v[campoVisitador] ?? 0)}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                     ))}
