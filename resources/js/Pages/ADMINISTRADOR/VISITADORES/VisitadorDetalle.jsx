@@ -132,6 +132,27 @@ export default function VisitadorDetalle({
     const [paginaActual, setPaginaActual] = useState(1); // <-- ¡FALTABA ESTA LÍNEA!
     const [registrosPorPagina, setRegistrosPorPagina] = useState(5);
 
+    // ── Tab "Valores por Médico" (Odoo desglosado) ───────────────────────────
+    const [medicosValores, setMedicosValores]         = useState([]);
+    const [medicosValoresCargando, setMVCargando]     = useState(false);
+    const [medicosValoresCargados, setMVCargados]     = useState(false);
+    const [busquedaMedico, setBusquedaMedico]         = useState('');
+
+    const cargarMedicosValores = async (forzar = false) => {
+        setMVCargando(true);
+        try {
+            const url = `/Gvisitadores/${visitador.id}/odoo-medicos-valores?mes=${mesActual}${forzar ? '&forzar=1' : ''}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            setMedicosValores(Array.isArray(data.medicos) ? data.medicos : []);
+            setMVCargados(true);
+        } catch (e) {
+            // silencioso — el usuario puede reintentar
+        } finally {
+            setMVCargando(false);
+        }
+    };
+
     // ── Datos de Odoo (se cargan aparte, no bloquean el render inicial) ────────
     const [txStatsLive, setTxStatsLive]             = useState(txStats);
     const [topProductosLive, setTopProductosLive]   = useState(Array.isArray(topProductos) ? topProductos : []);
@@ -644,15 +665,24 @@ export default function VisitadorDetalle({
                 {[
                     { id: 'medicos', label: 'Médicos asignados', icon: <FaUserDoctor />, count: medicos?.length },
                     { id: 'visitas', label: 'Historial de visitas', icon: <FaCalendarCheck />, count: visitas?.length },
+                    { id: 'valores', label: 'Valores por médico', icon: <FaChartLine />, count: null },
                 ].map(tab => (
-                    <button key={tab.id} onClick={() => { setTabActiva(tab.id); setPaginaActual(1); }}
+                    <button key={tab.id} onClick={() => {
+                        setTabActiva(tab.id);
+                        setPaginaActual(1);
+                        if (tab.id === 'valores' && !medicosValoresCargados) {
+                            cargarMedicosValores(false);
+                        }
+                    }}
                         className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors ${
                             tabActiva === tab.id
                                 ? 'border-blue-600 text-blue-600 bg-blue-50/30'
                                 : 'border-transparent text-slate-400 hover:text-slate-600'
                         }`}>
                         {tab.icon} {tab.label}
-                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black">{tab.count}</span>
+                        {tab.count !== null && (
+                            <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black">{tab.count}</span>
+                        )}
                     </button>
                 ))}
             </div>
@@ -816,6 +846,158 @@ export default function VisitadorDetalle({
                     ))}
                 </tbody>
             </table>
+        )}
+
+        {/* ── Tab: Valores por Médico (Odoo desglosado) ── */}
+        {tabActiva === 'valores' && (
+            <div className="p-0">
+                {/* Sub-header con botón actualizar y buscador */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/40 gap-3 flex-wrap">
+                    <div className="flex flex-col">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                            Odoo · {labelMes(mesActual)}
+                        </p>
+                        <p className="text-[11px] font-black text-slate-700">
+                            Aporte individual de cada médico al total generado
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* Buscador de médico */}
+                        <input
+                            type="text"
+                            placeholder="Buscar médico..."
+                            value={busquedaMedico}
+                            onChange={e => setBusquedaMedico(e.target.value)}
+                            className="text-[9px] font-bold bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-blue-400 w-44 transition-all placeholder:text-slate-300"
+                        />
+                        {/* Botón actualizar */}
+                        <button
+                            onClick={() => cargarMedicosValores(true)}
+                            disabled={medicosValoresCargando}
+                            title="Volver a consultar Odoo, ignorando la caché"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed uppercase"
+                        >
+                            <FaArrowRotateRight className={`h-3 w-3 ${medicosValoresCargando ? 'animate-spin' : ''}`} />
+                            {medicosValoresCargando ? 'Cargando...' : 'Actualizar'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Estado de carga */}
+                {medicosValoresCargando && !medicosValoresCargados ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-300">
+                        <span className="h-6 w-6 rounded-full border-2 border-blue-300 border-t-transparent animate-spin inline-block" />
+                        <span className="text-[11px] font-bold text-slate-400">Consultando Odoo por cada médico...</span>
+                        <span className="text-[9px] text-slate-300">Esto puede tomar unos segundos</span>
+                    </div>
+                ) : !medicosValoresCargados ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3">
+                        <FaChartLine className="text-slate-200 text-4xl" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Datos no cargados</p>
+                        <button
+                            onClick={() => cargarMedicosValores(false)}
+                            className="mt-1 px-4 py-1.5 bg-blue-600 text-white text-[9px] font-black rounded-xl hover:bg-blue-700 transition-all uppercase"
+                        >
+                            Cargar valores de Odoo
+                        </button>
+                    </div>
+                ) : (() => {
+                    const totalGeneral = Number(txStatsLive?.total_valor_comprado ?? 0) + Number(txStatsLive?.total_valor_formulado ?? 0);
+                    const filtrados = medicosValores.filter(m =>
+                        !busquedaMedico || m.nombre?.toLowerCase().includes(busquedaMedico.toLowerCase()) || m.documento?.includes(busquedaMedico)
+                    );
+                    const conValor = filtrados.filter(m => m.valor_total > 0);
+                    const sinValor = filtrados.filter(m => m.valor_total === 0);
+
+                    return (
+                        <div>
+                            {/* Tabla */}
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-blue-600">
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">#</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Médico</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500">Especialidad</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Valor Comprado</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Valor Formulado</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-blue-500 text-right">Total</th>
+                                        <th className="px-5 py-3 text-white text-[9px] font-black uppercase text-center">Aporte al total</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {filtrados.length === 0 ? (
+                                        <tr><td colSpan={7} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin resultados</td></tr>
+                                    ) : [
+                                        ...conValor.map((m, i) => {
+                                            const pctTotal   = totalGeneral > 0 ? Math.min((m.valor_total   / totalGeneral) * 100, 100) : 0;
+                                            const pctComp    = m.valor_total > 0 ? (m.valor_comprado  / m.valor_total) * 100 : 0;
+                                            const pctForm    = m.valor_total > 0 ? (m.valor_formulado / m.valor_total) * 100 : 0;
+                                            return (
+                                                <tr key={m.documento} className="hover:bg-blue-50/20 transition-colors">
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-[9px] font-black text-slate-400 text-center w-8">{i + 1}</td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50">
+                                                        <p className="text-[10px] font-black text-slate-700 uppercase">{m.nombre}</p>
+                                                        <p className="text-[9px] text-slate-400">{m.documento}</p>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-[10px] text-slate-500">{m.especialidad ?? '—'}</td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-right">
+                                                        <span className="text-[10px] font-black text-emerald-600">{fmtM(m.valor_comprado)}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-right">
+                                                        <span className="text-[10px] font-black text-purple-600">{fmtM(m.valor_formulado)}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5 border-r border-slate-50 text-right">
+                                                        <span className="text-[10px] font-black text-slate-800">{fmtM(m.valor_total)}</span>
+                                                    </td>
+                                                    <td className="px-5 py-2.5">
+                                                        {/* Mini barra bicolor + % */}
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                                                                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pctComp}%` }} title={`Comprado: ${fmtM(m.valor_comprado)}`} />
+                                                                <div className="h-full bg-purple-600 transition-all" style={{ width: `${pctForm}%` }} title={`Formulado: ${fmtM(m.valor_formulado)}`} />
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-slate-500 w-9 text-right shrink-0">
+                                                                {pctTotal.toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }),
+                                        // Médicos sin aporte — colapsados en una fila final
+                                        sinValor.length > 0 && (
+                                            <tr key="__sin_valor__" className="bg-slate-50/60">
+                                                <td colSpan={7} className="px-5 py-2 text-[9px] font-bold text-slate-400 text-center">
+                                                    + {sinValor.length} médico{sinValor.length !== 1 ? 's' : ''} sin movimientos en Odoo para {labelMes(mesActual)}
+                                                </td>
+                                            </tr>
+                                        ),
+                                    ]}
+                                </tbody>
+                            </table>
+
+                            {/* Pie de resumen */}
+                            <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+                                <div className="flex items-center gap-4 text-[9px] font-bold">
+                                    <span className="flex items-center gap-1 text-slate-500">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                                        Verde = Comprado
+                                    </span>
+                                    <span className="flex items-center gap-1 text-slate-500">
+                                        <span className="w-2 h-2 rounded-full bg-purple-600 inline-block" />
+                                        Morado = Formulado
+                                    </span>
+                                </div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase">
+                                    Total general: <span className="text-amber-600">{fmtM(totalGeneral)}</span>
+                                    {' · '}
+                                    {conValor.length} médico{conValor.length !== 1 ? 's' : ''} con aporte
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })()}
+            </div>
         )}
     </div>
 

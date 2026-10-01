@@ -5,6 +5,7 @@ const VisitadorToolbar = ({
     searchTerm,
     onSearchChange,
     onAddClick,
+    onMapaClick,
     currentPage,
     totalPages,
     onPageChange,
@@ -76,13 +77,28 @@ const VisitadorToolbar = ({
                     </div>
                 </div>
 
-                {/* NUEVO VISITADOR */}
-                <button
-                    onClick={onAddClick}
-                    className="bg-[#3D3FD8] text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-md hover:bg-blue-700 transition-all flex items-center gap-1.5"
-                >
-                    <span className="text-sm">+</span> Nuevo Visitador
-                </button>
+                {/* BOTONES DE ACCIÓN */}
+                <div className="flex items-center gap-2 whitespace-nowrap">
+                    {/* MAPA EN VIVO */}
+                    <button
+                        onClick={onMapaClick}
+                        className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-md hover:bg-emerald-600 transition-all flex items-center gap-2"
+                    >
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                        </span>
+                        Mapa en vivo
+                    </button>
+
+                    {/* NUEVO VISITADOR */}
+                    <button
+                        onClick={onAddClick}
+                        className="bg-[#3D3FD8] text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-md hover:bg-blue-700 transition-all flex items-center gap-1.5"
+                    >
+                        <span className="text-sm">+</span> Nuevo Visitador
+                    </button>
+                </div>
 
             </div>
         </div>

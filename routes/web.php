@@ -25,6 +25,7 @@ use App\Http\Controllers\api_odoo\OdooSyncController;
 use App\Http\Service\OdooServices;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\visitador\UbicacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -62,6 +63,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/Gmetas/masivo', [MetasController::class, 'masivo'])->name('Gmetas.masivo');
         Route::delete('/Gmetas/{id}', [MetasController::class, 'destroy'])->name('Gmetas.destroy');
 
+        Route::get('/Gvisitadores/ubicaciones', [DvisitadoresController::class, 'ubicaciones'])->name('Gvisitadores.ubicaciones');
 
         Route::get('/Ginicio/odoo-resumen', [GinicioController::class, 'odooResumen'])->name('Ginicio.odooResumen');
 
@@ -179,6 +181,9 @@ Route::get('/Gmetas/odoo-stats/{visitador}', [MetasController::class, 'odooStats
     Route::get('/Gvisitadores/{visitador}/odoo-stats', [DvisitadoresController::class, 'odooStats'])
     ->name('Gvisitadores.odooStats');
 
+    Route::get('/Gvisitadores/{visitador}/odoo-medicos-valores', [DvisitadoresController::class, 'odooMedicosValores'])
+    ->name('Gvisitadores.odooMedicosValores');
+
   
  });
 
@@ -249,10 +254,18 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
 
                 Route::get('/panel/odoo-stats', [VisitadorController::class, 'odooStats'])->name('panel.odoo-stats');
 
+                // Ubicación en tiempo real del visitador
+            Route::post('/visitador/ubicacion', [UbicacionController::class, 'actualizar'])
+                ->middleware('throttle:30,1')
+                ->name('visitador.ubicacion.actualizar');
+
         });
 
     Route::patch('/medicos/{medico}/observaciones', [Medico2Controller::class, 'actualizarObservaciones'])
         ->name('Gmedicos.observaciones');
+
+
+        
 
     /*
     |---------------------------------------------------------------------------------

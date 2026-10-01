@@ -6,11 +6,13 @@ import { useVisitadores } from './HooksVD/useVisitadores';
 import VisitadorTable from './ComponentsVD/VisitadorTable';
 import VisitadorFormModal from './ComponentsVD/VisitadorFormModal';
 import VisitadorToolbar from './ComponentsVD/VisitadorToolbar';
+import MapaVisitadoresModal from './ComponentsVD/MapaVisitadoresModal';
 
 const Gvisitadores = ({ visitadores = [], tiposDocumento = [], usuariosLibres = [], zonas = [] }) => {
     const { form, ui, filteredVisitadores } = useVisitadores(visitadores);
     const { flash } = usePage().props;
     const [toast, setToast] = useState(null);
+    const [mapaOpen, setMapaOpen] = useState(false);
 
     useEffect(() => {
         if (flash?.success) setToast({ type: 'success', msg: flash.success });
@@ -83,6 +85,7 @@ const handleVerMedicos = (v) => {
                     onSearchChange={(val) => {
                         ui.setSearchTerm(val);
                         ui.setCurrentPage(1);
+                        
                     }}
                     onAddClick={openCreateModal}
                     currentPage={ui.currentPage}
@@ -90,6 +93,7 @@ const handleVerMedicos = (v) => {
                     onPageChange={ui.setCurrentPage}
                     itemsPerPage={ui.itemsPerPage}
                     onItemsPerPageChange={ui.setItemsPerPage}
+                    onMapaClick={() => setMapaOpen(true)}
                 />
 
                 <div className="flex-grow p-4 overflow-hidden">
@@ -112,6 +116,11 @@ const handleVerMedicos = (v) => {
                 usuariosLibres={usuariosParaSelect()}
                 zonas={zonas}
             />
+
+            <MapaVisitadoresModal
+    isOpen={mapaOpen}
+    onClose={() => setMapaOpen(false)}
+/>
         </PanelAdmin>
     );
 };

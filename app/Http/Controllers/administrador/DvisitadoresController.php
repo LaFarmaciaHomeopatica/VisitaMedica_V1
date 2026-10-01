@@ -106,6 +106,39 @@ class DvisitadoresController extends Controller
         return Redirect::back()->with('success', 'Estado actualizado.');
     }
 
+        /**
+     * Última ubicación conocida de cada visitador habilitado.
+     * El mapa del administrador consulta este endpoint cada cierto tiempo.
+     */
+    public function ubicaciones()
+    {
+        $visitadores = Visitador::with('zona:id,nombre')
+            ->where('estado', 'Habilitado')
+            ->get(['id', 'nombre', 'apellido', 'zona_id', 'latitud', 'longitud', 'ubicacion_actualizada_en']);
+
+        $lista = $visitadores->map(function ($v) {
+            $tieneUbicacion = $v->latitud !== null && $v->longitud !== null;
+
+            return [
+                'id'                 => $v->id,
+                'nombre'             => trim($v->nombre . ' ' . $v->apellido),
+                'zona'               => $v->zona->nombre ?? null,
+                'latitud'            => $tieneUbicacion ? (float) $v->latitud : null,
+                'longitud'           => $tieneUbicacion ? (float) $v->longitud : null,
+                'actualizado_en'     => $v->ubicacion_actualizada_en?->toIso8601String(),
+                // Calculado en el servidor para evitar problemas de zona horaria
+                'minutos_sin_senal'  => $v->ubicacion_actualizada_en
+                    ? (int) abs(now()->diffInMinutes($v->ubicacion_actualizada_en))
+                    : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'visitadores' => $lista,
+            'consultado_en' => now()->toIso8601String(),
+        ]);
+    }
+
     public function show($id, Request $request)
 {
     $visitador = Visitador::with(['tipoDocumento', 'user'])->findOrFail($id);
@@ -301,5 +334,110 @@ class DvisitadoresController extends Controller
         });
 
         return response()->json($payload + ['desde_cache' => $yaEnCache]);
+    }
+
+    /**
+     * Devuelve el desglose de valor comprado y formulado por cada médico
+     * individual asignado a este visitador para el mes indicado.
+     *
+     * Reutiliza la caché ya generada por odooStats() (misma clave). Si la
+     * caché no existe todavía, la genera en el momento.
+     * Pasando ?forzar=1 se regenera igual que en odooStats.
+     */
+    public function odooMedicosValores(Request $request, $id)
+    {
+        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
+        $forzar = $request->boolean('forzar');
+
+        $mesInicio = Carbon::parse($mes . '-01')->startOfMonth();
+        $mesFin    = $mesInicio->copy()->endOfMonth();
+
+        // Reutilizamos la MISMA clave de caché que usa odooStats()
+        $cacheKey = "odoo_stats_visitador_{$id}_{$mes}";
+
+        if ($forzar) {
+            Cache::forget($cacheKey);
+        }
+
+        // Disparamos la misma lógica de odooStats para rellenar caché si no existe
+        $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($id, $mesInicio, $mesFin) {
+            $todosMedicosDoc = DB::table('medicos')
+                ->where('visitador_id', $id)
+                ->pluck('documento')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $fechaDesde = $mesInicio->format('Y-m-d');
+            $fechaHasta = $mesFin->format('Y-m-d');
+
+            $resumenOdoo = $this->odooService->obtenerResumenAdmin($todosMedicosDoc, $fechaDesde, $fechaHasta);
+
+            $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
+            $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
+
+            $txStats = [
+                'total_valor_comprado'  => $valorComprado,
+                'total_valor_formulado' => $valorFormulado,
+                'total_unidades'        => $resumenOdoo['total_unidades_compradas'] ?? 0,
+                'total_transacciones'   => $resumenOdoo['total_transacciones'] ?? 0,
+            ];
+
+            $topProductos = collect($resumenOdoo['productos'] ?? [])
+                ->take(5)
+                ->map(fn($p) => [
+                    'nombre'         => $p['nombre'] ?? '',
+                    'valor_comprado' => $p['valor_comprado'] ?? 0,
+                    'unidades'       => $p['unidades'] ?? 0,
+                ])->values()->toArray();
+
+            $tendencia = array_values($resumenOdoo['tendencia'] ?? [
+                [
+                    'mes'             => $mesInicio->translatedFormat('M Y'),
+                    'valor_comprado'  => $valorComprado,
+                    'valor_formulado' => $valorFormulado,
+                ]
+            ]);
+
+            return [
+                'txStats'         => $txStats,
+                'topProductos'    => $topProductos,
+                'tendencia'       => $tendencia,
+                'valor_comprado'  => $valorComprado,
+                'valor_formulado' => $valorFormulado,
+                'valor_total'     => $valorComprado + $valorFormulado,
+                'actualizado_en'  => now()->toIso8601String(),
+                'porMedico'       => $resumenOdoo['porMedico'] ?? [],
+            ];
+        });
+
+        // Enriquecer porMedico con nombre y especialidad desde la BD local
+        $porMedico = $payload['porMedico'] ?? [];
+
+        $medicosLocal = DB::table('medicos')
+            ->where('visitador_id', $id)
+            ->select('documento', 'nombre', 'especialidad')
+            ->get()
+            ->keyBy('documento');
+
+        $medicosDesglose = collect($medicosLocal)->map(function ($medico) use ($porMedico) {
+            $doc  = trim((string) $medico->documento);
+            $odoo = $porMedico[$doc] ?? null;
+            return [
+                'documento'       => $doc,
+                'nombre'          => $medico->nombre,
+                'especialidad'    => $medico->especialidad ?? '—',
+                'valor_comprado'  => round((float) ($odoo['valor_comprado']  ?? 0), 2),
+                'valor_formulado' => round((float) ($odoo['valor_formulado'] ?? 0), 2),
+                'valor_total'     => round((float) (($odoo['valor_comprado'] ?? 0) + ($odoo['valor_formulado'] ?? 0)), 2),
+            ];
+        })->values()->sortByDesc('valor_total')->values()->toArray();
+
+        return response()->json([
+            'medicos'        => $medicosDesglose,
+            'desde_cache'    => Cache::has($cacheKey),
+            'actualizado_en' => $payload['actualizado_en'] ?? null,
+        ]);
     }
 }

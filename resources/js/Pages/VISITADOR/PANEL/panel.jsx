@@ -8,6 +8,7 @@ import PendientesTab      from './ComponentsPe/PendientesTab';
 import MedicosCoincidentes from './ComponentsPe/MedicosCoincidentes';
 
 import { useDashboardMetrics } from './HooksPe/useDashboardMetrics';
+import { useUbicacionTiempoReal } from './HooksPe/useUbicacionTiempoReal';
 
 // ---------------------------------------------------------------------------
 // Helpers de filtrado
@@ -36,6 +37,9 @@ const DashboardLFH = ({
     mesActual, // 👈 Recibido desde el VisitadorController
 }) => {
     const [search, setSearch] = useState('');
+
+    // 📍 Envía la ubicación del visitador al servidor cada 30 s
+    const { estado: estadoUbicacion } = useUbicacionTiempoReal({ intervaloMs: 30000 });
 
     // ✅ La relación metas viene como array desde Eloquent/Inertia
     const metaActual      = Array.isArray(visitador?.metas) ? visitador.metas[0] : visitador?.metas;
@@ -96,6 +100,17 @@ const DashboardLFH = ({
                     </div>
                 </div>
             </header>
+
+            {/* ── Aviso de ubicación (solo si hay problema) ── */}
+            {(estadoUbicacion === 'denegada' || estadoUbicacion === 'no_disponible') && (
+                <div className="max-w-5xl mx-auto px-4 mt-3">
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs md:text-sm rounded-xl px-4 py-2.5">
+                        {estadoUbicacion === 'denegada'
+                            ? 'Debes permitir el acceso a tu ubicación en el navegador para que tu recorrido quede registrado.'
+                            : 'Este dispositivo no permite compartir la ubicación.'}
+                    </div>
+                </div>
+            )}
 
             {/* ── Hero ── */}
             <HeroSection

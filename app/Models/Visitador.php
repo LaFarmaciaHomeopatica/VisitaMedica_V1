@@ -19,7 +19,16 @@ class Visitador extends Model
         'estado',
         'tipo_documento_id',
         'nombre',
-        'apellido'
+        'apellido',
+        'latitud',
+        'longitud',
+        'ubicacion_actualizada_en',
+    ];
+
+    protected $casts = [
+        'latitud'                  => 'float',
+        'longitud'                 => 'float',
+        'ubicacion_actualizada_en' => 'datetime',
     ];
 
     // --- RELACIONES ---
@@ -40,17 +49,14 @@ class Visitador extends Model
     }
 
     /**
-     * Relación con los Médicos
      * Un visitador tiene muchos médicos asignados
      */
     public function medicos()
     {
-        // Verifica que en tu tabla 'medicos' la columna se llame 'visitador_id'
         return $this->hasMany(Medico::class, 'visitador_id');
     }
 
     /**
-     * Relación con las Visitas
      * Un visitador genera muchas visitas
      */
     public function visitas()
@@ -59,11 +65,10 @@ class Visitador extends Model
     }
 
     /**
-     * Relación con las Metas
-     * Un visitador tiene una meta (relación uno a uno)
+     * Un visitador tiene una meta (uno a uno)
      */
     public function metas()
     {
-        return $this->hasOne(Meta::class, 'visitador_id');  
-}
+        return $this->hasOne(Meta::class, 'visitador_id');
+    }
 }
