@@ -1,5 +1,6 @@
 import React from 'react';
-import { FaPlus, FaSearch, FaTrash, FaFileExport, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaTrash, FaFileExport, FaChevronLeft, FaChevronRight,FaMapMarkedAlt } from 'react-icons/fa';
+import { router } from '@inertiajs/react';
 
 export default function VisitasToolbar({
     searchTerm, onSearchChange,
@@ -109,6 +110,13 @@ export default function VisitasToolbar({
                     </button>
 
                    
+<button
+    onClick={() => router.visit(route('Gvisitas.mapaCalor'))}
+    className="bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold text-[10px] uppercase shadow-md hover:bg-emerald-700 transition-all flex items-center gap-1.5"
+>
+    <FaMapMarkedAlt size={12} /> MAPA DE CALOR
+</button>
+
                     <button
                         onClick={onNew}
                         className="bg-[#3D3FD8] text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase shadow-md hover:bg-[#2d2fb1] transition-all flex items-center gap-1.5"

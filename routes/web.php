@@ -65,6 +65,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/Gvisitadores/ubicaciones', [DvisitadoresController::class, 'ubicaciones'])->name('Gvisitadores.ubicaciones');
 
+        Route::get('/admin/visitas/mapa-calor', [VisitasController::class, 'mapaCalor'])->name('Gvisitas.mapaCalor');
+
         Route::get('/Ginicio/odoo-resumen', [GinicioController::class, 'odooResumen'])->name('Ginicio.odooResumen');
 
         // Configuración de listas de precios (Compra / Formulación / etc.)

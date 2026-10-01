@@ -172,4 +172,38 @@ class VisitasController extends Controller
 
         return Redirect::route('Gvisitas.index')->with('success', 'Visitas eliminadas correctamente.');
     }
+
+
+
+    /**
+ * Muestra la vista del mapa de calor con las coordenadas registradas.
+ */
+public function mapaCalor()
+{
+   $puntos = Visita::whereNotNull('latitud')
+    ->whereNotNull('longitud')
+    ->select('id', 'latitud', 'longitud', 'fecha_programada', 'fecha_realizada', 'visitador_id', 'medico_id')
+    ->with([
+        'medico:id,nombre',
+        'visitador:id,nombre'
+    ])
+    ->get()
+    ->map(function ($v) {
+        return [
+            'id'               => $v->id,
+            'lat'              => (float) $v->latitud,
+            'lng'              => (float) $v->longitud,
+            'visitador_id'     => $v->visitador_id,
+            'medico'           => $v->medico ? $v->medico->nombre : 'Sin médico',
+            'visitador'        => $v->visitador ? $v->visitador->nombre : 'Sin visitador',
+            'fecha_programada' => $v->fecha_programada,
+            'fecha_realizada'  => $v->fecha_realizada,
+        ];
+    });
+
+    return Inertia::render('ADMINISTRADOR/VISITAS/MapaCalorVisitas', [
+        'puntos'      => $puntos,
+        'visitadores' => \App\Models\Visitador::select('id', 'nombre')->orderBy('nombre', 'asc')->get(),
+    ]);
+}
 }
