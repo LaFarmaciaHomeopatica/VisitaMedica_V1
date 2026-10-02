@@ -662,29 +662,47 @@ export default function VisitadorDetalle({
         {/* Tab header */}
         <div className="flex border-b border-slate-100 items-center justify-between pr-4 flex-wrap gap-2">
             <div className="flex">
-                {[
-                    { id: 'medicos', label: 'Médicos asignados', icon: <FaUserDoctor />, count: medicos?.length },
-                    { id: 'visitas', label: 'Historial de visitas', icon: <FaCalendarCheck />, count: visitas?.length },
-                    { id: 'valores', label: 'Valores por médico', icon: <FaChartLine />, count: null },
-                ].map(tab => (
-                    <button key={tab.id} onClick={() => {
-                        setTabActiva(tab.id);
-                        setPaginaActual(1);
-                        if (tab.id === 'valores' && !medicosValoresCargados) {
-                            cargarMedicosValores(false);
-                        }
-                    }}
-                        className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors ${
-                            tabActiva === tab.id
-                                ? 'border-blue-600 text-blue-600 bg-blue-50/30'
-                                : 'border-transparent text-slate-400 hover:text-slate-600'
-                        }`}>
-                        {tab.icon} {tab.label}
-                        {tab.count !== null && (
-                            <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black">{tab.count}</span>
-                        )}
-                    </button>
-                ))}
+                {(() => {
+                    const sinMov = medicosValoresCargados
+                        ? medicosValores.filter(m => m.valor_total === 0)
+                        : [];
+                    return [
+                        { id: 'medicos',         label: 'Médicos asignados',   icon: <FaUserDoctor />,    count: medicos?.length,  countColor: null },
+                        { id: 'visitas',         label: 'Historial de visitas',icon: <FaCalendarCheck />, count: visitas?.length,   countColor: null },
+                        { id: 'valores',         label: 'Valores por médico',  icon: <FaChartLine />,     count: null,             countColor: null },
+                        ...(medicosValoresCargados && sinMov.length > 0 ? [{
+                            id: 'sin_movimientos', label: 'Sin movimientos', icon: (
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                </svg>
+                            ), count: sinMov.length, countColor: 'amber',
+                        }] : []),
+                    ].map(tab => (
+                        <button key={tab.id} onClick={() => {
+                            setTabActiva(tab.id);
+                            setPaginaActual(1);
+                            if ((tab.id === 'valores' || tab.id === 'sin_movimientos') && !medicosValoresCargados) {
+                                cargarMedicosValores(false);
+                            }
+                        }}
+                            className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors ${
+                                tabActiva === tab.id
+                                    ? tab.countColor === 'amber'
+                                        ? 'border-amber-500 text-amber-600 bg-amber-50/30'
+                                        : 'border-blue-600 text-blue-600 bg-blue-50/30'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}>
+                            {tab.icon} {tab.label}
+                            {tab.count !== null && (
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                                    tab.countColor === 'amber'
+                                        ? 'bg-amber-100 text-amber-600'
+                                        : 'bg-slate-100 text-slate-500'
+                                }`}>{tab.count}</span>
+                            )}
+                        </button>
+                    ));
+                })()}
             </div>
 
             {/* Selector de registros por página (Solo visible en la pestaña de médicos) */}
@@ -964,11 +982,19 @@ export default function VisitadorDetalle({
                                                 </tr>
                                             );
                                         }),
-                                        // Médicos sin aporte — colapsados en una fila final
+                                        // Médicos sin aporte — fila que lleva al tab sin_movimientos
                                         sinValor.length > 0 && (
-                                            <tr key="__sin_valor__" className="bg-slate-50/60">
-                                                <td colSpan={7} className="px-5 py-2 text-[9px] font-bold text-slate-400 text-center">
-                                                    + {sinValor.length} médico{sinValor.length !== 1 ? 's' : ''} sin movimientos en Odoo para {labelMes(mesActual)}
+                                            <tr key="__sin_valor__" className="bg-amber-50/40 cursor-pointer hover:bg-amber-100/60 transition-colors group"
+                                                onClick={() => setTabActiva('sin_movimientos')}
+                                            >
+                                                <td colSpan={7} className="px-5 py-2.5 text-center">
+                                                    <span className="inline-flex items-center gap-2 text-[9px] font-black text-amber-600 group-hover:text-amber-700">
+                                                        <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                                        </svg>
+                                                        + {sinValor.length} médico{sinValor.length !== 1 ? 's' : ''} sin movimientos en Odoo para {labelMes(mesActual)}
+                                                        <span className="underline underline-offset-2 decoration-dashed">Ver en pestaña →</span>
+                                                    </span>
                                                 </td>
                                             </tr>
                                         ),
@@ -999,6 +1025,89 @@ export default function VisitadorDetalle({
                 })()}
             </div>
         )}
+
+        {/* ── Tab: Sin movimientos en Odoo ── */}
+        {tabActiva === 'sin_movimientos' && (() => {
+            const sinMov = medicosValores.filter(m => m.valor_total === 0);
+            const [busqSinMov, setBusqSinMov] = [busquedaMedico, setBusquedaMedico];
+            const filtradosSin = sinMov.filter(m =>
+                !busqSinMov || m.nombre?.toLowerCase().includes(busqSinMov.toLowerCase()) || m.documento?.includes(busqSinMov)
+            );
+            return (
+                <div className="p-0">
+                    {/* Sub-header */}
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-amber-50/50 gap-3 flex-wrap">
+                        <div className="flex flex-col">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-amber-500">
+                                Odoo · {labelMes(mesActual)}
+                            </p>
+                            <p className="text-[11px] font-black text-slate-700">
+                                Médicos sin compras ni fórmulas registradas en Odoo
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {/* Buscador */}
+                            <input
+                                type="text"
+                                placeholder="Buscar médico..."
+                                value={busqSinMov}
+                                onChange={e => setBusqSinMov(e.target.value)}
+                                className="text-[9px] font-bold bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-400 w-44 transition-all placeholder:text-slate-300"
+                            />
+                            {/* Botón volver a valores */}
+                            <button
+                                onClick={() => setTabActiva('valores')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm uppercase"
+                            >
+                                ← Volver a valores
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tabla */}
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-amber-500">
+                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-amber-400">#</th>
+                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-amber-400">Médico</th>
+                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase border-r border-amber-400">Documento</th>
+                                <th className="px-5 py-3 text-white text-[9px] font-black uppercase">Especialidad</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {filtradosSin.length === 0 ? (
+                                <tr><td colSpan={4} className="px-5 py-10 text-center text-[11px] text-slate-300 font-bold">Sin resultados</td></tr>
+                            ) : filtradosSin.map((m, i) => (
+                                <tr key={m.documento ?? i} className="hover:bg-amber-50/30 transition-colors">
+                                    <td className="px-5 py-2.5 border-r border-slate-50 text-[9px] font-black text-slate-400 text-center w-10">
+                                        {i + 1}
+                                    </td>
+                                    <td className="px-5 py-2.5 border-r border-slate-50">
+                                        <p className="text-[10px] font-black text-slate-700 uppercase">{m.nombre}</p>
+                                    </td>
+                                    <td className="px-5 py-2.5 border-r border-slate-50 text-[9px] text-slate-400">
+                                        {m.documento ?? '—'}
+                                    </td>
+                                    <td className="px-5 py-2.5 text-[9px] text-slate-500">
+                                        {m.especialidad ?? '—'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    {/* Pie */}
+                    <div className="px-5 py-3 bg-amber-50/40 border-t border-amber-100 flex items-center justify-between gap-4 flex-wrap">
+                        <span className="text-[9px] font-bold text-slate-400">
+                            Ninguno de estos médicos generó movimientos en Odoo durante {labelMes(mesActual)}
+                        </span>
+                        <span className="text-[9px] font-black text-amber-600 uppercase">
+                            {filtradosSin.length} médico{filtradosSin.length !== 1 ? 's' : ''} sin movimientos
+                        </span>
+                    </div>
+                </div>
+            );
+        })()}
     </div>
 
     </div>
