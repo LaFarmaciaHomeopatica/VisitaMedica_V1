@@ -26,6 +26,7 @@ use App\Http\Service\OdooServices;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\visitador\UbicacionController;
+use App\Http\Controllers\administrador\EventosController;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,7 +109,13 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/Gmedicos/{medico}', [Medico2Controller::class, 'destroy'])->name('Gmedicos.destroy');
 
 
+Route::get('/Geventos', [EventosController::class, 'index'])->name('Geventos.index');
+Route::post('/Geventos', [EventosController::class, 'store'])->name('Geventos.store');
+Route::put('/Geventos/{id}', [EventosController::class, 'update'])->name('Geventos.update');
+Route::delete('/Geventos/{id}', [EventosController::class, 'destroy'])->name('Geventos.destroy');
+Route::post('/Geventos/eliminar-masivo', [EventosController::class, 'destroyBulk'])->name('Geventos.destroyBulk');
 
+        
 
         Route::get('/Gvisitas', [VisitasController::class, 'index'])->name('Gvisitas.index');
         Route::post('/Gvisitas', [VisitasController::class, 'store'])->name('Gvisitas.store');
@@ -246,11 +253,15 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
             Route::get('/ListadoMedicos', [MedicoController::class, 'index'])->name('medicos');
             Route::get('/DetallesTop/{id}', [MedicoController::class, 'show'])->name('medicos.show');
 
-            // Módulo de Visitas
+            // Módulo de Visitas y Eventos
             Route::get('/MisVisitas', [VisitaController::class, 'index'])->name('MisVisitas.index');
             Route::post('/MisVisitas', [VisitaController::class, 'store'])->name('visitas.store');
             Route::post('/MisVisitas/{id}/efectiva', [VisitaController::class, 'marcarEfectiva'])->name('visitas.marcarEfectiva');
             Route::post('/MisVisitas/{id}/reprogramar', [VisitaController::class, 'reprogramar'])->name('MisVisitas.reprogramar');
+
+            // Eventos / Actividades para el Visitador
+            Route::post('/MisEventos', [VisitaController::class, 'storeEvento'])->name('visitador.eventos.store');
+            Route::post('/MisEventos/{id}/gestionar', [VisitaController::class, 'gestionarEvento'])->name('visitador.eventos.gestionar');
 
             Route::get('/visitas', [VisitaController::class, 'index'])->name('visitas.index');
 

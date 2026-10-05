@@ -29,22 +29,34 @@ class VisitadorController extends Controller
             ->where('usuario_id', Auth::id())
             ->first();
 
-        // ✅ Busca la meta más reciente/activa del visitador
-        $metaActiva = $visitador
-            ? \App\Models\Meta::where('visitador_id', $visitador->id)
-                ->orderByDesc('fecha_meta')
-                ->first()
-            : null;
+        // 1️⃣ Lógica de determinación de Mes y Año
+        if ($request->has('mes') && $request->has('anio')) {
+            // Viene de la interacción del usuario cambiando de mes/año en la vista
+            $mesNumero = str_pad($request->input('mes'), 2, '0', STR_PAD_LEFT);
+            $anioNumero = $request->input('anio');
+        } else {
+            // Busca la meta más reciente/activa si no se seleccionó fecha
+            $metaActiva = $visitador
+                ? \App\Models\Meta::where('visitador_id', $visitador->id)
+                    ->orderByDesc('fecha_meta')
+                    ->first()
+                : null;
 
-        // ✅ Si tiene meta activa usa ese mes, si no usa el mes actual
-        $mes    = $metaActiva
-            ? Carbon::parse($metaActiva->fecha_meta)->format('Y-m')
-            : Carbon::now()->format('Y-m');
+            if ($metaActiva) {
+                $fechaCarbon = Carbon::parse($metaActiva->fecha_meta);
+                $mesNumero   = $fechaCarbon->format('m');
+                $anioNumero  = $fechaCarbon->format('Y');
+            } else {
+                $mesNumero  = Carbon::now()->format('m');
+                $anioNumero = Carbon::now()->format('Y');
+            }
+        }
 
-        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+        // Definir rango de fechas para el mes y año evaluado
+        $inicio = Carbon::createFromDate($anioNumero, $mesNumero, 1)->startOfMonth();
         $fin    = $inicio->copy()->endOfMonth();
 
-        // Recarga el visitador con la meta del mes correcto
+        // Recarga el visitador con la meta del mes/año seleccionado
         if ($visitador) {
             $visitador->load(['metas' => function ($query) use ($inicio) {
                 $query->whereYear('fecha_meta', $inicio->year)
@@ -55,7 +67,7 @@ class VisitadorController extends Controller
 
         $medicos = $visitador ? $visitador->medicos()->get() : collect();
 
-        // 1️⃣ Visitas del mes actual
+        // 2️⃣ Visitas del mes/año seleccionado
         $visitas = $visitador
             ? Visita::where('visitador_id', $visitador->id)
                 ->whereYear('fecha_programada', $inicio->year)
@@ -63,11 +75,21 @@ class VisitadorController extends Controller
                 ->get()
             : collect();
 
-        // 2️⃣ Visitas pendientes sin límite de mes
+        // 3️⃣ Visitas pendientes sin límite de mes
         $visitasPendientes = $visitador
             ? Visita::where('visitador_id', $visitador->id)
                 ->where('estado', 'programada')
                 ->orderBy('fecha_programada', 'asc')
+                ->get()
+            : collect();
+
+        // 4️⃣ Actividades / Eventos próximos del visitador (solo pendientes / programados)
+        $actividadesProximas = $visitador
+            ? \App\Models\Evento::where('visitador_id', $visitador->id)
+                ->whereNotIn('estado', ['realizado', 'cancelado', 'completado'])
+                ->where('fecha_programada', '>=', now()->startOfDay())
+                ->orderBy('fecha_programada', 'asc')
+                ->select('id', 'nombre_evento', 'comentario', 'ubicacion', 'fecha_programada', 'fecha_fin_programada', 'estado', 'etiquetas')
                 ->get()
             : collect();
 
@@ -77,14 +99,13 @@ class VisitadorController extends Controller
             ->map(fn($d) => (string) $d)
             ->values();
 
-        // Especialidad resuelta desde Odoo (igual que el admin), no la
-        // columna local 'especialidad' (legado).
+        // Especialidad resuelta desde Odoo
         $especialidades = $this->odoo->getEspecialidadesPorDocumentos($todosMedicosDoc->toArray());
         foreach ($medicos as $medico) {
             $medico->especialidad = $especialidades[trim((string) $medico->documento)] ?? 'General';
         }
 
-        // 3️⃣ Visitas efectivas del mes (para la barra de "Cumplimiento de visitas")
+        // 5️⃣ Visitas efectivas del mes/año seleccionado
         $visitasEfectivas = $visitador
             ? Visita::where('visitador_id', $visitador->id)
                 ->where('estado', 'efectiva')
@@ -93,10 +114,6 @@ class VisitadorController extends Controller
                 ->count()
             : 0;
 
-        // 👇 4️⃣ NO se consulta Odoo aquí. Igual que en Gmetas/MetasController,
-        //    valor_comprado y valor_formulado se cargan aparte, de forma
-        //    asíncrona, desde /panel/odoo-stats (ver método odooStats abajo).
-        //    Esto evita que la carga del panel se demore esperando a Odoo.
         $progreso = [
             'visitas_efectivas' => $visitasEfectivas,
             'valor_comprado'    => 0,
@@ -104,76 +121,82 @@ class VisitadorController extends Controller
         ];
 
         return Inertia::render('VISITADOR/PANEL/panel', [
-            'visitador'         => $visitador,
-            'medicos'           => $medicos,
-            'visitasData'       => $visitas,
-            'visitasPendientes' => $visitasPendientes,
-            'progreso'          => $progreso,
-            'mesActual'         => $mes,
+            'visitador'           => $visitador,
+            'medicos'             => $medicos,
+            'visitasData'         => $visitas,
+            'visitasPendientes'   => $visitasPendientes,
+            'actividadesProximas' => $actividadesProximas,
+            'progreso'            => $progreso,
+            'mesActual'           => $mesNumero,  // 👈 Ej: "03"
+            'anioActual'          => $anioNumero, // 👈 Ej: "2026"
         ]);
     }
 
     /**
      * Devuelve las ventas de Odoo (comprado / formulado) del visitador
-     * autenticado, para el mes indicado. Espejo de
-     * MetasController::odooStats pero acotado al propio visitador logueado
-     * (no recibe id por URL, usa Auth::id()).
-     *
-     * Cacheado 4h por visitador+mes. ?forzar=1 limpia la caché y vuelve a
-     * consultar Odoo (botón "Actualizar" en el front).
+     * autenticado, para el mes indicado.
      */
     public function odooStats(Request $request)
-    {
-        $visitador = Visitador::where('usuario_id', Auth::id())->first();
+{
+    $visitador = Visitador::where('usuario_id', Auth::id())->first();
 
-        if (!$visitador) {
-            return response()->json(['error' => 'Visitador no encontrado'], 404);
-        }
-
-        $mes    = $request->input('mes', Carbon::now()->format('Y-m'));
-        $forzar = $request->boolean('forzar');
-
-        $cacheKey = "odoo_stats_panel_{$visitador->id}_{$mes}";
-
-        if ($forzar) {
-            Cache::forget($cacheKey);
-        }
-
-        $yaEnCache = Cache::has($cacheKey);
-
-        $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($visitador, $mes) {
-            $inicio = Carbon::parse($mes . '-01')->startOfMonth();
-            $fin    = $inicio->copy()->endOfMonth();
-
-            $documentos = $visitador->medicos()
-                ->whereNotNull('documento')
-                ->where('documento', '!=', '')
-                ->pluck('documento')
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
-
-            $valorComprado  = 0;
-            $valorFormulado = 0;
-
-            if (!empty($documentos)) {
-                $resumenOdoo = $this->odoo->obtenerResumenAdmin(
-                    $documentos,
-                    $inicio->format('Y-m-d'),
-                    $fin->format('Y-m-d')
-                );
-                $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
-                $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
-            }
-
-            return [
-                'valor_comprado'  => $valorComprado,
-                'valor_formulado' => $valorFormulado,
-                'actualizado_en'  => now()->toIso8601String(),
-            ];
-        });
-
-        return response()->json($payload + ['desde_cache' => $yaEnCache]);
+    if (!$visitador) {
+        return response()->json(['error' => 'Visitador no encontrado'], 404);
     }
+
+    $mesInput = $request->input('mes', Carbon::now()->format('m'));
+    $anioInput = $request->input('anio', Carbon::now()->format('Y'));
+
+    // Si viene en formato "07", le anteponemos el año actual/seleccionado para formar "YYYY-MM"
+    if (strlen($mesInput) <= 2) {
+        $mes = "{$anioInput}-" . str_pad($mesInput, 2, '0', STR_PAD_LEFT);
+    } else {
+        $mes = $mesInput;
+    }
+
+    $forzar = $request->boolean('forzar');
+    $cacheKey = "odoo_stats_panel_{$visitador->id}_{$mes}";
+
+    if ($forzar) {
+        Cache::forget($cacheKey);
+    }
+
+    $yaEnCache = Cache::has($cacheKey);
+
+    $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($visitador, $mes) {
+        // Ahora $mes siempre es 'YYYY-MM', por lo que Carbon::parse no fallará
+        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+        $fin    = $inicio->copy()->endOfMonth();
+
+        $documentos = $visitador->medicos()
+            ->whereNotNull('documento')
+            ->where('documento', '!=', '')
+            ->pluck('documento')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $valorComprado  = 0;
+        $valorFormulado = 0;
+
+        if (!empty($documentos)) {
+            $resumenOdoo = $this->odoo->obtenerResumenAdmin(
+                $documentos,
+                $inicio->format('Y-m-d'),
+                $fin->format('Y-m-d')
+            );
+            $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
+            $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
+        }
+
+        return [
+            'valor_comprado'  => $valorComprado,
+            'valor_formulado' => $valorFormulado,
+            'actualizado_en'  => now()->toIso8601String(),
+        ];
+    });
+
+    return response()->json($payload + ['desde_cache' => $yaEnCache]);
+}
 }

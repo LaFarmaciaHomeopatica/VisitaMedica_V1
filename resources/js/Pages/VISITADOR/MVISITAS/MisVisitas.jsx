@@ -4,14 +4,15 @@ import { FaPlus, FaArrowLeft, FaMagnifyingGlass, FaCalendarCheck } from 'react-i
 import BarraNave from '../barranave';
 import { useMisVisitas } from './HooksMv/useMisVisitas';
 
-import VisitasList from './ComponentsMv/VisitasList';
-import CalendarSection from './ComponentsMv/CalendarSection';
-import ModalNuevaVisita from './ComponentsMv/ModalNuevaVisita';
+import VisitasList          from './ComponentsMv/VisitasList';
+import CalendarSection      from './ComponentsMv/CalendarSection';
+import ModalNuevaVisita     from './ComponentsMv/ModalNuevaVisita';
 import ModalGestionarVisita from './ComponentsMv/ModalGestionarVisita';
+import ModalGestionarEvento from './ComponentsMv/ModalGestionarEvento';
 
-const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
-    const logic = useMisVisitas(visitasDB, medicosDisponibles, productos);
-    const overlayVisible = logic.modalNuevoAbierto || logic.modalGestionAbierto;
+const MisVisitas = ({ visitas: visitasDB = [], eventos: eventosDB = [], medicosDisponibles = [], productos = [] }) => {
+    const logic = useMisVisitas(visitasDB, eventosDB, medicosDisponibles);
+    const overlayVisible = logic.modalNuevoAbierto || logic.modalGestionVisitaAbierto || logic.modalGestionEventoAbierto;
 
     return (
         <>
@@ -55,7 +56,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
                             onClick={() => logic.setVistaSemanal(!logic.vistaSemanal)}
                             className={`px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 ${
                                 logic.vistaSemanal
-                                    ? 'bg-[#1C85E8] text-white border-transparent shadow-sm'
+                                    ? 'bg-gradient-to-r from-[#1C85E8] to-[#02CFE3] text-white border-transparent shadow-sm'
                                     : 'bg-white text-gray-400 border-gray-100'
                             }`}
                         >
@@ -66,7 +67,7 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
                 </div>
 
                 {/* Fila 2: franja "Mis Visitas" — con gradiente del sistema, pegada a la fila superior */}
-                <div className="bg-gradient-to-r from-[#1C85E8] to-[#0A69C2] rounded-b-[30px] md:rounded-b-[40px]">
+                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px]">
                     <div className="max-w-[1440px] mx-auto px-5 py-2.5 flex items-center gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/80">LFH · Agenda</p>
                         <span className="text-white/40">|</span>
@@ -82,20 +83,20 @@ const MisVisitas = ({ visitas: visitasDB, medicosDisponibles, productos }) => {
             {!overlayVisible && (
                 <button
                     onClick={() => logic.abrirModalNuevo()}
-                    className="fixed bottom-5 right-5 sm:bottom-28 sm:right-6 w-14 h-14 bg-[#1C85E8] text-white rounded-2xl shadow-lg shadow-blue-200 z-40 flex items-center justify-center hover:scale-110 transition-all active:scale-95"
+                    className="fixed bottom-5 right-5 sm:bottom-28 sm:right-6 w-14 h-14 bg-gradient-to-br from-[#1C85E8] to-[#02CFE3] text-white rounded-2xl shadow-lg shadow-blue-200 z-40 flex items-center justify-center hover:scale-110 transition-all active:scale-95"
                 >
                     <FaPlus className="text-xl" />
                 </button>
             )}
 
             <ModalGestionarVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
-            <ModalNuevaVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
+            <ModalNuevaVisita     logic={logic} doctores={medicosDisponibles} productos={productos} />
+            <ModalGestionarEvento logic={logic} />
 
-            
             <div className={`bg-[#E5F4FF] min-h-screen pb-32 font-sans text-gray-800 pt-32 md:pt-36 ${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : ''} transition-all duration-500`}>
 
                 <main className="px-4 md:px-6 mt-4 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <VisitasList logic={logic} />
+                    <VisitasList     logic={logic} />
                     <CalendarSection logic={logic} />
                 </main>
 

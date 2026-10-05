@@ -109,7 +109,7 @@ class VisitasController extends Controller
 
         Visita::create($validated);
 
-        return Redirect::route('Gvisitas.index')->with('success', 'Visita creada correctamente.');
+        return back()->with('success', 'Visita creada correctamente.');
     }
 
     /**
@@ -151,7 +151,7 @@ class VisitasController extends Controller
 
         $visita->update($validated);
 
-        return Redirect::route('Gvisitas.index')->with('success', 'Visita actualizada correctamente.');
+        return back()->with('success', 'Visita actualizada correctamente.');
     }
 
     /**
@@ -162,7 +162,7 @@ class VisitasController extends Controller
         $visita = Visita::findOrFail($id);
         $visita->delete();
 
-        return Redirect::route('Gvisitas.index')->with('success', 'Visita eliminada correctamente.');
+        return back()->with('success', 'Visita eliminada correctamente.');
     }
 
     public function destroyBulk(Request $request)
@@ -170,7 +170,7 @@ class VisitasController extends Controller
         $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:visitas,id']);
         Visita::whereIn('id', $request->ids)->delete();
 
-        return Redirect::route('Gvisitas.index')->with('success', 'Visitas eliminadas correctamente.');
+        return back()->with('success', 'Visitas eliminadas correctamente.');
     }
 
 

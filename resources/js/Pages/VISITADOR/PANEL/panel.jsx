@@ -3,13 +3,13 @@ import { Head, router } from '@inertiajs/react';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
 
 import BarraNave from '../barranave';
-import HeroSection        from './ComponentsPe/HeroSection';
-import PendientesTab      from './ComponentsPe/PendientesTab';
+import HeroSection from './ComponentsPe/HeroSection';
+import PendientesTab from './ComponentsPe/PendientesTab';
+import ActividadesTab from './ComponentsPe/ActividadesTab';
 import MedicosCoincidentes from './ComponentsPe/MedicosCoincidentes';
 
 import { useDashboardMetrics } from './HooksPe/useDashboardMetrics';
 import { useUbicacionTiempoReal } from './HooksPe/useUbicacionTiempoReal';
-
 // ---------------------------------------------------------------------------
 // Helpers de filtrado
 // ---------------------------------------------------------------------------
@@ -18,55 +18,88 @@ const cumpleFiltroBusqueda = (medico, termino) => {
     if (!medico) {
         return 'médico desconocido'.includes(termino) || 'general'.includes(termino);
     }
-    const nombre       = (medico.nombre       || '').toLowerCase();
-    const apellido     = (medico.apellido     || '').toLowerCase();
-    const specialty    = (medico.especialidad || '').toLowerCase();
-    const documento    = (medico.documento    || '').toLowerCase();
+    const nombre = (medico.nombre || '').toLowerCase();
+    const apellido = (medico.apellido || '').toLowerCase();
+    const specialty = (medico.especialidad || '').toLowerCase();
+    const documento = (medico.documento || '').toLowerCase();
 
-    return nombre.includes(termino) || apellido.includes(termino) || specialty.includes(termino) || documento.includes(termino);
+    return (
+        nombre.includes(termino) ||
+        apellido.includes(termino) ||
+        specialty.includes(termino) ||
+        documento.includes(termino)
+    );
 };
 
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 const DashboardLFH = ({
-    visitador         = {},
-    medicos           = [],
-    visitasData       = [],
+    visitador = {},
+    medicos = [],
+    visitasData = [],
     visitasPendientes = [],
-    mesActual, // 👈 Recibido desde el VisitadorController
+    actividadesProximas = [],
+    mesActual,
+    anioActual,
 }) => {
     const [search, setSearch] = useState('');
+
+    // Estado local para mes y año
+    const fechaActual = new Date();
+    const [mesSeleccionado, setMesSeleccionado] = useState(
+        mesActual || (fechaActual.getMonth() + 1).toString().padStart(2, '0')
+    );
+    const [anioSeleccionado, setAnioSeleccionado] = useState(
+        anioActual || fechaActual.getFullYear().toString()
+    );
 
     // 📍 Envía la ubicación del visitador al servidor cada 30 s
     const { estado: estadoUbicacion } = useUbicacionTiempoReal({ intervaloMs: 30000 });
 
     // ✅ La relación metas viene como array desde Eloquent/Inertia
-    const metaActual      = Array.isArray(visitador?.metas) ? visitador.metas[0] : visitador?.metas;
+    const metaActual = Array.isArray(visitador?.metas) ? visitador.metas[0] : visitador?.metas;
     const metaValorGlobal = metaActual?.meta_visitas || 0;
-    const metaDinero      = Number(metaActual?.meta_dinero) || 0;
+    const metaDinero = Number(metaActual?.meta_dinero) || 0;
 
     // ✅ Hook simplificado (solo métricas locales de visitas)
-    const { porcentaje, meta, fueVisitado } = useDashboardMetrics(
-        visitasData,
-        metaValorGlobal
-    );
+    const { porcentaje, meta } = useDashboardMetrics(visitasData, metaValorGlobal);
 
-    const visitasEfectivasCount = visitasData.filter(v => v.estado === 'efectiva').length;
+    const visitasEfectivasCount = visitasData.filter((v) => v.estado === 'efectiva').length;
     const termino = search.toLowerCase().trim();
 
-    const visitasPendientesFiltradas = visitasPendientes.filter(visita => {
-        const medicoData = medicos.find(m => String(m.id) === String(visita.medico_id)) || visita.medico;
+    const visitasPendientesFiltradas = visitasPendientes.filter((visita) => {
+        const medicoData =
+            medicos.find((m) => String(m.id) === String(visita.medico_id)) || visita.medico;
         return cumpleFiltroBusqueda(medicoData, termino);
     });
 
-    const medicoIdsConPendiente = new Set(visitasPendientesFiltradas.map(v => String(v.medico_id)));
+    const medicoIdsConPendiente = new Set(visitasPendientesFiltradas.map((v) => String(v.medico_id)));
     const medicosSinPendienteFiltrados = termino
-        ? medicos.filter(m => cumpleFiltroBusqueda(m, termino) && !medicoIdsConPendiente.has(String(m.id)))
+        ? medicos.filter(
+              (m) => cumpleFiltroBusqueda(m, termino) && !medicoIdsConPendiente.has(String(m.id))
+          )
         : [];
 
+    // Redirección para ejecutar Visitas
     const irAEjecutarVisita = (medicoId, visitaId) =>
         router.get('/MisVisitas', { medico_id: medicoId, visita_id: visitaId });
+
+    // Redirección para ejecutar Actividades / Eventos en MisVisitas
+    const irAEjecutarActividad = (actividadId) =>
+        router.get('/MisVisitas', { actividad_id: actividadId });
+
+    // 🔄 Función para recargar la vista con el mes/año seleccionado
+    const handleCambioFecha = (nuevoMes, nuevoAnio) => {
+        setMesSeleccionado(nuevoMes);
+        setAnioSeleccionado(nuevoAnio);
+
+        router.get(
+            window.location.pathname,
+            { mes: nuevoMes, anio: nuevoAnio },
+            { preserveState: true, preserveScroll: true }
+        );
+    };
 
     return (
         <div className="bg-[#E5F4FF] min-h-screen pb-20 font-sans text-gray-800">
@@ -101,7 +134,7 @@ const DashboardLFH = ({
                 </div>
             </header>
 
-            {/* ── Aviso de ubicación (solo si hay problema) ── */}
+            {/* ── Aviso de ubicación ── */}
             {(estadoUbicacion === 'denegada' || estadoUbicacion === 'no_disponible') && (
                 <div className="max-w-5xl mx-auto px-4 mt-3">
                     <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs md:text-sm rounded-xl px-4 py-2.5">
@@ -118,7 +151,9 @@ const DashboardLFH = ({
                 visitasEfectivasCount={visitasEfectivasCount}
                 meta={meta}
                 metaDinero={metaDinero}
-                mes={mesActual} // 👈 Se pasa el mes a HeroSection -> MetricasCard
+                mes={mesSeleccionado}
+                anio={anioSeleccionado}
+                onCambioFecha={handleCambioFecha}
             />
 
             {/* ── Contenido dinámico ── */}
@@ -128,6 +163,12 @@ const DashboardLFH = ({
                     medicos={medicos}
                     irAEjecutarVisita={irAEjecutarVisita}
                 />
+
+                <ActividadesTab
+                    actividades={actividadesProximas}
+                    irAEjecutarActividad={irAEjecutarActividad}
+                />
+
                 <MedicosCoincidentes medicos={medicosSinPendienteFiltrados} />
             </main>
 

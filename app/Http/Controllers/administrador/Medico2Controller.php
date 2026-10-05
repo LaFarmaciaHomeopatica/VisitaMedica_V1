@@ -289,9 +289,9 @@ class Medico2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'documento'            => 'nullable|string|unique:medicos,documento',
+            'documento'            => 'required|string|unique:medicos,documento',
             'nombre'               => 'required|string|max:100',
-            'tipo_documento_id'    => 'required|integer',
+            'tipo_documento_id'    => 'nullable|integer',
             'geolocalizacion'      => 'nullable|string|max:300',
             'direccion_detalles'   => 'nullable|string',
             'telefono_contacto'    => 'nullable|string|max:50',
