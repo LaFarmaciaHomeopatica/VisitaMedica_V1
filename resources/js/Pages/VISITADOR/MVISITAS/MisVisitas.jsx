@@ -66,8 +66,8 @@ const MisVisitas = ({ visitas: visitasDB = [], eventos: eventosDB = [], medicosD
                     </div>
                 </div>
 
-                {/* Fila 2: franja "Mis Visitas" — con gradiente del sistema, pegada a la fila superior */}
-                <div className="bg-gradient-to-r from-[#1C85E8] via-[#02CFE3] to-[#24C765] rounded-b-[30px] md:rounded-b-[40px]">
+                {/* Fila 2: franja "Mis Visitas" — color sólido, pegada a la fila superior */}
+                <div className="bg-[#1C85E8] rounded-b-[30px] md:rounded-b-[40px]">
                     <div className="max-w-[1440px] mx-auto px-5 py-2.5 flex items-center gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/80">LFH · Agenda</p>
                         <span className="text-white/40">|</span>

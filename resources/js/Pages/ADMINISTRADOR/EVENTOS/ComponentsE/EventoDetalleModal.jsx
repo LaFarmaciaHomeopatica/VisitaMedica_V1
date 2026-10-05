@@ -36,6 +36,14 @@ const EventoDetalleModal = ({ isOpen, onClose, evento, onEdit, onDelete, deletin
         evento.latitud !== '' &&
         evento.longitud !== '';
 
+    const mapaUrl = tieneCoordenadas
+        ? `https://maps.google.com/maps?q=${evento.latitud},${evento.longitud}&z=16&output=embed`
+        : null;
+
+    const googleMapsLink = tieneCoordenadas
+        ? `https://www.google.com/maps/search/?api=1&query=${evento.latitud},${evento.longitud}`
+        : null;
+
     const handleEliminar = () => {
         if (typeof onDelete === 'function') {
             onDelete(evento);
@@ -109,19 +117,7 @@ const EventoDetalleModal = ({ isOpen, onClose, evento, onEdit, onDelete, deletin
                     {/* Ubicación */}
                     <div className="border-t border-slate-100 pt-4">
                         <Fila titulo="Ubicación / Lugar">
-                            <div className="flex items-center gap-2">
-                                <span>{evento.ubicacion || '—'}</span>
-                                {tieneCoordenadas && (
-                                    <a
-                                        href={`https://www.google.com/maps?q=${evento.latitud},${evento.longitud}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-indigo-600 hover:underline text-xs inline-flex items-center gap-1 font-bold"
-                                    >
-                                        Ver en Maps ↗
-                                    </a>
-                                )}
-                            </div>
+                            <p className="text-xs sm:text-sm font-bold text-slate-800">{evento.ubicacion || '—'}</p>
                         </Fila>
                     </div>
 
@@ -133,6 +129,36 @@ const EventoDetalleModal = ({ isOpen, onClose, evento, onEdit, onDelete, deletin
                             </p>
                         </Fila>
                     </div>
+
+                    {/* Ubicación / Mapa */}
+                    {tieneCoordenadas && (
+                        <div className="border-t border-slate-100 pt-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">
+                                    📍 Coordenadas de la actividad
+                                </p>
+                                <a
+                                    href={googleMapsLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-[#3D3FD8] hover:underline flex items-center gap-1"
+                                >
+                                    Ver en Google Maps ↗
+                                </a>
+                            </div>
+                            <div className="h-44 rounded-xl overflow-hidden border border-slate-200">
+                                <iframe
+                                    title="Ubicación actividad"
+                                    src={mapaUrl}
+                                    width="100%"
+                                    height="100%"
+                                    style={{ border: 0 }}
+                                    allowFullScreen
+                                    loading="lazy"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Acciones */}
