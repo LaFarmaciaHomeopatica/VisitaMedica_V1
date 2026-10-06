@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { router } from '@inertiajs/react';
 import { aInput, ETIQUETA_ESTADO } from '../HooksE/useEventoForm';
 
 const Err = ({ msg }) => (msg ? <p className="text-xs text-red-600 mt-1">{msg}</p> : null);
@@ -15,10 +16,11 @@ const EventoFormModal = ({
     processing,
     errors = {},
     visitadores = [],
-    etiquetas = [], // Prop opcional para etiquetas precargadas
+    etiquetas = [], // Arreglo de objetos [{ id, nombre, color }, ...] enviado desde el controlador
 }) => {
     const [busqueda, setBusqueda] = useState('');
     const [nuevaEtiquetaInput, setNuevaEtiquetaInput] = useState('');
+    const [creandoEtiqueta, setCreandoEtiqueta] = useState(false);
 
     if (!isOpen) return null;
 
@@ -43,27 +45,45 @@ const EventoFormModal = ({
         setData('visitadores_ids', union);
     };
 
-    // Funciones para manejar etiquetas
-    const toggleEtiqueta = (nombreEtiqueta) => {
-        const seleccionadas = data.etiquetas || [];
-        const existe = seleccionadas.includes(nombreEtiqueta);
+    // Toggle por ID de etiqueta
+    const toggleEtiqueta = (id) => {
+        const seleccionadas = data.etiqueta_ids || [];
+        const existe = seleccionadas.includes(id);
         const nuevas = existe
-            ? seleccionadas.filter((item) => item !== nombreEtiqueta)
-            : [...seleccionadas, nombreEtiqueta];
+            ? seleccionadas.filter((item) => item !== id)
+            : [...seleccionadas, id];
 
-        setData('etiquetas', nuevas);
+        setData('etiqueta_ids', nuevas);
     };
 
+    // Crear una nueva etiqueta vía Inertia/API y seleccionarla
     const agregarNuevaEtiqueta = (e) => {
         e.preventDefault();
         const texto = nuevaEtiquetaInput.trim();
         if (!texto) return;
 
-        const seleccionadas = data.etiquetas || [];
-        if (!seleccionadas.includes(texto)) {
-            setData('etiquetas', [...seleccionadas, texto]);
+        // Si la etiqueta ya existe por nombre, la seleccionamos directamente
+        const existe = etiquetas.find((e) => e.nombre.toLowerCase() === texto.toLowerCase());
+        if (existe) {
+            if (!(data.etiqueta_ids || []).includes(existe.id)) {
+                setData('etiqueta_ids', [...(data.etiqueta_ids || []), existe.id]);
+            }
+            setNuevaEtiquetaInput('');
+            return;
         }
-        setNuevaEtiquetaInput('');
+
+        setCreandoEtiqueta(true);
+
+        // Envía la creación de la etiqueta al servidor
+        router.post('/administrador/etiquetas', { nombre: texto }, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                // Se asume que el controlador actualiza las props con la nueva lista de etiquetas
+                setNuevaEtiquetaInput('');
+                setCreandoEtiqueta(false);
+            },
+            onError: () => setCreandoEtiqueta(false)
+        });
     };
 
     // Si el inicio pasa del fin, el fin se corre automáticamente (+1 hora)
@@ -130,28 +150,29 @@ const EventoFormModal = ({
                         <div>
                             <label className="block text-sm font-medium mb-1">Etiquetas</label>
                             
-                            {/* Badges de etiquetas seleccionadas/disponibles */}
+                            {/* Badges de etiquetas disponibles */}
                             <div className="flex flex-wrap gap-1.5 mb-2">
-                                {Array.from(new Set([...(etiquetas.map(e => e.nombre || e)), ...(data.etiquetas || [])])).map((tag) => {
-                                    const activa = (data.etiquetas || []).includes(tag);
+                                {etiquetas.map((tag) => {
+                                    const activa = (data.etiqueta_ids || []).includes(tag.id);
                                     return (
                                         <button
-                                            key={tag}
+                                            key={tag.id}
                                             type="button"
-                                            onClick={() => toggleEtiqueta(tag)}
+                                            onClick={() => toggleEtiqueta(tag.id)}
+                                            style={tag.color && activa ? { backgroundColor: tag.color, color: '#fff' } : {}}
                                             className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                                                 activa
                                                     ? 'bg-blue-600 text-white shadow-sm'
                                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}
                                         >
-                                            {activa ? `✓ ${tag}` : `+ ${tag}`}
+                                            {activa ? `✓ ${tag.nombre}` : `+ ${tag.nombre}`}
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            {/* Campo para agregar una nueva etiqueta */}
+                            {/* Campo para agregar una nueva etiqueta global */}
                             <div className="flex gap-2">
                                 <input
                                     type="text"
@@ -162,13 +183,14 @@ const EventoFormModal = ({
                                 />
                                 <button
                                     type="button"
+                                    disabled={creandoEtiqueta}
                                     onClick={agregarNuevaEtiqueta}
-                                    className="px-3 py-1.5 bg-gray-800 text-white rounded-md text-xs font-medium hover:bg-gray-900"
+                                    className="px-3 py-1.5 bg-gray-800 text-white rounded-md text-xs font-medium hover:bg-gray-900 disabled:opacity-50"
                                 >
-                                    Agregar
+                                    {creandoEtiqueta ? 'Guardando...' : 'Agregar'}
                                 </button>
                             </div>
-                            <Err msg={errors.etiquetas} />
+                            <Err msg={errors.etiqueta_ids} />
                         </div>
 
                         {/* Visitadores */}

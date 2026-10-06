@@ -3,7 +3,7 @@ import { router } from '@inertiajs/react';
 import { FaCircleCheck, FaClock, FaBan, FaXmark, FaTriangleExclamation } from 'react-icons/fa6';
 import { ETIQUETAS_PREDEFINIDAS, normalizarEtiquetas } from '../HooksMv/useMisVisitas';
 
-const ModalGestionarEvento = ({ logic }) => {
+const ModalGestionarEvento = ({ logic, etiquetas = [] }) => {
     const [dateWarning, setDateWarning] = useState('');
     const [coordenadas, setCoordenadas] = useState({ latitud: null, longitud: null });
     const [gpsStatus, setGpsStatus] = useState('');
@@ -80,7 +80,7 @@ const ModalGestionarEvento = ({ logic }) => {
                 fecha_fin_programada: evento.fecha_fin_programada?.slice(0, 16).replace(' ', 'T') || '',
                 fecha_realizada: evento.fecha_realizada?.slice(0, 16).replace(' ', 'T') || '',
                 fecha_fin_real: evento.fecha_fin_real?.slice(0, 16).replace(' ', 'T') || '',
-                etiquetas: evento.etiquetas || [],
+                etiquetas: normalizarEtiquetas(evento.etiquetas),
             });
             setDateWarning('');
             setCoordenadas({ latitud: null, longitud: null });
@@ -92,10 +92,12 @@ const ModalGestionarEvento = ({ logic }) => {
 
     // ✅ useMemo SIEMPRE antes de cualquier return condicional (Rules of Hooks)
     const sugerenciasEtiquetas = useMemo(() => {
-        const base = ETIQUETAS_PREDEFINIDAS || [];
+        const catalogo = (etiquetas || [])
+            .map((e) => (typeof e === 'object' && e !== null ? e.nombre : e))
+            .filter(Boolean);
         const actuales = normalizarEtiquetas(formReporte.data.etiquetas);
-        return Array.from(new Set([...base, ...actuales]));
-    }, [formReporte.data.etiquetas]);
+        return Array.from(new Set([...catalogo, ...actuales]));
+    }, [etiquetas, formReporte.data.etiquetas]);
 
     if (!logic.modalGestionEventoAbierto || !evento) return null;
 
@@ -244,27 +246,33 @@ const ModalGestionarEvento = ({ logic }) => {
                             Etiquetas
                         </label>
 
-                        <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
-                            {sugerenciasEtiquetas.map((tag) => {
-                                const seleccionada = (formReporte.data.etiquetas || []).includes(tag);
-                                return (
-                                    <button
-                                        key={tag}
-                                        type="button"
-                                        disabled={esRealizado}
-                                        onClick={() => toggleEtiqueta(tag)}
-                                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
-                                            seleccionada
-                                                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                        } ${esRealizado ? 'opacity-70 cursor-default' : ''}`}
-                                    >
-                                        <span>{seleccionada ? '✓' : '+'}</span>
-                                        <span>{tag}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {sugerenciasEtiquetas.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
+                                {sugerenciasEtiquetas.map((tag) => {
+                                    const seleccionada = (formReporte.data.etiquetas || []).includes(tag);
+                                    return (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            disabled={esRealizado}
+                                            onClick={() => toggleEtiqueta(tag)}
+                                            className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
+                                                seleccionada
+                                                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                            } ${esRealizado ? 'opacity-70 cursor-default' : ''}`}
+                                        >
+                                            <span>{seleccionada ? '✓' : '+'}</span>
+                                            <span>{tag}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-gray-400 italic mb-2 mt-1">
+                                No hay etiquetas creadas todavía. Escribe una nueva abajo para agregarla.
+                            </p>
+                        )}
 
                         {!esRealizado && (
                             <div className="flex gap-2">

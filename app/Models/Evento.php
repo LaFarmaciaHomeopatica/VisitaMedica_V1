@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Evento extends Model
 {
@@ -21,7 +23,6 @@ class Evento extends Model
         'fecha_realizada',
         'fecha_fin_real',
         'estado',
-        'etiquetas', // <-- Agregado
     ];
 
     protected $casts = [
@@ -29,21 +30,25 @@ class Evento extends Model
         'fecha_fin_programada' => 'datetime:Y-m-d H:i',
         'fecha_realizada'      => 'datetime:Y-m-d H:i',
         'fecha_fin_real'       => 'datetime:Y-m-d H:i',
-        'etiquetas'            => 'array', // <-- Agregado (convierte el JSON de DB a array de PHP)
     ];
 
-    public function visitador()
+    public function visitador(): BelongsTo
     {
         return $this->belongsTo(Visitador::class);
     }
 
     /**
-     * Devuelve los IDs de visitadores (de la lista dada) que ya tienen un evento
-     * activo que se cruza con el horario indicado.
-     *
-     * - Con $fin: compara rangos (evento contra evento).
-     * - Sin $fin: compara un instante (una visita).
-     * Los eventos cancelados no bloquean.
+     * Relación muchos a muchos con Etiquetas.
+     */
+    public function etiquetas(): BelongsToMany
+    {
+        // ⚠️ Asegúrate si el nombre exacto de la tabla pivote en MySQL es 'etiqueta_evento' o 'evento_etiqueta'
+        return $this->belongsToMany(Etiqueta::class, 'etiqueta_evento', 'evento_id', 'etiqueta_id');
+    }
+
+    /**
+     * Devuelve los IDs de visitadores que ya tienen un evento activo
+     * que se cruza con el horario indicado.
      */
     public static function visitadoresOcupados(array $visitadorIds, $inicio, $fin = null, $ignorarId = null): array
     {

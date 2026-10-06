@@ -10,7 +10,13 @@ import ModalNuevaVisita     from './ComponentsMv/ModalNuevaVisita';
 import ModalGestionarVisita from './ComponentsMv/ModalGestionarVisita';
 import ModalGestionarEvento from './ComponentsMv/ModalGestionarEvento';
 
-const MisVisitas = ({ visitas: visitasDB = [], eventos: eventosDB = [], medicosDisponibles = [], productos = [] }) => {
+const MisVisitas = ({
+    visitas: visitasDB = [],
+    eventos: eventosDB = [],
+    medicosDisponibles = [],
+    productos = [],
+    etiquetasDisponibles = [],
+}) => {
     const logic = useMisVisitas(visitasDB, eventosDB, medicosDisponibles);
 
     // Auto-abrir modal y seleccionar el médico cuando viene desde la URL (?medico_id=X)
@@ -117,8 +123,8 @@ const MisVisitas = ({ visitas: visitasDB = [], eventos: eventosDB = [], medicosD
             )}
 
             <ModalGestionarVisita logic={logic} doctores={medicosDisponibles} productos={productos} />
-            <ModalNuevaVisita     logic={logic} doctores={medicosDisponibles} productos={productos} />
-            <ModalGestionarEvento logic={logic} />
+            <ModalNuevaVisita     logic={logic} doctores={medicosDisponibles} productos={productos} etiquetas={etiquetasDisponibles} />
+            <ModalGestionarEvento logic={logic} etiquetas={etiquetasDisponibles} />
 
             <div className={`bg-[#E5F4FF] min-h-screen pb-32 font-sans text-gray-800 pt-32 md:pt-36 ${overlayVisible ? 'blur-md scale-[0.98] opacity-50 pointer-events-none' : ''} transition-all duration-500`}>
 

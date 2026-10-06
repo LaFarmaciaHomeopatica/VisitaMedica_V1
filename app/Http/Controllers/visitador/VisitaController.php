@@ -7,10 +7,12 @@ use App\Models\Visita;
 use App\Models\Medico;
 use App\Models\Visitador;
 use App\Models\Evento;
+use App\Models\Etiqueta;
 use App\Models\Productos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
 
@@ -42,7 +44,9 @@ class VisitaController extends Controller
                         : null;
                     return $visita;
                 }),
-            'eventos' => Evento::where('visitador_id', $visitador->id)
+
+            'eventos' => Evento::with('etiquetas:id,nombre,color')
+                ->where('visitador_id', $visitador->id)
                 ->orderBy('fecha_programada', 'asc')
                 ->get()
                 ->map(function ($evento) {
@@ -55,8 +59,10 @@ class VisitaController extends Controller
                         : null;
                     return $evento;
                 }),
+
             'medicosDisponibles' => $medicosDisponibles,
             'productos'          => Productos::select('id', 'nombre', 'codigo')->orderBy('nombre')->get(),
+            'etiquetasDisponibles' => Etiqueta::select('id', 'nombre', 'color')->orderBy('nombre')->get(),
             'estadosDisponibles' => ['sin programar', 'programada', 'efectiva', 'No contactado', 'reprogramada', 'cancelada']
         ]);
     }
@@ -103,7 +109,6 @@ class VisitaController extends Controller
         }
         $visita = Visita::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
-        // No permitir modificar si ya está efectiva
         if ($visita->estado === 'efectiva') {
             return back()->withErrors(['estado' => 'Esta visita ya fue completada como efectiva y no puede ser modificada.']);
         }
@@ -129,7 +134,6 @@ class VisitaController extends Controller
             'fecha_realizada'    => $request->fecha_realizada,
         ];
 
-        // Guardamos la hora del servidor exacta
         $ahora = now();
 
         if (in_array($request->estado, ['efectiva', 'No contactado', 'cancelada'])) {
@@ -177,6 +181,33 @@ class VisitaController extends Controller
     }
 
     /**
+     * Resuelve y crea etiquetas si no existen, retornando sus IDs.
+     */
+    private function resolverEtiquetaIds($input): array
+    {
+        if (empty($input) || !is_array($input)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($input as $item) {
+            if (is_numeric($item)) {
+                $ids[] = (int) $item;
+            } elseif (is_string($item) && trim($item) !== '') {
+                $nombre = trim($item);
+                $etiqueta = Etiqueta::firstOrCreate(['nombre' => $nombre]);
+                $ids[] = $etiqueta->id;
+            } elseif (is_array($item) && !empty($item['nombre'])) {
+                $nombre = trim($item['nombre']);
+                $etiqueta = Etiqueta::firstOrCreate(['nombre' => $nombre]);
+                $ids[] = $etiqueta->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * Agendar una nueva actividad / evento para el visitador autenticado.
      */
     public function storeEvento(Request $request)
@@ -195,26 +226,30 @@ class VisitaController extends Controller
             'fecha_programada'     => 'required|date',
             'fecha_fin_programada' => 'required|date|after:fecha_programada',
             'etiquetas'            => 'nullable|array',
-            'etiquetas.*'          => 'nullable|string|max:50',
+            'etiqueta_ids'         => 'nullable|array',
         ]);
 
-        $etiquetas = [];
-        if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {
-            $etiquetas = array_values(array_filter(array_map('trim', $validated['etiquetas'])));
-        }
+        $etiquetaIds = $this->resolverEtiquetaIds(
+            $request->input('etiquetas', $request->input('etiqueta_ids', []))
+        );
 
-        Evento::create([
-            'visitador_id'         => $visitador->id,
-            'nombre_evento'        => $validated['nombre_evento'],
-            'comentario'           => $validated['comentario'] ?? null,
-            'ubicacion'            => $validated['ubicacion'] ?? null,
-            'latitud'              => $validated['latitud'] ?? null,
-            'longitud'             => $validated['longitud'] ?? null,
-            'fecha_programada'     => $validated['fecha_programada'],
-            'fecha_fin_programada' => $validated['fecha_fin_programada'],
-            'estado'               => 'programado',
-            'etiquetas'            => $etiquetas,
-        ]);
+        DB::transaction(function () use ($visitador, $validated, $etiquetaIds) {
+            $evento = Evento::create([
+                'visitador_id'         => $visitador->id,
+                'nombre_evento'        => $validated['nombre_evento'],
+                'comentario'           => $validated['comentario'] ?? null,
+                'ubicacion'            => $validated['ubicacion'] ?? null,
+                'latitud'              => $validated['latitud'] ?? null,
+                'longitud'             => $validated['longitud'] ?? null,
+                'fecha_programada'     => $validated['fecha_programada'],
+                'fecha_fin_programada' => $validated['fecha_fin_programada'],
+                'estado'               => 'programado',
+            ]);
+
+            if (!empty($etiquetaIds)) {
+                $evento->etiquetas()->sync($etiquetaIds);
+            }
+        });
 
         return redirect()->back()->with('success', 'Actividad agendada correctamente.');
     }
@@ -231,7 +266,6 @@ class VisitaController extends Controller
 
         $evento = Evento::where('id', $id)->where('visitador_id', $visitador->id)->firstOrFail();
 
-        // No permitir modificar si ya está realizada
         if ($evento->estado === 'realizado') {
             return back()->withErrors(['estado' => 'Esta actividad ya fue completada y no puede ser modificada.']);
         }
@@ -248,13 +282,8 @@ class VisitaController extends Controller
             'fecha_realizada'      => 'nullable|date',
             'fecha_fin_real'       => 'nullable|date',
             'etiquetas'            => 'nullable|array',
-            'etiquetas.*'          => 'nullable|string|max:50',
+            'etiqueta_ids'         => 'nullable|array',
         ]);
-
-        $etiquetas = [];
-        if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {
-            $etiquetas = array_values(array_filter(array_map('trim', $validated['etiquetas'])));
-        }
 
         $ahora = now();
         $updateData = [
@@ -262,7 +291,6 @@ class VisitaController extends Controller
             'ubicacion'            => $validated['ubicacion'] ?? null,
             'fecha_programada'     => $validated['fecha_programada'],
             'fecha_fin_programada' => $validated['fecha_fin_programada'],
-            'etiquetas'            => $etiquetas,
         ];
 
         if (!empty($validated['nombre_evento'])) {
@@ -283,7 +311,17 @@ class VisitaController extends Controller
             $updateData['estado'] = 'programado';
         }
 
-        $evento->update($updateData);
+        $etiquetaIds = $this->resolverEtiquetaIds(
+            $request->input('etiquetas', $request->input('etiqueta_ids', []))
+        );
+
+        DB::transaction(function () use ($evento, $updateData, $etiquetaIds, $request) {
+            $evento->update($updateData);
+
+            if ($request->has('etiquetas') || $request->has('etiqueta_ids')) {
+                $evento->etiquetas()->sync($etiquetaIds);
+            }
+        });
 
         return redirect()->back()->with('success', 'Actividad actualizada.');
     }

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { FaXmark, FaLocationDot, FaTriangleExclamation } from 'react-icons/fa6';
 import { ETIQUETAS_PREDEFINIDAS, normalizarEtiquetas } from '../HooksMv/useMisVisitas';
 
-const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
+const ModalNuevaVisita = ({ logic, doctores = [], productos = [], etiquetas = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showResults, setShowResults] = useState(false);
     const [errorRed, setErrorRed] = useState(false);
@@ -54,10 +54,12 @@ const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
 
     // Hook incondicional de etiquetas
     const sugerenciasEtiquetas = useMemo(() => {
-        const base = ETIQUETAS_PREDEFINIDAS || [];
+        const catalogo = (etiquetas || [])
+            .map((e) => (typeof e === 'object' && e !== null ? e.nombre : e))
+            .filter(Boolean);
         const actuales = normalizarEtiquetas(logic.formNuevoEvento.data.etiquetas);
-        return Array.from(new Set([...base, ...actuales]));
-    }, [logic.formNuevoEvento.data.etiquetas]);
+        return Array.from(new Set([...catalogo, ...actuales]));
+    }, [etiquetas, logic.formNuevoEvento.data.etiquetas]);
 
     if (!logic.modalNuevoAbierto) return null;
 
@@ -382,26 +384,32 @@ const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
                             </label>
 
                             {/* Pills sugeridas e interactivas */}
-                            <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
-                                {sugerenciasEtiquetas.map((tag) => {
-                                    const seleccionada = (logic.formNuevoEvento.data.etiquetas || []).includes(tag);
-                                    return (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => toggleEtiqueta(tag)}
-                                            className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
-                                                seleccionada
-                                                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                            }`}
-                                        >
-                                            <span>{seleccionada ? '✓' : '+'}</span>
-                                            <span>{tag}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            {sugerenciasEtiquetas.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
+                                    {sugerenciasEtiquetas.map((tag) => {
+                                        const seleccionada = (logic.formNuevoEvento.data.etiquetas || []).includes(tag);
+                                        return (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => toggleEtiqueta(tag)}
+                                                className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
+                                                    seleccionada
+                                                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                                }`}
+                                            >
+                                                <span>{seleccionada ? '✓' : '+'}</span>
+                                                <span>{tag}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-gray-400 italic mb-2 mt-1">
+                                    No hay etiquetas creadas todavía. Escribe una nueva abajo para agregarla.
+                                </p>
+                            )}
 
                             <div className="flex gap-2">
                                 <input

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\administrador;
 
 use App\Http\Controllers\Controller;
+use App\Models\Etiqueta;
 use App\Models\Evento;
 use App\Models\Visita;
 use App\Models\Visitador;
@@ -33,12 +34,18 @@ class EventosController extends Controller
                 'fecha_fin_programada',
                 'fecha_realizada',
                 'fecha_fin_real',
-                'estado',
-                'etiquetas'
+                'estado'
             )
-            ->with('visitador:id,nombre')
+            ->with([
+                'visitador:id,nombre',
+                'etiquetas:id,nombre,color' // Cargar las etiquetas relacionadas
+            ])
             ->orderBy('id', 'desc')
             ->get(),
+
+            'etiquetas' => Etiqueta::select('id', 'nombre', 'color') // Catálogo para los selects/comboboxes
+                ->orderBy('nombre', 'asc')
+                ->get(),
 
             'visitas' => Visita::select(
                 'id',
@@ -72,6 +79,33 @@ class EventosController extends Controller
     }
 
     /**
+     * Resuelve y crea etiquetas si no existen, retornando sus IDs.
+     */
+    private function resolverEtiquetaIds($input): array
+    {
+        if (empty($input) || !is_array($input)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($input as $item) {
+            if (is_numeric($item)) {
+                $ids[] = (int) $item;
+            } elseif (is_string($item) && trim($item) !== '') {
+                $nombre = trim($item);
+                $etiqueta = Etiqueta::firstOrCreate(['nombre' => $nombre]);
+                $ids[] = $etiqueta->id;
+            } elseif (is_array($item) && !empty($item['nombre'])) {
+                $nombre = trim($item['nombre']);
+                $etiqueta = Etiqueta::firstOrCreate(['nombre' => $nombre]);
+                $ids[] = $etiqueta->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * Crea el evento para varios visitadores (o todos) a la vez sin validar cruce de horarios.
      */
     public function store(Request $request)
@@ -89,7 +123,7 @@ class EventosController extends Controller
             'fecha_fin_programada' => 'required|date|after:fecha_programada',
             'estado'               => 'required|in:programado,realizado,cancelado',
             'etiquetas'            => 'nullable|array',
-            'etiquetas.*'          => 'nullable|string|max:50',
+            'etiqueta_ids'         => 'nullable|array',
         ]);
 
         $ids = $request->boolean('todos')
@@ -102,11 +136,6 @@ class EventosController extends Controller
             ])->withInput();
         }
 
-        $etiquetas = [];
-        if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {
-            $etiquetas = array_values(array_filter(array_map('trim', $validated['etiquetas'])));
-        }
-
         $datos = collect($validated)->only([
             'nombre_evento',
             'comentario',
@@ -117,11 +146,19 @@ class EventosController extends Controller
             'fecha_fin_programada',
             'estado',
         ])->all();
-        $datos['etiquetas'] = $etiquetas;
 
-        DB::transaction(function () use ($ids, $datos) {
+        $etiquetaIds = $this->resolverEtiquetaIds(
+            $request->input('etiquetas', $request->input('etiqueta_ids', []))
+        );
+
+        DB::transaction(function () use ($ids, $datos, $etiquetaIds) {
             foreach ($ids as $visitadorId) {
-                Evento::create($datos + ['visitador_id' => $visitadorId]);
+                $evento = Evento::create($datos + ['visitador_id' => $visitadorId]);
+                
+                // Asignar las etiquetas en la tabla pivote
+                if (!empty($etiquetaIds)) {
+                    $evento->etiquetas()->sync($etiquetaIds);
+                }
             }
         });
 
@@ -153,16 +190,19 @@ class EventosController extends Controller
             'fecha_fin_real'       => 'nullable|date',
             'estado'               => 'required|in:programado,realizado,cancelado',
             'etiquetas'            => 'nullable|array',
-            'etiquetas.*'          => 'nullable|string|max:50',
+            'etiqueta_ids'         => 'nullable|array',
         ]);
 
-        $etiquetas = [];
-        if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {
-            $etiquetas = array_values(array_filter(array_map('trim', $validated['etiquetas'])));
-        }
-        $validated['etiquetas'] = $etiquetas;
+        $etiquetaIds = $this->resolverEtiquetaIds(
+            $request->input('etiquetas', $request->input('etiqueta_ids', []))
+        );
 
-        $evento->update($validated);
+        DB::transaction(function () use ($evento, $validated, $etiquetaIds) {
+            $evento->update(collect($validated)->except(['etiquetas', 'etiqueta_ids'])->all());
+
+            // Actualizar la relación en la tabla pivote
+            $evento->etiquetas()->sync($etiquetaIds);
+        });
 
         return back()->with('success', 'Actividad actualizada correctamente.');
     }

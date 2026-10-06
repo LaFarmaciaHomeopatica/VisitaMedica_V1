@@ -267,6 +267,7 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
 
                 Route::get('/panel/odoo-stats', [VisitadorController::class, 'odooStats'])->name('panel.odoo-stats');
 
+
                 // Ubicación en tiempo real del visitador
             Route::post('/visitador/ubicacion', [UbicacionController::class, 'actualizar'])
                 ->middleware('throttle:30,1')
@@ -277,8 +278,24 @@ Route::middleware(['auth', 'verified'])->prefix('odoo')->name('odoo.')->group(fu
     Route::patch('/medicos/{medico}/observaciones', [Medico2Controller::class, 'actualizarObservaciones'])
         ->name('Gmedicos.observaciones');
 
+    // Gestión de Etiquetas (Admin y Visitador)
+    Route::post('/etiquetas', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:50',
+            'color'  => 'nullable|string|max:7',
+        ]);
 
-        
+        $etiqueta = \App\Models\Etiqueta::firstOrCreate(
+            ['nombre' => trim($validated['nombre'])],
+            ['color' => $validated['color'] ?? null]
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json($etiqueta);
+        }
+
+        return back()->with('success', 'Etiqueta creada.');
+    })->name('etiquetas.store');
 
     /*
     |---------------------------------------------------------------------------------

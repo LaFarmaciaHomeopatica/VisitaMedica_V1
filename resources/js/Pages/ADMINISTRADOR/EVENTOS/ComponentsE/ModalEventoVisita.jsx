@@ -130,6 +130,7 @@ export default function ModalEventoVisita({
     isEditing = false,
     visitadores = [],
     productos = [],
+    etiquetas = [],
     // Props para Visita
     visitaData,
     setVisitaData,
@@ -192,10 +193,12 @@ export default function ModalEventoVisita({
 
     // Este useMemo DEBE estar antes del early return (regla de hooks de React)
     const sugerenciasEtiquetas = useMemo(() => {
-        const base = ETIQUETAS_PREDEFINIDAS || [];
+        const catalogo = (etiquetas || [])
+            .map((e) => (typeof e === 'object' && e !== null ? e.nombre : e))
+            .filter(Boolean);
         const actuales = normalizarEtiquetas(eventoData?.etiquetas);
-        return Array.from(new Set([...base, ...actuales]));
-    }, [eventoData?.etiquetas]);
+        return Array.from(new Set([...catalogo, ...actuales]));
+    }, [etiquetas, eventoData?.etiquetas]);
 
     if (!isOpen) return null;
 
@@ -551,26 +554,32 @@ export default function ModalEventoVisita({
                                 </label>
                                 
                                 {/* Pills sugeridas e interactivas */}
-                                <div className="flex flex-wrap gap-1.5 mb-2.5">
-                                    {sugerenciasEtiquetas.map((tag) => {
-                                        const seleccionada = (eventoData.etiquetas || []).includes(tag);
-                                        return (
-                                            <button
-                                                key={tag}
-                                                type="button"
-                                                onClick={() => toggleEtiqueta(tag)}
-                                                className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
-                                                    seleccionada
-                                                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
-                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
-                                                }`}
-                                            >
-                                                <span>{seleccionada ? '✓' : '+'}</span>
-                                                <span>{tag}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                {sugerenciasEtiquetas.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                                        {sugerenciasEtiquetas.map((tag) => {
+                                            const seleccionada = (eventoData.etiquetas || []).includes(tag);
+                                            return (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => toggleEtiqueta(tag)}
+                                                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
+                                                        seleccionada
+                                                            ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
+                                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{seleccionada ? '✓' : '+'}</span>
+                                                    <span>{tag}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-slate-400 italic mb-2">
+                                        No hay etiquetas creadas todavía. Escribe una nueva abajo para agregarla.
+                                    </p>
+                                )}
 
                                 <div className="flex gap-2">
                                     <input

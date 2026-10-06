@@ -16,23 +16,26 @@ export const ETIQUETA_ESTADO = {
     cancelado: 'Cancelado',
 };
 
-export const ETIQUETAS_PREDEFINIDAS = [
-    'Capacitación',
-    'Congreso',
-    'Reunión de Ciclo',
-    'Lanzamiento',
-    'Comercial',
-    'Importante',
-    'VIP',
-];
+export const ETIQUETAS_PREDEFINIDAS = [];
 
 export const normalizarEtiquetas = (tags) => {
     if (!tags) return [];
-    if (Array.isArray(tags)) return tags.filter((t) => typeof t === 'string' ? t.trim() : Boolean(t));
+    if (Array.isArray(tags)) {
+        return tags
+            .map((item) => {
+                if (typeof item === 'object' && item !== null) {
+                    return item.nombre || item.name || item.tag || '';
+                }
+                return String(item ?? '').trim();
+            })
+            .filter((t) => typeof t === 'string' && t.trim().length > 0);
+    }
     if (typeof tags === 'string') {
         try {
             const parsed = JSON.parse(tags);
-            if (Array.isArray(parsed)) return parsed.filter((t) => typeof t === 'string' ? t.trim() : Boolean(t));
+            if (Array.isArray(parsed)) {
+                return normalizarEtiquetas(parsed);
+            }
             return [parsed].filter(Boolean);
         } catch {
             return tags.split(',').map((s) => s.trim()).filter(Boolean);

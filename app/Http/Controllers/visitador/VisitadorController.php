@@ -85,11 +85,12 @@ class VisitadorController extends Controller
 
         // 4️⃣ Actividades / Eventos próximos del visitador (solo pendientes / programados)
         $actividadesProximas = $visitador
-            ? \App\Models\Evento::where('visitador_id', $visitador->id)
+            ? \App\Models\Evento::with('etiquetas:id,nombre,color') // 👈 Carga la relación Many-to-Many
+                ->where('visitador_id', $visitador->id)
                 ->whereNotIn('estado', ['realizado', 'cancelado', 'completado'])
                 ->where('fecha_programada', '>=', now()->startOfDay())
                 ->orderBy('fecha_programada', 'asc')
-                ->select('id', 'nombre_evento', 'comentario', 'ubicacion', 'fecha_programada', 'fecha_fin_programada', 'estado', 'etiquetas')
+                ->select('id', 'nombre_evento', 'comentario', 'ubicacion', 'fecha_programada', 'fecha_fin_programada', 'estado') // 👈 Se eliminó 'etiquetas' de la columna del select
                 ->get()
             : collect();
 
@@ -137,66 +138,66 @@ class VisitadorController extends Controller
      * autenticado, para el mes indicado.
      */
     public function odooStats(Request $request)
-{
-    $visitador = Visitador::where('usuario_id', Auth::id())->first();
+    {
+        $visitador = Visitador::where('usuario_id', Auth::id())->first();
 
-    if (!$visitador) {
-        return response()->json(['error' => 'Visitador no encontrado'], 404);
-    }
-
-    $mesInput = $request->input('mes', Carbon::now()->format('m'));
-    $anioInput = $request->input('anio', Carbon::now()->format('Y'));
-
-    // Si viene en formato "07", le anteponemos el año actual/seleccionado para formar "YYYY-MM"
-    if (strlen($mesInput) <= 2) {
-        $mes = "{$anioInput}-" . str_pad($mesInput, 2, '0', STR_PAD_LEFT);
-    } else {
-        $mes = $mesInput;
-    }
-
-    $forzar = $request->boolean('forzar');
-    $cacheKey = "odoo_stats_panel_{$visitador->id}_{$mes}";
-
-    if ($forzar) {
-        Cache::forget($cacheKey);
-    }
-
-    $yaEnCache = Cache::has($cacheKey);
-
-    $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($visitador, $mes) {
-        // Ahora $mes siempre es 'YYYY-MM', por lo que Carbon::parse no fallará
-        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
-        $fin    = $inicio->copy()->endOfMonth();
-
-        $documentos = $visitador->medicos()
-            ->whereNotNull('documento')
-            ->where('documento', '!=', '')
-            ->pluck('documento')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $valorComprado  = 0;
-        $valorFormulado = 0;
-
-        if (!empty($documentos)) {
-            $resumenOdoo = $this->odoo->obtenerResumenAdmin(
-                $documentos,
-                $inicio->format('Y-m-d'),
-                $fin->format('Y-m-d')
-            );
-            $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
-            $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
+        if (!$visitador) {
+            return response()->json(['error' => 'Visitador no encontrado'], 404);
         }
 
-        return [
-            'valor_comprado'  => $valorComprado,
-            'valor_formulado' => $valorFormulado,
-            'actualizado_en'  => now()->toIso8601String(),
-        ];
-    });
+        $mesInput = $request->input('mes', Carbon::now()->format('m'));
+        $anioInput = $request->input('anio', Carbon::now()->format('Y'));
 
-    return response()->json($payload + ['desde_cache' => $yaEnCache]);
-}
+        // Si viene en formato "07", le anteponemos el año actual/seleccionado para formar "YYYY-MM"
+        if (strlen($mesInput) <= 2) {
+            $mes = "{$anioInput}-" . str_pad($mesInput, 2, '0', STR_PAD_LEFT);
+        } else {
+            $mes = $mesInput;
+        }
+
+        $forzar = $request->boolean('forzar');
+        $cacheKey = "odoo_stats_panel_{$visitador->id}_{$mes}";
+
+        if ($forzar) {
+            Cache::forget($cacheKey);
+        }
+
+        $yaEnCache = Cache::has($cacheKey);
+
+        $payload = Cache::remember($cacheKey, now()->addHours(4), function () use ($visitador, $mes) {
+            // Ahora $mes siempre es 'YYYY-MM', por lo que Carbon::parse no fallará
+            $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+            $fin    = $inicio->copy()->endOfMonth();
+
+            $documentos = $visitador->medicos()
+                ->whereNotNull('documento')
+                ->where('documento', '!=', '')
+                ->pluck('documento')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $valorComprado  = 0;
+            $valorFormulado = 0;
+
+            if (!empty($documentos)) {
+                $resumenOdoo = $this->odoo->obtenerResumenAdmin(
+                    $documentos,
+                    $inicio->format('Y-m-d'),
+                    $fin->format('Y-m-d')
+                );
+                $valorComprado  = (float) ($resumenOdoo['total_valor_comprado'] ?? 0);
+                $valorFormulado = (float) ($resumenOdoo['total_valor_formulado'] ?? 0);
+            }
+
+            return [
+                'valor_comprado'  => $valorComprado,
+                'valor_formulado' => $valorFormulado,
+                'actualizado_en'  => now()->toIso8601String(),
+            ];
+        });
+
+        return response()->json($payload + ['desde_cache' => $yaEnCache]);
+    }
 }

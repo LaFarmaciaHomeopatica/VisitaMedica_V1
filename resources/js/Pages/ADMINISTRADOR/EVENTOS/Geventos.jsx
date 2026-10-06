@@ -11,7 +11,7 @@ import ModalEventoVisita from './ComponentsE/ModalEventoVisita';
 import EventoDetalleModal from './ComponentsE/EventoDetalleModal';
 import VisitaDetalleModal from './ComponentsE/VisitaDetalleModal';
 
-const EventosIndex = ({ auth = {}, eventos = [], visitas = [], visitadores = [], productos = [] }) => {
+const EventosIndex = ({ auth = {}, eventos = [], visitas = [], visitadores = [], productos = [], etiquetas = [] }) => {
     const form = useEventoForm();
 
     // Normaliza la lista de eventos soportando paginación de Inertia/Laravel o arrays simples
@@ -82,6 +82,7 @@ const EventosIndex = ({ auth = {}, eventos = [], visitas = [], visitadores = [],
                 isEditing={form.isEditing}
                 visitadores={visitadores}
                 productos={productos}
+                etiquetas={etiquetas}
                 // Visita
                 visitaData={form.visitaData}
                 setVisitaData={form.setVisitaData}

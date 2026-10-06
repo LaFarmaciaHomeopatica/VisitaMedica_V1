@@ -6,30 +6,25 @@ import {
     addWeeks, subWeeks, parseISO,
 } from 'date-fns';
 
-export const ETIQUETAS_PREDEFINIDAS = [
-    'Capacitación',
-    'Congreso',
-    'Reunión de Ciclo',
-    'Lanzamiento',
-    'Comercial',
-    'Importante',
-    'VIP',
-];
+export const ETIQUETAS_PREDEFINIDAS = [];
 
 export const normalizarEtiquetas = (tags) => {
     if (!tags) return [];
     if (Array.isArray(tags)) {
         return tags
-            .map((item) => (typeof item === 'object' && item !== null ? (item.nombre || item.tag || '') : String(item)))
+            .map((item) => {
+                if (typeof item === 'object' && item !== null) {
+                    return item.nombre || item.name || item.tag || '';
+                }
+                return String(item ?? '').trim();
+            })
             .filter((t) => typeof t === 'string' && t.trim().length > 0);
     }
     if (typeof tags === 'string') {
         try {
             const parsed = JSON.parse(tags);
             if (Array.isArray(parsed)) {
-                return parsed
-                    .map((item) => (typeof item === 'object' && item !== null ? (item.nombre || item.tag || '') : String(item)))
-                    .filter((t) => typeof t === 'string' && t.trim().length > 0);
+                return normalizarEtiquetas(parsed);
             }
             return [parsed].filter(Boolean);
         } catch {
@@ -184,7 +179,7 @@ export const useMisVisitas = (visitasDB = [], eventosDB = [], doctores = []) => 
         setModalGestionVisitaAbierto(true);
     };
 
-    // 🎯 INTERCEPTOR CLAVE: CAPTURA LA URL AL LLEGAR A MISVISITAS
+    // Interceptor URL para auto-abrir modal al redirigir
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const actividadIdFromUrl = params.get('actividad_id');
@@ -206,7 +201,6 @@ export const useMisVisitas = (visitasDB = [], eventosDB = [], doctores = []) => 
                     }
                     abrirGestionEvento(eventoACompletar);
 
-                    // Limpia los query params sin recargar la página
                     const url = new URL(window.location.href);
                     url.searchParams.delete('actividad_id');
                     url.searchParams.delete('tab');
