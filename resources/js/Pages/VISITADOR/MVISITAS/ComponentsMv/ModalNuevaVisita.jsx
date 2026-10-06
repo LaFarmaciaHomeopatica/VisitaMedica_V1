@@ -36,12 +36,12 @@ const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
     // Filtrar productos por nombre o código (Hook incondicional en el nivel superior)
     const filteredProducts = useMemo(() => {
         const query = searchTerm.toString().toLowerCase().trim();
-        if (!query || query === (logic.formNuevaVisita.data.muestras || '').toLowerCase()) return [];
-        return productos
+        if (!query || query === (logic.formNuevaVisita.data.muestras || '').toString().toLowerCase()) return [];
+        return (productos || [])
             .filter(
                 (p) =>
-                    p.nombre?.toLowerCase().includes(query) ||
-                    p.codigo?.toLowerCase().includes(query)
+                    String(p.nombre ?? '').toLowerCase().includes(query) ||
+                    String(p.codigo ?? '').toLowerCase().includes(query)
             )
             .slice(0, 8);
     }, [searchTerm, productos, logic.formNuevaVisita.data.muestras]);
@@ -276,9 +276,9 @@ const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => {
+                                    // Solo actualiza el buscador; 'muestras' se guarda al seleccionar o al hacer clic fuera
                                     setSearchTerm(e.target.value);
                                     setShowResults(true);
-                                    logic.formNuevaVisita.setData('muestras', e.target.value);
                                 }}
                                 onFocus={() => setShowResults(true)}
                                 placeholder="Buscar por código o nombre..."
@@ -380,7 +380,7 @@ const ModalNuevaVisita = ({ logic, doctores = [], productos = [] }) => {
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                                 Etiquetas
                             </label>
-                            
+
                             {/* Pills sugeridas e interactivas */}
                             <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
                                 {sugerenciasEtiquetas.map((tag) => {

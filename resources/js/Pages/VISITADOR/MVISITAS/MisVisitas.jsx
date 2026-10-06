@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { FaPlus, FaArrowLeft, FaMagnifyingGlass, FaCalendarCheck } from 'react-icons/fa6';
 import BarraNave from '../barranave';
@@ -12,13 +12,40 @@ import ModalGestionarEvento from './ComponentsMv/ModalGestionarEvento';
 
 const MisVisitas = ({ visitas: visitasDB = [], eventos: eventosDB = [], medicosDisponibles = [], productos = [] }) => {
     const logic = useMisVisitas(visitasDB, eventosDB, medicosDisponibles);
+
+    // Auto-abrir modal y seleccionar el médico cuando viene desde la URL (?medico_id=X)
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawMedicoId = urlParams.get('medico_id');
+
+        if (rawMedicoId) {
+            // Buscamos si existe el médico para matchear exactamente el ID (number o string)
+            const medicoEncontrado = (medicosDisponibles || []).find(
+                (doc) => String(doc.id) === String(rawMedicoId)
+            );
+
+            const targetId = medicoEncontrado ? medicoEncontrado.id : rawMedicoId;
+
+            // 1. Establecemos la pestaña 'visita' y abrimos el modal directamente (sin resetear)
+            if (typeof logic.setTipoNuevoModal === 'function') {
+                logic.setTipoNuevoModal('visita');
+            }
+            logic.setModalNuevoAbierto(true);
+
+            // 2. Asignamos el id al formulario tras montar el modal
+            setTimeout(() => {
+                logic.formNuevaVisita.setData('medico_id', targetId);
+            }, 50);
+        }
+    }, [medicosDisponibles]);
+
     const overlayVisible = logic.modalNuevoAbierto || logic.modalGestionVisitaAbierto || logic.modalGestionEventoAbierto;
 
     return (
         <>
             <Head title="Mi Agenda - LFH" />
 
-            {/* ✅ Header en su propio root — sin ningún padre que lo contenga, fixed puro */}
+            {/* Header en su propio root — sin ningún padre que lo contenga, fixed puro */}
             <header className="fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md shadow-sm rounded-b-[30px] md:rounded-b-[40px] border-b border-white/20">
                 <div className="max-w-[1440px] mx-auto p-4 md:p-6">
                     <div className="flex items-center gap-3 md:gap-6">

@@ -8,6 +8,7 @@ use App\Models\Visita;
 use App\Models\Visitador;
 use App\Models\Productos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
@@ -71,9 +72,7 @@ class EventosController extends Controller
     }
 
     /**
-     * Crea el evento para varios visitadores (o todos) a la vez.
-     * Se crea un registro por visitador. Si alguno tiene el horario ocupado,
-     * no se crea ninguno y se informa quiénes están ocupados.
+     * Crea el evento para varios visitadores (o todos) a la vez sin validar cruce de horarios.
      */
     public function store(Request $request)
     {
@@ -101,23 +100,6 @@ class EventosController extends Controller
             return back()->withErrors([
                 'visitadores_ids' => 'Selecciona al menos un visitador o marca "Todos".'
             ])->withInput();
-        }
-
-        if ($validated['estado'] !== 'cancelado') {
-            $ocupados = $this->visitadoresOcupados(
-                $ids,
-                $validated['fecha_programada'],
-                $validated['fecha_fin_programada']
-            );
-
-            if (!empty($ocupados)) {
-                $nombres = Visitador::whereIn('id', $ocupados)->orderBy('nombre')->pluck('nombre')->implode(', ');
-
-                return back()->withErrors([
-                    'fecha_programada' => "Estos visitadores ya tienen una actividad en ese horario: {$nombres}. "
-                        . 'Quítalos de la selección, cambia el horario o reprograma/cancela su actividad.'
-                ])->withInput();
-            }
         }
 
         $etiquetas = [];
@@ -152,7 +134,7 @@ class EventosController extends Controller
     }
 
     /**
-     * Actualiza un evento individual (de un solo visitador).
+     * Actualiza un evento individual sin validar cruce de horarios.
      */
     public function update(Request $request, $id)
     {
@@ -173,23 +155,6 @@ class EventosController extends Controller
             'etiquetas'            => 'nullable|array',
             'etiquetas.*'          => 'nullable|string|max:50',
         ]);
-
-        // Un evento cancelado libera el horario, por eso no se valida cruce.
-        if ($validated['estado'] !== 'cancelado') {
-            $ocupados = $this->visitadoresOcupados(
-                [(int) $validated['visitador_id']],
-                $validated['fecha_programada'],
-                $validated['fecha_fin_programada'],
-                $evento->id
-            );
-
-            if (!empty($ocupados)) {
-                return back()->withErrors([
-                    'fecha_programada' => 'El visitador ya tiene una actividad en ese horario. '
-                        . 'Cambia el horario o reprograma/cancela la otra actividad.'
-                ]);
-            }
-        }
 
         $etiquetas = [];
         if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {
@@ -222,25 +187,5 @@ class EventosController extends Controller
         Evento::whereIn('id', $request->ids)->delete();
 
         return back()->with('success', 'Actividades eliminadas correctamente.');
-    }
-
-    /**
-     * IDs de visitadores ocupados en el rango: con otro evento activo
-     * o con una visita programada dentro del rango.
-     * Las visitas canceladas o reprogramadas no bloquean.
-     */
-    private function visitadoresOcupados(array $ids, $inicio, $fin, $ignorarEventoId = null): array
-    {
-        $porEventos = Evento::visitadoresOcupados($ids, $inicio, $fin, $ignorarEventoId);
-
-        $porVisitas = Visita::whereIn('visitador_id', $ids)
-            ->whereNotIn('estado', ['cancelada', 'reprogramada'])
-            ->where('fecha_programada', '>=', $inicio)
-            ->where('fecha_programada', '<', $fin)
-            ->pluck('visitador_id')
-            ->unique()
-            ->all();
-
-        return array_values(array_unique(array_merge($porEventos, $porVisitas)));
     }
 }

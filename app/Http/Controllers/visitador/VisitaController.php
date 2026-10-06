@@ -9,6 +9,7 @@ use App\Models\Visitador;
 use App\Models\Evento;
 use App\Models\Productos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
@@ -72,7 +73,6 @@ class VisitaController extends Controller
                 'required',
                 Rule::exists('medicos', 'id')->where(fn ($q) => $q->where('visitador_id', $visitador->id)),
             ],
-           
             'fecha_programada'   => 'required|date',
             'fecha_realizada'    => 'nullable|date',
             'estado'             => 'required|in:sin programar,programada,efectiva,No contactado,reprogramada,cancelada',
@@ -80,27 +80,6 @@ class VisitaController extends Controller
             'comentario_muestra' => 'nullable|string',
             'comentarios'        => 'nullable|string',
         ]);
-
-        // --- DETECCIÓN DE CRUCES ---
-        $inicioRango = date('Y-m-d H:i:s', strtotime($request->fecha_programada . ' -29 minutes'));
-        $finRango    = date('Y-m-d H:i:s', strtotime($request->fecha_programada . ' +29 minutes'));
-
-        $cruce = Visita::with('medico')
-            ->whereBetween('fecha_programada', [$inicioRango, $finRango])
-            ->where(function($q) use ($visitador, $request) {
-                $q->where('visitador_id', $visitador->id)
-                  ->orWhere('medico_id', $request->medico_id);
-            })
-            ->first();
-
-        if ($cruce) {
-            $nombreConflicto = $cruce->medico->nombre;
-            $horaConflicto = date('g:i A', strtotime($cruce->fecha_programada));
-            
-            return back()->withErrors([
-                'fecha_programada' => "Conflicto de horario: Ya existe una cita a las {$horaConflicto} con el Dr. {$nombreConflicto}."
-            ]);
-        }
 
         Visita::create([
             'medico_id'          => $request->medico_id,
@@ -182,7 +161,12 @@ class VisitaController extends Controller
         if ($visita->estado === 'efectiva') {
             return back()->withErrors(['estado' => 'Esta visita ya fue completada como efectiva y no puede ser reprogramada.']);
         }
-        
+
+        $request->validate([
+            'fecha_programada' => 'required|date',
+            'fecha_realizada'  => 'nullable|date',
+        ]);
+
         $visita->update([
             'fecha_programada' => $request->fecha_programada,
             'fecha_realizada'  => $request->fecha_realizada ?? $request->fecha_programada,
@@ -213,21 +197,6 @@ class VisitaController extends Controller
             'etiquetas'            => 'nullable|array',
             'etiquetas.*'          => 'nullable|string|max:50',
         ]);
-
-        // Detección de cruces con otras actividades activas del visitador
-        $ocupado = Evento::where('visitador_id', $visitador->id)
-            ->where('estado', '!=', 'cancelado')
-            ->where(function ($q) use ($validated) {
-                $q->whereBetween('fecha_programada', [$validated['fecha_programada'], $validated['fecha_fin_programada']])
-                  ->orWhereBetween('fecha_fin_programada', [$validated['fecha_programada'], $validated['fecha_fin_programada']]);
-            })
-            ->exists();
-
-        if ($ocupado) {
-            return back()->withErrors([
-                'fecha_programada' => 'Ya tienes una actividad en ese rango de horario.'
-            ])->withInput();
-        }
 
         $etiquetas = [];
         if (!empty($validated['etiquetas']) && is_array($validated['etiquetas'])) {

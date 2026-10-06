@@ -26,9 +26,9 @@ class VisitasController extends Controller
                 'medico_id',
                 'fecha_programada',
                 'fecha_realizada',
-                'fecha_fin_real',   // <-- agregado
-                'latitud',          // <-- agregado
-                'longitud',         // <-- agregado
+                'fecha_fin_real',
+                'latitud',
+                'longitud',
                 'estado',
                 'comentarios',
                 'muestras',
@@ -40,10 +40,6 @@ class VisitasController extends Controller
             ])
             ->orderBy('id', 'desc')
             ->get(),
-
-            // 'medicos' ya NO se carga completo aquí (son 5000+ registros).
-            // Se obtiene bajo demanda vía medicosPorVisitador() cuando el
-            // usuario elige un visitador en el modal de crear/editar visita.
 
             'visitadores' => Visitador::select('id', 'nombre')->get(),
 
@@ -74,7 +70,7 @@ class VisitasController extends Controller
     }
 
     /**
-     * Almacena una nueva visita con validación de relación y disponibilidad.
+     * Almacena una nueva visita.
      */
     public function store(Request $request)
     {
@@ -94,26 +90,13 @@ class VisitasController extends Controller
             'comentario_muestra' => 'nullable|string',
         ]);
 
-        $existeCruce = Visita::where('fecha_programada', $request->fecha_programada)
-            ->where(function ($query) use ($request) {
-                $query->where('visitador_id', $request->visitador_id)
-                      ->orWhere('medico_id', $request->medico_id);
-            })
-            ->exists();
-
-        if ($existeCruce) {
-            return back()->withErrors([
-                'fecha_programada' => 'El visitador o el médico ya tienen una cita programada para este momento.'
-            ])->withInput();
-        }
-
         Visita::create($validated);
 
         return back()->with('success', 'Visita creada correctamente.');
     }
 
     /**
-     * Actualiza una visita existente con validación de disponibilidad.
+     * Actualiza una visita existente.
      */
     public function update(Request $request, $id)
     {
@@ -134,20 +117,6 @@ class VisitasController extends Controller
             'muestras'           => 'nullable|string',
             'comentario_muestra' => 'nullable|string',
         ]);
-
-        $existeCruce = Visita::where('id', '!=', $id)
-            ->where('fecha_programada', $request->fecha_programada)
-            ->where(function ($query) use ($request) {
-                $query->where('visitador_id', $request->visitador_id)
-                      ->orWhere('medico_id', $request->medico_id);
-            })
-            ->exists();
-
-        if ($existeCruce) {
-            return back()->withErrors([
-                'fecha_programada' => 'Esta fecha y hora ya están ocupadas.'
-            ]);
-        }
 
         $visita->update($validated);
 
@@ -173,37 +142,35 @@ class VisitasController extends Controller
         return back()->with('success', 'Visitas eliminadas correctamente.');
     }
 
-
-
     /**
- * Muestra la vista del mapa de calor con las coordenadas registradas.
- */
-public function mapaCalor()
-{
-   $puntos = Visita::whereNotNull('latitud')
-    ->whereNotNull('longitud')
-    ->select('id', 'latitud', 'longitud', 'fecha_programada', 'fecha_realizada', 'visitador_id', 'medico_id')
-    ->with([
-        'medico:id,nombre',
-        'visitador:id,nombre'
-    ])
-    ->get()
-    ->map(function ($v) {
-        return [
-            'id'               => $v->id,
-            'lat'              => (float) $v->latitud,
-            'lng'              => (float) $v->longitud,
-            'visitador_id'     => $v->visitador_id,
-            'medico'           => $v->medico ? $v->medico->nombre : 'Sin médico',
-            'visitador'        => $v->visitador ? $v->visitador->nombre : 'Sin visitador',
-            'fecha_programada' => $v->fecha_programada,
-            'fecha_realizada'  => $v->fecha_realizada,
-        ];
-    });
+     * Muestra la vista del mapa de calor con las coordenadas registradas.
+     */
+    public function mapaCalor()
+    {
+        $puntos = Visita::whereNotNull('latitud')
+            ->whereNotNull('longitud')
+            ->select('id', 'latitud', 'longitud', 'fecha_programada', 'fecha_realizada', 'visitador_id', 'medico_id')
+            ->with([
+                'medico:id,nombre',
+                'visitador:id,nombre'
+            ])
+            ->get()
+            ->map(function ($v) {
+                return [
+                    'id'               => $v->id,
+                    'lat'              => (float) $v->latitud,
+                    'lng'              => (float) $v->longitud,
+                    'visitador_id'     => $v->visitador_id,
+                    'medico'           => $v->medico ? $v->medico->nombre : 'Sin médico',
+                    'visitador'        => $v->visitador ? $v->visitador->nombre : 'Sin visitador',
+                    'fecha_programada' => $v->fecha_programada,
+                    'fecha_realizada'  => $v->fecha_realizada,
+                ];
+            });
 
-    return Inertia::render('ADMINISTRADOR/VISITAS/MapaCalorVisitas', [
-        'puntos'      => $puntos,
-        'visitadores' => \App\Models\Visitador::select('id', 'nombre')->orderBy('nombre', 'asc')->get(),
-    ]);
-}
+        return Inertia::render('ADMINISTRADOR/VISITAS/MapaCalorVisitas', [
+            'puntos'      => $puntos,
+            'visitadores' => \App\Models\Visitador::select('id', 'nombre')->orderBy('nombre', 'asc')->get(),
+        ]);
+    }
 }
