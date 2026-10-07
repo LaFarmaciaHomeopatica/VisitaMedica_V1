@@ -87,14 +87,34 @@ const ActividadesTab = ({ actividades = [], irAEjecutarActividad }) => {
                                         {/* Etiquetas */}
                                         {etiquetas.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                                {etiquetas.slice(0, 3).map((tag, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="text-[9px] bg-indigo-50 text-indigo-500 font-bold px-1.5 py-0.5 rounded-full border border-indigo-100"
-                                                    >
-                                                        {tag}
-                                                    </span>
-                                                ))}
+                                                {etiquetas.slice(0, 3).map((tag, i) => {
+                                                    // La etiqueta puede venir como string o como objeto {id, nombre, color, pivot}
+                                                    const esObjeto = tag !== null && typeof tag === 'object';
+                                                    const texto = esObjeto ? tag.nombre : tag;
+                                                    const color = esObjeto ? tag.color : null;
+
+                                                    return (
+                                                        <span
+                                                            key={esObjeto && tag.id ? tag.id : i}
+                                                            style={
+                                                                color
+                                                                    ? {
+                                                                          backgroundColor: `${color}20`,
+                                                                          color: color,
+                                                                          borderColor: `${color}40`,
+                                                                      }
+                                                                    : undefined
+                                                            }
+                                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                                                color
+                                                                    ? ''
+                                                                    : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                                                            }`}
+                                                        >
+                                                            {texto}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         )}
 
